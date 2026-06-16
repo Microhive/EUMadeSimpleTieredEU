@@ -265,7 +265,6 @@ h1 {
   content: "";
   border: 3px solid rgba(8, 11, 15, 0.25);
   border-radius: 50%;
-  animation: ringSpin 9s linear infinite;
 }
 
 .tier-card.is-active,
@@ -471,6 +470,7 @@ button.country-chip {
 
 .map-wrap {
   position: relative;
+  contain: layout paint;
   min-height: 700px;
   overflow: hidden;
   background:
@@ -490,14 +490,11 @@ button.country-chip {
   content: "";
   border: 2px solid rgba(255, 248, 238, 0.16);
   border-radius: 50%;
-  animation: slowOrbit 22s linear infinite;
 }
 
 .map-wrap::after {
   inset: 110px;
   border-color: rgba(240, 184, 0, 0.22);
-  animation-duration: 34s;
-  animation-direction: reverse;
 }
 
 #mapSvg {
@@ -520,10 +517,8 @@ button.country-chip {
   stroke: rgba(2, 52, 95, 0.78);
   stroke-linejoin: round;
   stroke-width: 0.42;
-  transition:
-    fill 180ms ease,
-    opacity 180ms ease,
-    stroke-width 180ms ease;
+  shape-rendering: optimizeSpeed;
+  transition: fill 120ms ease;
 }
 
 .country.tier-inner {
@@ -550,13 +545,11 @@ button.country-chip {
   opacity: 1;
   stroke: var(--gold);
   stroke-width: 1.7;
-  filter: drop-shadow(0 0 8px rgba(240, 184, 0, 0.7));
 }
 
 .country.is-selected {
   stroke: var(--white);
   stroke-width: 2.2;
-  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.85));
 }
 
 .connection {
@@ -566,7 +559,6 @@ button.country-chip {
   stroke-linecap: round;
   stroke-width: 1.8;
   opacity: 0.78;
-  animation: dashFlow 1100ms linear infinite;
 }
 
 .hub-dot,
@@ -594,7 +586,6 @@ button.country-chip {
   width: min(340px, calc(100% - 36px));
   padding: 18px;
   background: rgba(255, 248, 238, 0.94);
-  backdrop-filter: blur(8px);
 }
 
 .country-card h2 {
@@ -708,48 +699,12 @@ button.country-chip {
   font-weight: 800;
 }
 
-.is-loading .map-wrap::before {
-  animation-duration: 4s;
-}
-
 .focus-ring {
   pointer-events: none;
   fill: none;
   stroke: rgba(240, 184, 0, 0.52);
   stroke-width: 2;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: mapPulse 1600ms ease-out infinite;
-}
-
-@keyframes slowOrbit {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes ringSpin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes dashFlow {
-  to {
-    stroke-dashoffset: -32;
-  }
-}
-
-@keyframes mapPulse {
-  0% {
-    opacity: 0.9;
-    transform: scale(0.74);
-  }
-
-  100% {
-    opacity: 0;
-    transform: scale(1.26);
-  }
+  opacity: 0.72;
 }
 
 @media (max-width: 1180px) {
