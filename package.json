@@ -8,6 +8,9 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1"
   },
+  "dependencies": {
+    "circle-flags": "https://github.com/HatScripts/circle-flags"
+  },
   "devDependencies": {
     "vite": "^8.0.16"
   },

@@ -367,16 +367,19 @@ h1 {
 
 .country-chip {
   display: inline-flex;
-  min-height: 30px;
+  width: 32px;
+  height: 32px;
+  min-height: 0;
   align-items: center;
-  gap: 7px;
-  padding: 5px 8px;
+  justify-content: center;
+  padding: 2px;
   color: inherit;
-  font-size: 0.72rem;
-  line-height: 1;
-  background: rgba(255, 255, 255, 0.78);
-  border: 2px solid rgba(8, 11, 15, 0.72);
-  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.96);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 1px rgba(8, 11, 15, 0.32),
+    2px 2px 0 rgba(0, 0, 0, 0.22);
 }
 
 button.country-chip {
@@ -390,18 +393,12 @@ button.country-chip {
   background: var(--white);
 }
 
-.country-chip::before {
-  display: inline-grid;
-  width: 18px;
-  height: 18px;
-  place-items: center;
-  content: attr(data-code);
-  color: var(--ink);
-  font-size: 0.52rem;
-  font-weight: 950;
-  background: var(--white);
-  border: 2px solid currentColor;
+.chip-flag {
+  display: block;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
+  object-fit: cover;
 }
 
 .tier-card[data-tier="inner"] .country-chip {
@@ -412,19 +409,23 @@ button.country-chip {
 .map-stage {
   position: sticky;
   top: 14px;
-  display: grid;
-  grid-template-rows: auto 1fr;
-  gap: 12px;
+  display: block;
   align-self: start;
   min-height: 760px;
 }
 
 .map-toolbar {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  left: 12px;
+  z-index: 5;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   color: var(--cream);
+  pointer-events: none;
 }
 
 .scene-tabs,
@@ -436,6 +437,11 @@ button.country-chip {
 
 .scene-tabs {
   flex-wrap: wrap;
+}
+
+.scene-tabs,
+.zoom-controls {
+  pointer-events: auto;
 }
 
 .scene-tabs button,
@@ -468,6 +474,15 @@ button.country-chip {
   outline: none;
 }
 
+.scene-separator {
+  width: 2px;
+  height: 32px;
+  margin: 0 2px;
+  background: rgba(255, 248, 238, 0.72);
+  border-radius: 999px;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.42);
+}
+
 .map-wrap {
   position: relative;
   contain: layout paint;
@@ -482,21 +497,6 @@ button.country-chip {
   isolation: isolate;
 }
 
-.map-wrap::before,
-.map-wrap::after {
-  position: absolute;
-  inset: 42px;
-  z-index: -1;
-  content: "";
-  border: 2px solid rgba(255, 248, 238, 0.16);
-  border-radius: 50%;
-}
-
-.map-wrap::after {
-  inset: 110px;
-  border-color: rgba(240, 184, 0, 0.22);
-}
-
 #mapSvg {
   display: block;
   width: 100%;
@@ -509,6 +509,7 @@ button.country-chip {
   fill: none;
   stroke: rgba(255, 248, 238, 0.13);
   stroke-width: 0.7;
+  vector-effect: non-scaling-stroke;
 }
 
 .country {
@@ -518,7 +519,11 @@ button.country-chip {
   stroke-linejoin: round;
   stroke-width: 0.42;
   shape-rendering: optimizeSpeed;
-  transition: fill 120ms ease;
+  transition:
+    fill 120ms ease,
+    filter 180ms ease,
+    stroke 180ms ease;
+  vector-effect: non-scaling-stroke;
 }
 
 .country.tier-inner {
@@ -543,13 +548,17 @@ button.country-chip {
 
 .country.is-highlight {
   opacity: 1;
-  stroke: var(--gold);
-  stroke-width: 1.7;
+  stroke: rgba(255, 244, 168, 0.86);
+  stroke-width: 0.82;
+  animation: country-glow 1.6s ease-in-out infinite alternate;
+  filter:
+    drop-shadow(0 0 1px rgba(255, 255, 255, 0.58))
+    drop-shadow(0 0 4px rgba(240, 184, 0, 0.36));
 }
 
 .country.is-selected {
   stroke: var(--white);
-  stroke-width: 2.2;
+  stroke-width: 1.2;
 }
 
 .connection {
@@ -559,6 +568,7 @@ button.country-chip {
   stroke-linecap: round;
   stroke-width: 1.8;
   opacity: 0.78;
+  vector-effect: non-scaling-stroke;
 }
 
 .hub-dot,
@@ -566,6 +576,7 @@ button.country-chip {
   fill: var(--gold);
   stroke: var(--ink);
   stroke-width: 1.8;
+  vector-effect: non-scaling-stroke;
 }
 
 .country-label {
@@ -576,6 +587,12 @@ button.country-chip {
   stroke-width: 4;
   font-size: 0.78rem;
   font-weight: 900;
+  vector-effect: non-scaling-stroke;
+}
+
+.country-label.is-compact {
+  stroke-width: 1.6;
+  font-size: 0.28rem;
 }
 
 .country-card {
@@ -583,9 +600,16 @@ button.country-chip {
   right: 18px;
   bottom: 18px;
   z-index: 3;
-  width: min(340px, calc(100% - 36px));
-  padding: 18px;
+  width: min(460px, calc(100% - 36px));
+  overflow: visible;
+  padding: 18px 16px 16px;
   background: rgba(255, 248, 238, 0.94);
+}
+
+.country-card .eyebrow {
+  min-height: 24px;
+  margin-bottom: 4px;
+  padding-right: min(220px, 52%);
 }
 
 .country-card h2 {
@@ -594,13 +618,25 @@ button.country-chip {
   line-height: 1.05;
 }
 
+.country-card p {
+  line-height: 1.35;
+}
+
 .country-card .tier-pill {
-  display: inline-flex;
-  margin-bottom: 10px;
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: block;
+  max-width: min(230px, 50%);
+  margin-bottom: 0;
+  overflow: hidden;
   padding: 6px 9px;
   color: var(--ink);
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   font-weight: 900;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   text-transform: uppercase;
   background: var(--sand);
   border: 2px solid var(--ink);
@@ -699,12 +735,265 @@ button.country-chip {
   font-weight: 800;
 }
 
-.focus-ring {
-  pointer-events: none;
-  fill: none;
-  stroke: rgba(240, 184, 0, 0.52);
-  stroke-width: 2;
-  opacity: 0.72;
+@keyframes country-glow {
+  from {
+    filter:
+      drop-shadow(0 0 1px rgba(255, 255, 255, 0.5))
+      drop-shadow(0 0 2px rgba(255, 255, 255, 0.18));
+  }
+
+  to {
+    filter:
+      drop-shadow(0 0 1px rgba(255, 255, 255, 0.52))
+      drop-shadow(0 0 5px rgba(240, 184, 0, 0.42));
+  }
+}
+
+@media (min-width: 1280px) and (min-height: 850px) {
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .site-shell {
+    display: grid;
+    height: 100svh;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    gap: 10px;
+    padding: 14px 18px 10px;
+  }
+
+  .masthead {
+    min-height: 50px;
+  }
+
+  .brand-mark {
+    width: 44px;
+    height: 44px;
+  }
+
+  .brand strong {
+    font-size: 1rem;
+  }
+
+  .brand small {
+    font-size: 0.78rem;
+  }
+
+  .value-strip span {
+    padding: 6px 10px;
+    font-size: 0.86rem;
+  }
+
+  .infographic {
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: minmax(300px, 0.62fr) minmax(720px, 1.88fr);
+    gap: 18px;
+    margin-top: 0;
+  }
+
+  .story-panel {
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .mission-card {
+    padding: 12px 14px;
+  }
+
+  .mission-card::before {
+    inset: auto -70px -124px auto;
+    width: 220px;
+    height: 220px;
+    border-width: 24px;
+  }
+
+  h1 {
+    max-width: 10ch;
+    margin-bottom: 6px;
+    font-size: 2rem;
+    line-height: 0.96;
+  }
+
+  .mission-card p:not(.eyebrow) {
+    font-size: 0.8rem;
+    line-height: 1.28;
+  }
+
+  .eyebrow {
+    margin-bottom: 6px;
+    font-size: 0.68rem;
+  }
+
+  .tier-deck {
+    min-height: 0;
+    grid-template-rows: repeat(4, minmax(max-content, 1fr));
+    gap: 8px;
+  }
+
+  .tier-card {
+    gap: 5px;
+    overflow: visible;
+    padding: 9px 11px;
+  }
+
+  .tier-card::before {
+    width: 42px;
+    height: 42px;
+    border-width: 2px;
+  }
+
+  .tier-card.is-active,
+  .tier-card:hover,
+  .tier-card:focus-within {
+    transform: translate(-2px, -2px);
+    box-shadow: 10px 10px 0 rgba(0, 0, 0, 0.82);
+  }
+
+  .tier-head {
+    gap: 8px;
+  }
+
+  .tier-number {
+    width: 34px;
+    height: 34px;
+    border-width: 2px;
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.7);
+  }
+
+  .tier-title {
+    font-size: 0.94rem;
+  }
+
+  .tier-meta {
+    margin-top: 3px;
+    font-size: 0.62rem;
+  }
+
+  .tier-summary {
+    font-size: 0.71rem;
+    line-height: 1.2;
+  }
+
+  .capabilities,
+  .country-grid {
+    gap: 4px;
+  }
+
+  .capability {
+    padding: 4px 5px;
+    border-width: 1.5px;
+    font-size: 0.48rem;
+  }
+
+  .country-chip {
+    width: 24px;
+    height: 24px;
+    padding: 1px;
+  }
+
+  .map-stage,
+  .map-wrap,
+  #mapSvg {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .map-stage {
+    position: static;
+    align-self: stretch;
+  }
+
+  .scene-tabs,
+  .zoom-controls {
+    gap: 6px;
+  }
+
+  .scene-tabs button,
+  .zoom-controls button {
+    min-height: 34px;
+    font-size: 0.82rem;
+  }
+
+  .scene-tabs button {
+    padding: 7px 11px;
+  }
+
+  .zoom-controls button {
+    width: 34px;
+  }
+
+  .legend {
+    gap: 6px;
+  }
+
+  .legend-item {
+    padding: 6px 9px;
+    font-size: 0.62rem;
+  }
+
+  .country-card {
+    right: 16px;
+    bottom: 16px;
+    width: min(500px, 44%);
+    padding: 14px 14px 13px;
+  }
+
+  .country-card .eyebrow {
+    min-height: 22px;
+    padding-right: min(210px, 52%);
+  }
+
+  .country-card h2 {
+    font-size: 1.1rem;
+  }
+
+  .country-card p {
+    font-size: 0.82rem;
+    line-height: 1.3;
+  }
+
+  .country-card .tier-pill {
+    top: 12px;
+    right: 12px;
+    max-width: min(220px, 52%);
+    padding: 5px 8px;
+    font-size: 0.58rem;
+  }
+
+  .principles {
+    gap: 12px;
+    margin: 0;
+  }
+
+  .principle-card {
+    padding: 10px 12px;
+  }
+
+  .principle-card span {
+    width: 28px;
+    height: 28px;
+    margin-bottom: 8px;
+    font-size: 0.78rem;
+  }
+
+  .principle-card h2 {
+    margin-bottom: 5px;
+    font-size: 0.96rem;
+  }
+
+  .principle-card p {
+    font-size: 0.78rem;
+    line-height: 1.26;
+  }
+
+  .sources {
+    margin-top: 0;
+    font-size: 0.72rem;
+  }
 }
 
 @media (max-width: 1180px) {
@@ -751,6 +1040,11 @@ button.country-chip {
     flex-direction: column;
   }
 
+  .map-toolbar {
+    right: 10px;
+    left: 10px;
+  }
+
   .value-strip {
     justify-content: flex-start;
   }
@@ -783,6 +1077,8 @@ button.country-chip {
     right: auto;
     bottom: auto;
     width: auto;
+    max-height: none;
+    overflow: visible;
     margin: -128px 12px 12px;
   }
 

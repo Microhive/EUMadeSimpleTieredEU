@@ -44,24 +44,23 @@
         </section>
 
         <section class="map-stage" aria-label="Interactive map">
-          <div class="map-toolbar">
-            <div class="scene-tabs" id="sceneTabs" aria-label="Map focus">
-              <button type="button" data-scene="world" class="is-active">World</button>
-              <button type="button" data-scene="europe">Europe</button>
-              <span class="scene-separator" aria-hidden="true"></span>
-              <button type="button" data-scene="inner">Inner</button>
-              <button type="button" data-scene="eu">EU</button>
-              <button type="button" data-scene="associate">Associate</button>
-              <button type="button" data-scene="friends">Friends</button>
-            </div>
-            <div class="zoom-controls" aria-label="Zoom controls">
-              <button type="button" data-zoom="out" aria-label="Zoom out">-</button>
-              <button type="button" data-zoom="reset" aria-label="Reset zoom">0</button>
-              <button type="button" data-zoom="in" aria-label="Zoom in">+</button>
-            </div>
-          </div>
-
           <div class="map-wrap">
+            <div class="map-toolbar">
+              <div class="scene-tabs" id="sceneTabs" aria-label="Map focus">
+                <button type="button" data-scene="world" class="is-active">World</button>
+                <button type="button" data-scene="europe">Europe</button>
+                <span class="scene-separator" aria-hidden="true"></span>
+                <button type="button" data-scene="inner">Inner</button>
+                <button type="button" data-scene="eu">EU</button>
+                <button type="button" data-scene="associate">Associate</button>
+                <button type="button" data-scene="friends">Friends</button>
+              </div>
+              <div class="zoom-controls" aria-label="Zoom controls">
+                <button type="button" data-zoom="out" aria-label="Zoom out">-</button>
+                <button type="button" data-zoom="reset" aria-label="Reset zoom">0</button>
+                <button type="button" data-zoom="in" aria-label="Zoom in">+</button>
+              </div>
+            </div>
             <svg id="mapSvg" role="img" aria-labelledby="mapTitle mapDesc">
               <title id="mapTitle">World map showing a tiered EU scenario</title>
               <desc id="mapDesc">

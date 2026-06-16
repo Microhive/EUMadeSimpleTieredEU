@@ -14,8 +14,16 @@ const COLORS = {
   friends: "#fff8ee",
 };
 
+const CIRCLE_FLAG_SVGS = import.meta.glob("../node_modules/circle-flags/flags/*.svg", {
+  eager: true,
+  import: "default",
+  query: "?url",
+});
 const MAP_TOPOLOGY_URLS = ["countries-110m.json", "countries-50m.json"];
 const MAX_CONNECTIONS = 12;
+const UKRAINE_ID = "804";
+const CRIMEA_ID = "Crimea";
+const FRANCE_ID = "250";
 const EUROPE_BOUNDS = {
   minLon: -31,
   maxLon: 45,
@@ -53,8 +61,10 @@ const SCENARIO_EXTRA_FEATURES = [
     },
   },
 ];
-const SCENARIO_FEATURE_TIER = new Map([["Crimea", "associate"]]);
-const FEATURE_ALIASES_BY_COUNTRY = new Map([["804", ["Crimea"]]]);
+const SCENARIO_FEATURE_TIER = new Map([[CRIMEA_ID, "associate"]]);
+const FEATURE_ALIASES_BY_COUNTRY = new Map([[UKRAINE_ID, [CRIMEA_ID]]]);
+const PRIMARY_COUNTRY_BY_ALIAS = new Map([[CRIMEA_ID, UKRAINE_ID]]);
+const FLAG_CODE_OVERRIDES = new Map([["UK", "GB"]]);
 
 const tiers = [
   {
@@ -206,7 +216,6 @@ let mapLayer;
 let countryLayer;
 let connectionLayer;
 let labelLayer;
-let focusLayer;
 let tierCardElements = [];
 let countryChipElements = [];
 let geometryCache = new Map();
@@ -228,13 +237,85 @@ function keyForFeature(feature) {
 
 function tierForFeature(feature) {
   const key = keyForFeature(feature);
-  return directTierByCountry.get(key);
+  return (
+    directTierByCountry.get(key) ||
+    SCENARIO_FEATURE_TIER.get(key) ||
+    directTierByCountry.get(canonicalCountryId(key))
+  );
 }
 
-function withScenarioPointFeatures(features) {
+function canonicalCountryId(countryId) {
+  return PRIMARY_COUNTRY_BY_ALIAS.get(countryId) || countryId;
+}
+
+function countryIdsFor(countryId) {
+  const canonicalId = canonicalCountryId(countryId);
+  return [canonicalId, ...(FEATURE_ALIASES_BY_COUNTRY.get(canonicalId) || [])];
+}
+
+function expandedCountryIds(ids) {
+  return ids.flatMap((id) => countryIdsFor(id));
+}
+
+function selectedCountrySet(ids) {
+  return new Set(expandedCountryIds(ids));
+}
+
+function metaForCountry(countryId) {
+  return countryMeta.get(canonicalCountryId(countryId));
+}
+
+function isAliasCountryId(countryId) {
+  return PRIMARY_COUNTRY_BY_ALIAS.has(countryId);
+}
+
+function flagCodeFor(code) {
+  return (FLAG_CODE_OVERRIDES.get(code) || code).toLowerCase();
+}
+
+function flagImageSrc(code) {
+  return CIRCLE_FLAG_SVGS[`../node_modules/circle-flags/flags/${flagCodeFor(code)}.svg`] || "";
+}
+
+function escapeAttribute(value) {
+  return String(value).replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+}
+
+function withScenarioFeatures(features) {
   const existingKeys = new Set(features.map(keyForFeature));
-  const missingFeatures = SCENARIO_POINT_FEATURES.filter((feature) => !existingKeys.has(keyForFeature(feature)));
-  return missingFeatures.length ? features.concat(missingFeatures) : features;
+  const normalizedFeatures = features.map((feature) => {
+    if (keyForFeature(feature) !== FRANCE_ID) return feature;
+    return featureWithEuropeanPolygons(feature);
+  });
+  const missingFeatures = SCENARIO_EXTRA_FEATURES.filter((feature) => !existingKeys.has(keyForFeature(feature)));
+  return missingFeatures.length ? normalizedFeatures.concat(missingFeatures) : normalizedFeatures;
+}
+
+function featureWithEuropeanPolygons(feature) {
+  if (feature.geometry?.type !== "MultiPolygon") return feature;
+
+  const coordinates = feature.geometry.coordinates.filter((polygon) => polygonIntersectsBounds(polygon, EUROPE_BOUNDS));
+  if (!coordinates.length) return feature;
+
+  return {
+    ...feature,
+    geometry: {
+      ...feature.geometry,
+      coordinates,
+    },
+  };
+}
+
+function polygonIntersectsBounds(polygon, bounds) {
+  const points = polygon.flat();
+  const longitudes = points.map(([lon]) => lon);
+  const latitudes = points.map(([, lat]) => lat);
+  return (
+    Math.max(...longitudes) >= bounds.minLon &&
+    Math.min(...longitudes) <= bounds.maxLon &&
+    Math.max(...latitudes) >= bounds.minLat &&
+    Math.min(...latitudes) <= bounds.maxLat
+  );
 }
 
 function layoutForFeature(feature) {
@@ -256,8 +337,12 @@ function buildTierCards() {
     .map((tier) => {
       const chips = tier.directCountries
         .map(
-          ([id, code, name]) =>
-            `<button type="button" class="country-chip" data-country="${id}" data-code="${code}">${name}</button>`,
+          ([id, code, name]) => {
+            const safeName = escapeAttribute(name);
+            return `<button type="button" class="country-chip" data-country="${id}" data-code="${code}" aria-label="${safeName}" title="${safeName}">
+              <img class="chip-flag" src="${flagImageSrc(code)}" width="28" height="28" alt="" loading="lazy" decoding="async">
+            </button>`;
+          },
         )
         .join("");
       const caps = tier.capabilities
@@ -334,7 +419,7 @@ async function loadMap() {
 
   try {
     const topology = await loadTopology();
-    state.features = withScenarioPointFeatures(topojson.feature(topology, topology.objects.countries).features);
+    state.features = withScenarioFeatures(topojson.feature(topology, topology.objects.countries).features);
     state.featureByKey = new Map(state.features.map((feature) => [keyForFeature(feature), feature]));
     render();
     window.addEventListener("resize", onResize);
@@ -372,7 +457,6 @@ function render() {
   mapLayer = svg.append("g").attr("class", "map-layer");
   connectionLayer = mapLayer.append("g").attr("class", "connection-layer");
   countryLayer = mapLayer.append("g").attr("class", "country-layer");
-  focusLayer = mapLayer.append("g").attr("class", "focus-layer");
   labelLayer = mapLayer.append("g").attr("class", "label-layer");
 
   mapLayer.append("path").datum(graticule).attr("class", "graticule").attr("d", path);
@@ -390,14 +474,14 @@ function render() {
     .attr("data-tier", (feature) => tierForFeature(feature) || "")
     .on("mouseenter", (event, feature) => {
       const key = keyForFeature(feature);
-      if (countryMeta.has(key)) {
+      if (metaForCountry(key)) {
         activateCountry(key, false);
       }
     })
     .on("mouseleave", clearSoftFocus)
     .on("click", (event, feature) => {
       const key = keyForFeature(feature);
-      if (countryMeta.has(key)) {
+      if (metaForCountry(key)) {
         activateCountry(key, true);
       }
     });
@@ -426,26 +510,27 @@ function onZoom(event) {
 function activateTier(tierId) {
   state.activeTier = tierId;
   state.activeCountry = null;
-  state.selectedIds = new Set(cumulativeTierIds[tierId]);
+  state.selectedIds = selectedCountrySet(cumulativeTierIds[tierId]);
   updateHighlights();
   renderCountryCardForTier(tierId);
   drawConnections([...tierById.get(tierId).directCountries.map(([id]) => id)]);
 }
 
 function activateCountry(countryId, shouldZoom) {
-  const meta = countryMeta.get(countryId);
+  const canonicalId = canonicalCountryId(countryId);
+  const meta = metaForCountry(countryId);
   if (!meta) return;
 
-  state.activeCountry = countryId;
+  state.activeCountry = canonicalId;
   state.activeTier = meta.tier;
-  state.selectedIds = new Set([countryId]);
+  state.selectedIds = selectedCountrySet([canonicalId]);
   state.userTouched = true;
   updateHighlights();
   renderCountryCardForCountry(meta);
-  drawConnections([countryId]);
+  drawConnections(countryIdsFor(canonicalId));
 
   if (shouldZoom) {
-    fitToCountries([countryId], 700);
+    fitToCountries(countryIdsFor(canonicalId), 700);
   }
 }
 
@@ -454,7 +539,7 @@ function clearSoftFocus() {
   if (!state.activeTier) return;
 
   state.activeTier = null;
-  state.selectedIds = new Set(scenes[state.scene] || []);
+  state.selectedIds = selectedCountrySet(scenes[state.scene] || []);
   updateHighlights();
 }
 
@@ -465,10 +550,11 @@ function updateHighlights() {
 
   countryLayer.selectAll(".country").each(function (feature) {
     const key = keyForFeature(feature);
+    const activeIds = state.activeCountry ? countryIdsFor(state.activeCountry) : [];
     const isSelected = state.selectedIds.has(key);
     this.classList.toggle("is-muted", hasSelection && !isSelected);
     this.classList.toggle("is-highlight", isSelected);
-    this.classList.toggle("is-selected", state.activeCountry === key);
+    this.classList.toggle("is-selected", activeIds.includes(key));
   });
 
   tierCardElements.forEach((card) => {
@@ -479,7 +565,6 @@ function updateHighlights() {
     chip.classList.toggle("is-active", state.selectedIds.has(chip.dataset.country));
   });
 
-  drawFocusRings();
   drawLabels();
 }
 
@@ -582,38 +667,6 @@ function drawConnections(ids) {
     .attr("cy", (item) => item.centroid[1]);
 }
 
-function drawFocusRings() {
-  if (!focusLayer) return;
-
-  const ringIds = state.activeCountry
-    ? [state.activeCountry]
-    : state.selectedIds.size <= MAX_FOCUS_RINGS
-      ? [...state.selectedIds]
-      : [];
-
-  const rings = ringIds
-    .map((id) => {
-      const feature = state.featureByKey.get(id);
-      if (!feature) return null;
-      const layout = layoutForFeature(feature);
-      if (!layout) return null;
-      const { bounds, centroid } = layout;
-      const radius = Math.max(8, Math.min(34, Math.hypot(bounds[1][0] - bounds[0][0], bounds[1][1] - bounds[0][1]) * 0.4));
-      return { id, centroid, radius };
-    })
-    .filter(Boolean)
-    .slice(0, MAX_FOCUS_RINGS);
-
-  focusLayer
-    .selectAll(".focus-ring")
-    .data(rings, (item) => item.id)
-    .join("circle")
-    .attr("class", "focus-ring")
-    .attr("cx", (item) => item.centroid[0])
-    .attr("cy", (item) => item.centroid[1])
-    .attr("r", (item) => item.radius);
-}
-
 function drawLabels() {
   if (!labelLayer) return;
 
@@ -621,6 +674,7 @@ function drawLabels() {
     state.selectedIds.size <= 14
       ? [...state.selectedIds]
           .map((id) => {
+            if (isAliasCountryId(id)) return null;
             const feature = state.featureByKey.get(id);
             const meta = countryMeta.get(id);
             if (!feature || !meta) return null;
@@ -636,6 +690,7 @@ function drawLabels() {
     .data(labels, (item) => item.id)
     .join("text")
     .attr("class", "country-label")
+    .classed("is-compact", state.scene === "inner" || state.activeTier === "inner")
     .attr("x", (item) => item.centroid[0] + 8)
     .attr("y", (item) => item.centroid[1] - 8)
     .text((item) => item.text);
@@ -662,7 +717,7 @@ function focusScene(scene, options = {}) {
   const ids = scenes[scene];
   state.activeCountry = null;
   state.activeTier = tierById.has(scene) ? scene : null;
-  state.selectedIds = new Set(ids);
+  state.selectedIds = selectedCountrySet(ids);
   updateHighlights();
 
   if (state.activeTier) {
