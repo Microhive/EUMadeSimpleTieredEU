@@ -727,6 +727,17 @@ button.country-chip {
 
 .scene-tabs {
   flex-wrap: wrap;
+  padding: 7px;
+  background:
+    linear-gradient(135deg, rgba(2, 52, 95, 0.78), rgba(2, 52, 95, 0.42)),
+    rgba(255, 248, 238, 0.08);
+  border: 1px solid rgba(255, 248, 238, 0.22);
+  border-radius: 999px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 248, 238, 0.24),
+    4px 4px 0 rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(8px) saturate(0.72);
+  -webkit-backdrop-filter: blur(8px) saturate(0.72);
 }
 
 .scene-tabs,
