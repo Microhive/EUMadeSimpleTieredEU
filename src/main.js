@@ -355,7 +355,6 @@ function buildTierCards() {
             <div>
               <h2 class="tier-title">${tier.title}</h2>
               <div class="tier-meta-row">
-                <p class="tier-meta">${tier.directCountries.length} scenario countries</p>
                 <div class="capabilities">${caps}</div>
               </div>
             </div>
@@ -670,10 +669,11 @@ function focusScene(scene, options = {}) {
     drawConnections(idsFor("associate"));
   }
 
-  fitToCountries(ids, options.intro ? 1400 : 900, { bottomPad: 160 });
+  const topPad = window.innerWidth <= 720 ? 60 : 0;
+  fitToCountries(ids, options.intro ? 1400 : 900, { bottomPad: 160, topPad });
 }
 
-function fitToCountries(ids, duration = 900, { bottomPad = 0 } = {}) {
+function fitToCountries(ids, duration = 900, { bottomPad = 0, topPad = 0 } = {}) {
   if (!ids || !ids.length) return;
   const features = ids.map((id) => state.featureByKey.get(id)).filter(Boolean);
   if (!features.length) return;
@@ -683,9 +683,9 @@ function fitToCountries(ids, duration = 900, { bottomPad = 0 } = {}) {
   const dy = bounds[1][1] - bounds[0][1];
   const x = (bounds[0][0] + bounds[1][0]) / 2;
   const y = (bounds[0][1] + bounds[1][1]) / 2;
-  const effectiveHeight = height - bottomPad;
+  const effectiveHeight = height - bottomPad - topPad;
   const scale = Math.max(1, Math.min(10, 0.84 / Math.max(dx / width, dy / effectiveHeight)));
-  const translate = [width / 2 - scale * x, effectiveHeight / 2 - scale * y];
+  const translate = [width / 2 - scale * x, topPad + effectiveHeight / 2 - scale * y];
 
   svg
     .transition()

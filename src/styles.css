@@ -217,7 +217,6 @@ p {
 }
 
 h1 {
-  max-width: 12ch;
   margin-bottom: 12px;
   font-size: 3.2rem;
   line-height: 0.93;
@@ -333,6 +332,7 @@ h1 {
 .tier-summary {
   margin: 0;
   max-width: 64ch;
+  font-size: 0.95rem;
   font-weight: 680;
 }
 
@@ -374,8 +374,8 @@ h1 {
 
 .country-chip {
   display: inline-flex;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   min-height: 0;
   align-items: center;
   justify-content: center;
@@ -680,20 +680,27 @@ button.country-chip {
 }
 
 .principle-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
   padding: 18px;
 }
 
 .principle-card span {
   display: inline-grid;
+  flex-shrink: 0;
   width: 34px;
   height: 34px;
   place-items: center;
-  margin-bottom: 12px;
   color: var(--cream);
   font-weight: 950;
   background: var(--navy);
   border: 2px solid var(--ink);
   border-radius: 50%;
+}
+
+.principle-card div {
+  min-width: 0;
 }
 
 .principle-card h2 {
@@ -793,7 +800,6 @@ button.country-chip {
 
 
   h1 {
-    max-width: 10ch;
     margin-bottom: 6px;
     font-size: 2rem;
     line-height: 0.96;
@@ -842,7 +848,7 @@ button.country-chip {
   }
 
   .tier-title {
-    font-size: 0.94rem;
+    font-size: 1.08rem;
   }
 
   .tier-meta {
@@ -851,7 +857,7 @@ button.country-chip {
   }
 
   .tier-summary {
-    font-size: 0.71rem;
+    font-size: 0.82rem;
     line-height: 1.2;
   }
 
@@ -864,14 +870,14 @@ button.country-chip {
   }
 
   .capability {
-    padding: 4px 5px;
+    padding: 4px 6px;
     border-width: 1.5px;
-    font-size: 0.48rem;
+    font-size: 0.54rem;
   }
 
   .country-chip {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     padding: 1px;
   }
 
@@ -1002,6 +1008,36 @@ button.country-chip {
   .map-stage {
     position: relative;
     top: auto;
+    align-self: stretch;
+    height: auto;
+    min-height: 0;
+    z-index: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .map-wrap {
+    isolation: auto;
+    flex: none;
+    height: 65vw;
+    min-height: 400px;
+    max-height: 75vh;
+  }
+
+  .country-card {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    width: auto;
+    max-height: none;
+    overflow: visible;
+    margin: 0;
+    border-radius: 0 0 8px 8px;
+    border-top: none;
+  }
+
+  .zoom-controls {
+    display: none;
   }
 
   .principles {
@@ -1026,7 +1062,7 @@ button.country-chip {
   }
 
   .value-strip {
-    justify-content: flex-start;
+    display: none;
   }
 
   h1 {
@@ -1048,6 +1084,15 @@ button.country-chip {
     min-height: 560px;
   }
 
+  .map-stage {
+    margin-left: -12px;
+    margin-right: -12px;
+  }
+
+  .map-wrap {
+    border-radius: 0;
+  }
+
   #mapSvg {
     min-height: 560px;
   }
@@ -1059,14 +1104,14 @@ button.country-chip {
     width: auto;
     max-height: none;
     overflow: visible;
-    margin: -128px 12px 12px;
+    margin: 12px 12px 12px;
   }
 
   .legend {
-    top: 12px;
-    right: 12px;
-    bottom: auto;
-    left: auto;
+    left: 16px;
+    bottom: 16px;
+    top: auto;
+    right: auto;
   }
 
   .principles {
