@@ -1108,7 +1108,9 @@ function onResize(): void {
   resizeTimer = setTimeout(() => {
     const activeIds = new Set(state.selectedIds);
     render();
-    if (activeIds.size) fitToCountries([...activeIds], 0);
+    if (activeIds.size && (state.scene !== "world" || state.activeCountry)) {
+      fitToCountries([...activeIds], 0);
+    }
   }, 150);
 }
 
@@ -1267,7 +1269,7 @@ function focusScene(scene: SceneKey, options: { intro?: boolean } = {}): void {
   if (scene === "world") {
     state.activeTier = null;
     state.activeCountry = null;
-    state.selectedIds = new Set();
+    state.selectedIds = selectedCountrySet(cumulativeTierIds.friends);
     updateHighlights();
     drawConnections();
     countryCard.innerHTML = `
