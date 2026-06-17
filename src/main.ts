@@ -1,3 +1,76 @@
+// ─── globals declared by vendor scripts ───────────────────────────────────────
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+declare global {
+  interface Window {
+    d3: any;
+    topojson: any;
+    __WORLD_ATLAS_COUNTRIES_110M__: unknown;
+    __WORLD_ATLAS_COUNTRIES_50M__: unknown;
+  }
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+// ─── types ────────────────────────────────────────────────────────────────────
+
+type TierId = "inner" | "eu" | "associate" | "friends";
+type SceneKey = "world" | "europe" | TierId;
+type ToneId = "cream" | "sand" | "teal" | "navy";
+type CountryEntry = [string, string, string]; // [numericId, isoCode, name]
+
+interface Tier {
+  id: TierId;
+  order: number;
+  title: string;
+  shortTitle: string;
+  tone: ToneId;
+  summary: string;
+  capabilities: string[];
+  directCountries: CountryEntry[];
+}
+
+interface CountryMeta {
+  id: string;
+  code: string;
+  name: string;
+  tier: TierId;
+}
+
+interface GeometryLayout {
+  bounds: [[number, number], [number, number]];
+  centroid: [number, number];
+}
+
+interface LabelDatum {
+  id: string;
+  text: string;
+  centroid: [number, number];
+}
+
+interface FitOptions {
+  bottomPad?: number;
+  topPad?: number;
+}
+
+interface EuropeBounds {
+  minLon: number;
+  maxLon: number;
+  minLat: number;
+  maxLat: number;
+}
+
+interface AppState {
+  features: any[];
+  featureByKey: Map<string, any>;
+  activeTier: TierId | null;
+  activeCountry: string | null;
+  selectedIds: Set<string>;
+  scene: SceneKey;
+  userTouched: boolean;
+}
+
+// ─── bootstrap ────────────────────────────────────────────────────────────────
+
 const EMBEDDED_WORLD_TOPOLOGY = null;
 
 const d3 = window.d3;
@@ -7,29 +80,33 @@ if (!d3 || !topojson) {
   throw new Error("D3 and TopoJSON must be loaded before the map app starts.");
 }
 
-const COLORS = {
+// ─── constants ────────────────────────────────────────────────────────────────
+
+const COLORS: Record<TierId, string> = {
   inner: "#053f70",
   eu: "#72bfd0",
   associate: "#f8e6a7",
   friends: "#fff8ee",
 };
 
-const CIRCLE_FLAG_SVGS = import.meta.glob("../node_modules/circle-flags/flags/*.svg", {
-  eager: true,
-  import: "default",
-  query: "?url",
-});
+const CIRCLE_FLAG_SVGS: Record<string, string> = import.meta.glob(
+  "../node_modules/circle-flags/flags/*.svg",
+  { eager: true, import: "default", query: "?url" },
+);
+
 const MAP_TOPOLOGY_URLS = ["countries-110m.json", "countries-50m.json"];
 const UKRAINE_ID = "804";
 const CRIMEA_ID = "Crimea";
 const FRANCE_ID = "250";
-const EUROPE_BOUNDS = {
+
+const EUROPE_BOUNDS: EuropeBounds = {
   minLon: -31,
   maxLon: 45,
   minLat: 34,
   maxLat: 72,
 };
-const SCENARIO_EXTRA_FEATURES = [
+
+const SCENARIO_EXTRA_FEATURES: any[] = [
   {
     type: "Feature",
     id: "470",
@@ -62,12 +139,15 @@ const SCENARIO_EXTRA_FEATURES = [
     },
   },
 ];
-const SCENARIO_FEATURE_TIER = new Map([[CRIMEA_ID, "associate"]]);
-const FEATURE_ALIASES_BY_COUNTRY = new Map([[UKRAINE_ID, [CRIMEA_ID]]]);
-const PRIMARY_COUNTRY_BY_ALIAS = new Map([[CRIMEA_ID, UKRAINE_ID]]);
-const FLAG_CODE_OVERRIDES = new Map([["UK", "GB"]]);
 
-const tiers = [
+const SCENARIO_FEATURE_TIER = new Map<string, TierId>([[CRIMEA_ID, "associate"]]);
+const FEATURE_ALIASES_BY_COUNTRY = new Map<string, string[]>([[UKRAINE_ID, [CRIMEA_ID]]]);
+const PRIMARY_COUNTRY_BY_ALIAS = new Map<string, string>([[CRIMEA_ID, UKRAINE_ID]]);
+const FLAG_CODE_OVERRIDES = new Map<string, string>([["UK", "GB"]]);
+
+// ─── tier data ────────────────────────────────────────────────────────────────
+
+const tiers: Tier[] = [
   {
     id: "friends",
     order: 1,
@@ -164,9 +244,11 @@ const tiers = [
   },
 ];
 
-const tierById = new Map(tiers.map((tier) => [tier.id, tier]));
-const countryMeta = new Map();
-const directTierByCountry = new Map();
+// ─── derived lookups ──────────────────────────────────────────────────────────
+
+const tierById = new Map<TierId, Tier>(tiers.map((tier) => [tier.id, tier]));
+const countryMeta = new Map<string, CountryMeta>();
+const directTierByCountry = new Map<string, TierId>();
 
 for (const tier of tiers) {
   for (const [id, code, name] of tier.directCountries) {
@@ -175,14 +257,14 @@ for (const tier of tiers) {
   }
 }
 
-const cumulativeTierIds = {
+const cumulativeTierIds: Record<TierId, string[]> = {
   inner: idsFor("inner"),
   eu: idsFor("inner", "eu"),
   associate: idsFor("inner", "eu", "associate"),
   friends: idsFor("inner", "eu", "associate", "friends"),
 };
 
-const scenes = {
+const scenes: Record<SceneKey, string[] | null> = {
   world: null,
   europe: idsFor("inner", "eu", "associate"),
   inner: cumulativeTierIds.inner,
@@ -191,7 +273,9 @@ const scenes = {
   friends: cumulativeTierIds.friends,
 };
 
-const state = {
+// ─── state ────────────────────────────────────────────────────────────────────
+
+const state: AppState = {
   features: [],
   featureByKey: new Map(),
   activeTier: null,
@@ -201,111 +285,118 @@ const state = {
   userTouched: false,
 };
 
+// ─── DOM references ───────────────────────────────────────────────────────────
+
 const svg = d3.select("#mapSvg");
-const tierDeck = document.querySelector("#tierDeck");
-const sceneTabs = document.querySelector("#sceneTabs");
-const legend = document.querySelector("#legend");
-const countryCard = document.querySelector("#countryCard");
-const mapWrap = document.querySelector(".map-wrap");
+const tierDeck = document.querySelector<HTMLElement>("#tierDeck")!;
+const sceneTabs = document.querySelector<HTMLElement>("#sceneTabs")!;
+const legend = document.querySelector<HTMLElement>("#legend")!;
+const countryCard = document.querySelector<HTMLElement>("#countryCard")!;
+const mapWrap = document.querySelector<HTMLElement>(".map-wrap")!;
+
+// ─── d3 / map setup ───────────────────────────────────────────────────────────
 
 const projection = d3.geoNaturalEarth1();
 const path = d3.geoPath(projection).pointRadius(4.8);
 const graticule = d3.geoGraticule10();
 const zoom = d3.zoom().scaleExtent([1, 12]).on("zoom", onZoom);
-let mapLayer;
-let countryLayer;
-let labelLayer;
-let tierCardElements = [];
-let countryChipElements = [];
-let geometryCache = new Map();
+
+let mapLayer: any = null;
+let countryLayer: any = null;
+let labelLayer: any = null;
+let tierCardElements: HTMLElement[] = [];
+let countryChipElements: HTMLButtonElement[] = [];
+let geometryCache = new Map<string, GeometryLayout>();
 let width = 0;
 let height = 0;
-let resizeTimer = null;
+let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+
+// ─── init ─────────────────────────────────────────────────────────────────────
 
 buildTierCards();
 buildLegend();
 loadMap();
 
-function idsFor(...tierIds) {
-  return tierIds.flatMap((tierId) => tierById.get(tierId).directCountries.map(([id]) => id));
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+function idsFor(...tierIds: TierId[]): string[] {
+  return tierIds.flatMap((tierId) => tierById.get(tierId)!.directCountries.map(([id]) => id));
 }
 
-function keyForFeature(feature) {
+function keyForFeature(feature: any): string {
   return feature.id || feature.properties?.name;
 }
 
-function tierForFeature(feature) {
+function tierForFeature(feature: any): TierId | undefined {
   const key = keyForFeature(feature);
   return (
-    directTierByCountry.get(key) ||
-    SCENARIO_FEATURE_TIER.get(key) ||
+    directTierByCountry.get(key) ??
+    SCENARIO_FEATURE_TIER.get(key) ??
     directTierByCountry.get(canonicalCountryId(key))
   );
 }
 
-function canonicalCountryId(countryId) {
-  return PRIMARY_COUNTRY_BY_ALIAS.get(countryId) || countryId;
+function canonicalCountryId(countryId: string): string {
+  return PRIMARY_COUNTRY_BY_ALIAS.get(countryId) ?? countryId;
 }
 
-function countryIdsFor(countryId) {
+function countryIdsFor(countryId: string): string[] {
   const canonicalId = canonicalCountryId(countryId);
-  return [canonicalId, ...(FEATURE_ALIASES_BY_COUNTRY.get(canonicalId) || [])];
+  return [canonicalId, ...(FEATURE_ALIASES_BY_COUNTRY.get(canonicalId) ?? [])];
 }
 
-function expandedCountryIds(ids) {
+function expandedCountryIds(ids: string[]): string[] {
   return ids.flatMap((id) => countryIdsFor(id));
 }
 
-function selectedCountrySet(ids) {
+function selectedCountrySet(ids: string[]): Set<string> {
   return new Set(expandedCountryIds(ids));
 }
 
-function metaForCountry(countryId) {
+function metaForCountry(countryId: string): CountryMeta | undefined {
   return countryMeta.get(canonicalCountryId(countryId));
 }
 
-function isAliasCountryId(countryId) {
+function isAliasCountryId(countryId: string): boolean {
   return PRIMARY_COUNTRY_BY_ALIAS.has(countryId);
 }
 
-function flagCodeFor(code) {
-  return (FLAG_CODE_OVERRIDES.get(code) || code).toLowerCase();
+function flagCodeFor(code: string): string {
+  return (FLAG_CODE_OVERRIDES.get(code) ?? code).toLowerCase();
 }
 
-function flagImageSrc(code) {
-  return CIRCLE_FLAG_SVGS[`../node_modules/circle-flags/flags/${flagCodeFor(code)}.svg`] || "";
+function flagImageSrc(code: string): string {
+  return CIRCLE_FLAG_SVGS[`../node_modules/circle-flags/flags/${flagCodeFor(code)}.svg`] ?? "";
 }
 
-function escapeAttribute(value) {
-  return String(value).replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+function escapeAttribute(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 }
 
-function withScenarioFeatures(features) {
+function withScenarioFeatures(features: any[]): any[] {
   const existingKeys = new Set(features.map(keyForFeature));
   const normalizedFeatures = features.map((feature) => {
     if (keyForFeature(feature) !== FRANCE_ID) return feature;
     return featureWithEuropeanPolygons(feature);
   });
-  const missingFeatures = SCENARIO_EXTRA_FEATURES.filter((feature) => !existingKeys.has(keyForFeature(feature)));
+  const missingFeatures = SCENARIO_EXTRA_FEATURES.filter(
+    (feature) => !existingKeys.has(keyForFeature(feature)),
+  );
   return missingFeatures.length ? normalizedFeatures.concat(missingFeatures) : normalizedFeatures;
 }
 
-function featureWithEuropeanPolygons(feature) {
+function featureWithEuropeanPolygons(feature: any): any {
   if (feature.geometry?.type !== "MultiPolygon") return feature;
 
-  const coordinates = feature.geometry.coordinates.filter((polygon) => polygonIntersectsBounds(polygon, EUROPE_BOUNDS));
+  const coordinates = feature.geometry.coordinates.filter(
+    (polygon: number[][][]) => polygonIntersectsBounds(polygon, EUROPE_BOUNDS),
+  );
   if (!coordinates.length) return feature;
 
-  return {
-    ...feature,
-    geometry: {
-      ...feature.geometry,
-      coordinates,
-    },
-  };
+  return { ...feature, geometry: { ...feature.geometry, coordinates } };
 }
 
-function polygonIntersectsBounds(polygon, bounds) {
+function polygonIntersectsBounds(polygon: number[][][], bounds: EuropeBounds): boolean {
   const points = polygon.flat();
   const longitudes = points.map(([lon]) => lon);
   const latitudes = points.map(([, lat]) => lat);
@@ -317,32 +408,32 @@ function polygonIntersectsBounds(polygon, bounds) {
   );
 }
 
-function layoutForFeature(feature) {
+function layoutForFeature(feature: any): GeometryLayout | null {
   const key = keyForFeature(feature);
   const cached = geometryCache.get(key);
   if (cached) return cached;
 
-  const centroid = path.centroid(feature);
+  const centroid: [number, number] = path.centroid(feature);
   if (!centroid || centroid.some(Number.isNaN)) return null;
 
   const bounds = path.bounds(feature);
-  const layout = { bounds, centroid };
+  const layout: GeometryLayout = { bounds, centroid };
   geometryCache.set(key, layout);
   return layout;
 }
 
-function buildTierCards() {
+// ─── render functions ─────────────────────────────────────────────────────────
+
+function buildTierCards(): void {
   tierDeck.innerHTML = tiers
     .map((tier) => {
       const chips = tier.directCountries
-        .map(
-          ([id, code, name]) => {
-            const safeName = escapeAttribute(name);
-            return `<button type="button" class="country-chip" data-country="${id}" data-code="${code}" aria-label="${safeName}" title="${safeName}">
+        .map(([id, code, name]) => {
+          const safeName = escapeAttribute(name);
+          return `<button type="button" class="country-chip" data-country="${id}" data-code="${code}" aria-label="${safeName}" title="${safeName}">
               <img class="chip-flag" src="${flagImageSrc(code)}" width="28" height="28" alt="" loading="lazy" decoding="async">
             </button>`;
-          },
-        )
+        })
         .join("");
       const caps = tier.capabilities
         .map((capability) => `<span class="capability">${capability}</span>`)
@@ -366,23 +457,23 @@ function buildTierCards() {
     })
     .join("");
 
-  tierCardElements = [...tierDeck.querySelectorAll(".tier-card")];
-  countryChipElements = [...tierDeck.querySelectorAll("[data-country]")];
+  tierCardElements = [...tierDeck.querySelectorAll<HTMLElement>(".tier-card")];
+  countryChipElements = [...tierDeck.querySelectorAll<HTMLButtonElement>("[data-country]")];
 
   tierCardElements.forEach((card) => {
-    card.addEventListener("mouseenter", () => activateTier(card.dataset.tier));
-    card.addEventListener("focusin", () => activateTier(card.dataset.tier));
+    card.addEventListener("mouseenter", () => activateTier(card.dataset.tier as TierId));
+    card.addEventListener("focusin", () => activateTier(card.dataset.tier as TierId));
     card.addEventListener("mouseleave", clearSoftFocus);
   });
 
   countryChipElements.forEach((button) => {
-    button.addEventListener("mouseenter", () => activateCountry(button.dataset.country, false));
-    button.addEventListener("focus", () => activateCountry(button.dataset.country, false));
-    button.addEventListener("click", () => activateCountry(button.dataset.country, true));
+    button.addEventListener("mouseenter", () => activateCountry(button.dataset.country!, false));
+    button.addEventListener("focus", () => activateCountry(button.dataset.country!, false));
+    button.addEventListener("click", () => activateCountry(button.dataset.country!, true));
   });
 }
 
-function buildLegend() {
+function buildLegend(): void {
   legend.innerHTML = tiers
     .slice()
     .reverse()
@@ -397,7 +488,9 @@ function buildLegend() {
     .join("");
 }
 
-async function loadTopology() {
+// ─── map loading ──────────────────────────────────────────────────────────────
+
+async function loadTopology(): Promise<unknown> {
   if (window.__WORLD_ATLAS_COUNTRIES_110M__) return window.__WORLD_ATLAS_COUNTRIES_110M__;
   if (window.__WORLD_ATLAS_COUNTRIES_50M__) return window.__WORLD_ATLAS_COUNTRIES_50M__;
 
@@ -414,11 +507,11 @@ async function loadTopology() {
   throw new Error("No map topology could be loaded.");
 }
 
-async function loadMap() {
+async function loadMap(): Promise<void> {
   document.body.classList.add("is-loading");
 
   try {
-    const topology = await loadTopology();
+    const topology: any = await loadTopology();
     state.features = withScenarioFeatures(topojson.feature(topology, topology.objects.countries).features);
     state.featureByKey = new Map(state.features.map((feature) => [keyForFeature(feature), feature]));
     render();
@@ -428,24 +521,23 @@ async function loadMap() {
     countryCard.innerHTML = `
       <p class="eyebrow">Map unavailable</p>
       <h2>The vector map could not load</h2>
-      <p>${error.message}</p>
+      <p>${error instanceof Error ? error.message : String(error)}</p>
     `;
   } finally {
     document.body.classList.remove("is-loading");
   }
 }
 
-function render() {
+// ─── map rendering ────────────────────────────────────────────────────────────
+
+function render(): void {
   width = mapWrap.clientWidth;
   height = mapWrap.clientHeight;
   geometryCache = new Map();
   svg.attr("viewBox", `0 0 ${width} ${height}`);
 
   projection.fitExtent(
-    [
-      [20, 20],
-      [width - 20, height - 20],
-    ],
+    [[20, 20], [width - 20, height - 20]],
     { type: "Sphere" },
   );
 
@@ -462,58 +554,52 @@ function render() {
     .selectAll("path")
     .data(state.features)
     .join("path")
-    .attr("class", (feature) => {
+    .attr("class", (feature: any) => {
       const tierId = tierForFeature(feature);
       return `country${tierId ? ` tier-${tierId}` : ""}`;
     })
     .attr("d", path)
     .attr("data-country", keyForFeature)
-    .attr("data-tier", (feature) => tierForFeature(feature) || "")
-    .on("mouseenter", (event, feature) => {
+    .attr("data-tier", (feature: any) => tierForFeature(feature) ?? "")
+    .on("mouseenter", (_event: MouseEvent, feature: any) => {
       const key = keyForFeature(feature);
-      if (metaForCountry(key)) {
-        activateCountry(key, false);
-      }
+      if (metaForCountry(key)) activateCountry(key, false);
     })
     .on("mouseleave", clearSoftFocus)
-    .on("click", (event, feature) => {
+    .on("click", (_event: MouseEvent, feature: any) => {
       const key = keyForFeature(feature);
-      if (metaForCountry(key)) {
-        activateCountry(key, true);
-      }
+      if (metaForCountry(key)) activateCountry(key, true);
     });
 
   updateHighlights();
   svg.call(zoom.transform, d3.zoomIdentity);
 }
 
-function onResize() {
-  clearTimeout(resizeTimer);
+function onResize(): void {
+  if (resizeTimer !== null) clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
     const activeIds = new Set(state.selectedIds);
     render();
-    if (activeIds.size) {
-      fitToCountries([...activeIds], 0);
-    }
+    if (activeIds.size) fitToCountries([...activeIds], 0);
   }, 150);
 }
 
-function onZoom(event) {
-  if (mapLayer) {
-    mapLayer.attr("transform", event.transform);
-  }
+function onZoom(event: any): void {
+  if (mapLayer) mapLayer.attr("transform", event.transform);
 }
 
-function activateTier(tierId) {
+// ─── interaction ──────────────────────────────────────────────────────────────
+
+function activateTier(tierId: TierId): void {
   state.activeTier = tierId;
   state.activeCountry = null;
   state.selectedIds = selectedCountrySet(cumulativeTierIds[tierId]);
   updateHighlights();
   renderCountryCardForTier(tierId);
-  drawConnections([...tierById.get(tierId).directCountries.map(([id]) => id)]);
+  drawConnections();
 }
 
-function activateCountry(countryId, shouldZoom) {
+function activateCountry(countryId: string, shouldZoom: boolean): void {
   const canonicalId = canonicalCountryId(countryId);
   const meta = metaForCountry(countryId);
   if (!meta) return;
@@ -524,28 +610,26 @@ function activateCountry(countryId, shouldZoom) {
   state.userTouched = true;
   updateHighlights();
   renderCountryCardForCountry(meta);
-  drawConnections(countryIdsFor(canonicalId));
+  drawConnections();
 
-  if (shouldZoom) {
-    fitToCountries(countryIdsFor(canonicalId), 700);
-  }
+  if (shouldZoom) fitToCountries(countryIdsFor(canonicalId), 700);
 }
 
-function clearSoftFocus() {
+function clearSoftFocus(): void {
   if (state.activeCountry) return;
   if (!state.activeTier) return;
 
   state.activeTier = null;
-  state.selectedIds = selectedCountrySet(scenes[state.scene] || []);
+  state.selectedIds = selectedCountrySet(scenes[state.scene] ?? []);
   updateHighlights();
 }
 
-function updateHighlights() {
+function updateHighlights(): void {
   if (!countryLayer) return;
 
   const hasSelection = state.selectedIds.size > 0;
 
-  countryLayer.selectAll(".country").each(function (feature) {
+  countryLayer.selectAll(".country").each(function (this: Element, feature: any) {
     const key = keyForFeature(feature);
     const activeIds = state.activeCountry ? countryIdsFor(state.activeCountry) : [];
     const isSelected = state.selectedIds.has(key);
@@ -559,14 +643,16 @@ function updateHighlights() {
   });
 
   countryChipElements.forEach((chip) => {
-    chip.classList.toggle("is-active", state.selectedIds.has(chip.dataset.country));
+    chip.classList.toggle("is-active", state.selectedIds.has(chip.dataset.country!));
   });
 
   drawLabels();
 }
 
-function renderCountryCardForTier(tierId) {
-  const tier = tierById.get(tierId);
+// ─── card rendering ───────────────────────────────────────────────────────────
+
+function renderCountryCardForTier(tierId: TierId): void {
+  const tier = tierById.get(tierId)!;
   countryCard.innerHTML = `
     <p class="eyebrow">Tier ${tier.order}</p>
     <span class="tier-pill" data-tier="${tier.id}">${tier.title}</span>
@@ -575,8 +661,8 @@ function renderCountryCardForTier(tierId) {
   `;
 }
 
-function renderCountryCardForCountry(meta) {
-  const tier = tierById.get(meta.tier);
+function renderCountryCardForCountry(meta: CountryMeta): void {
+  const tier = tierById.get(meta.tier)!;
   countryCard.innerHTML = `
     <p class="eyebrow">${meta.code}</p>
     <span class="tier-pill" data-tier="${tier.id}">Tier ${tier.order}: ${tier.shortTitle}</span>
@@ -585,31 +671,30 @@ function renderCountryCardForCountry(meta) {
   `;
 }
 
-function scenarioLine(meta, tier) {
+function scenarioLine(meta: CountryMeta, tier: Tier): string {
   if (tier.id === "inner") {
     return `${meta.name} is modelled as part of the frontrunner core for deeper defence, eurozone, Schengen, and foreign-policy integration.`;
   }
-
   if (tier.id === "eu") {
     return `${meta.name} remains inside the full EU layer, sharing law, budget, institutions, and the single market while deeper integration continues around it.`;
   }
-
   if (tier.id === "associate") {
     return `${meta.name} is shown as an associate-path country: close enough to adopt standards and market rules before full membership is settled.`;
   }
-
   return `${meta.name} is shown as a democratic friend: outside the EU ladder, but connected through security, climate, technology, and crisis cooperation.`;
 }
 
-function drawConnections() {}
+// ─── map overlays ─────────────────────────────────────────────────────────────
 
-function drawLabels() {
+function drawConnections(): void {}
+
+function drawLabels(): void {
   if (!labelLayer) return;
 
-  const labels =
+  const labels: LabelDatum[] =
     state.selectedIds.size <= 14
       ? [...state.selectedIds]
-          .map((id) => {
+          .map((id): LabelDatum | null => {
             if (isAliasCountryId(id)) return null;
             const feature = state.featureByKey.get(id);
             const meta = countryMeta.get(id);
@@ -618,26 +703,28 @@ function drawLabels() {
             if (!layout) return null;
             return { id, text: meta.name, centroid: layout.centroid };
           })
-          .filter(Boolean)
+          .filter((item): item is LabelDatum => item !== null)
       : [];
 
   labelLayer
     .selectAll(".country-label")
-    .data(labels, (item) => item.id)
+    .data(labels, (item: LabelDatum) => item.id)
     .join("text")
     .attr("class", "country-label")
-    .attr("x", (item) => item.centroid[0])
-    .attr("y", (item) => item.centroid[1])
+    .attr("x", (item: LabelDatum) => item.centroid[0])
+    .attr("y", (item: LabelDatum) => item.centroid[1])
     .attr("text-anchor", "middle")
     .attr("dominant-baseline", "middle")
-    .text((item) => item.text);
+    .text((item: LabelDatum) => item.text);
 }
 
-function focusScene(scene, options = {}) {
+// ─── scene management ─────────────────────────────────────────────────────────
+
+function focusScene(scene: SceneKey, options: { intro?: boolean } = {}): void {
   if (options.intro && state.userTouched) return;
 
   state.scene = scene;
-  sceneTabs.querySelectorAll("button").forEach((button) => {
+  sceneTabs.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.scene === scene);
   });
 
@@ -646,46 +733,46 @@ function focusScene(scene, options = {}) {
     state.activeCountry = null;
     state.selectedIds = new Set();
     updateHighlights();
-    drawConnections([]);
+    drawConnections();
     svg.transition().duration(900).call(zoom.transform, d3.zoomIdentity);
     return;
   }
 
-  const ids = scenes[scene];
+  const ids = scenes[scene]!;
   state.activeCountry = null;
-  state.activeTier = tierById.has(scene) ? scene : null;
+  state.activeTier = tierById.has(scene as TierId) ? (scene as TierId) : null;
   state.selectedIds = selectedCountrySet(ids);
   updateHighlights();
 
   if (state.activeTier) {
     renderCountryCardForTier(state.activeTier);
-    drawConnections(tierById.get(state.activeTier).directCountries.map(([id]) => id));
+    drawConnections();
   } else {
     countryCard.innerHTML = `
       <p class="eyebrow">European theatre</p>
       <h2>Where the tiers overlap</h2>
       <p>Current EU members, accession-path countries, and close European partners form the main arena for a tiered future.</p>
     `;
-    drawConnections(idsFor("associate"));
+    drawConnections();
   }
 
   const topPad = window.innerWidth <= 720 ? 60 : 0;
   fitToCountries(ids, options.intro ? 1400 : 900, { bottomPad: 160, topPad });
 }
 
-function fitToCountries(ids, duration = 900, { bottomPad = 0, topPad = 0 } = {}) {
-  if (!ids || !ids.length) return;
+function fitToCountries(ids: string[], duration = 900, { bottomPad = 0, topPad = 0 }: FitOptions = {}): void {
+  if (!ids.length) return;
   const features = ids.map((id) => state.featureByKey.get(id)).filter(Boolean);
   if (!features.length) return;
 
   const bounds = path.bounds({ type: "FeatureCollection", features });
-  const dx = bounds[1][0] - bounds[0][0];
-  const dy = bounds[1][1] - bounds[0][1];
-  const x = (bounds[0][0] + bounds[1][0]) / 2;
-  const y = (bounds[0][1] + bounds[1][1]) / 2;
+  const dx: number = bounds[1][0] - bounds[0][0];
+  const dy: number = bounds[1][1] - bounds[0][1];
+  const x: number = (bounds[0][0] + bounds[1][0]) / 2;
+  const y: number = (bounds[0][1] + bounds[1][1]) / 2;
   const effectiveHeight = height - bottomPad - topPad;
   const scale = Math.max(1, Math.min(10, 0.84 / Math.max(dx / width, dy / effectiveHeight)));
-  const translate = [width / 2 - scale * x, topPad + effectiveHeight / 2 - scale * y];
+  const translate: [number, number] = [width / 2 - scale * x, topPad + effectiveHeight / 2 - scale * y];
 
   svg
     .transition()
@@ -694,24 +781,11 @@ function fitToCountries(ids, duration = 900, { bottomPad = 0, topPad = 0 } = {})
     .call(zoom.transform, d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale));
 }
 
-sceneTabs.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-scene]");
-  if (!button) return;
+// ─── event listeners ──────────────────────────────────────────────────────────
+
+sceneTabs.addEventListener("click", (event: MouseEvent) => {
+  const button = (event.target as Element).closest<HTMLButtonElement>("[data-scene]");
+  if (!button?.dataset.scene) return;
   state.userTouched = true;
-  focusScene(button.dataset.scene);
+  focusScene(button.dataset.scene as SceneKey);
 });
-
-document.querySelector(".zoom-controls").addEventListener("click", (event) => {
-  const button = event.target.closest("[data-zoom]");
-  if (!button) return;
-  state.userTouched = true;
-
-  if (button.dataset.zoom === "reset") {
-    focusScene("world");
-    return;
-  }
-
-  const factor = button.dataset.zoom === "in" ? 1.35 : 0.74;
-  svg.transition().duration(260).call(zoom.scaleBy, factor);
-});
-
