@@ -817,8 +817,11 @@ button.country-chip {
 }
 
 .scene-tabs {
-  flex-wrap: wrap;
-  padding: 7px;
+  --scene-tabs-scale: 1;
+  flex-wrap: nowrap;
+  gap: calc(8px * var(--scene-tabs-scale));
+  padding: calc(7px * var(--scene-tabs-scale));
+  white-space: nowrap;
   background:
     linear-gradient(135deg, rgba(2, 52, 95, 0.78), rgba(2, 52, 95, 0.42)),
     rgba(255, 248, 238, 0.08);
@@ -840,6 +843,7 @@ button.country-chip {
 .zoom-controls button {
   min-height: 38px;
   color: var(--cream);
+  font-size: 1rem;
   font-weight: 900;
   background: rgba(255, 255, 255, 0.08);
   border: 2px solid rgba(255, 248, 238, 0.72);
@@ -848,7 +852,15 @@ button.country-chip {
 }
 
 .scene-tabs button {
-  padding: 8px 13px;
+  min-height: calc(38px * var(--scene-tabs-scale));
+  padding: calc(8px * var(--scene-tabs-scale)) calc(13px * var(--scene-tabs-scale));
+  font-size: calc(1rem * var(--scene-tabs-scale));
+  border-width: max(1px, calc(2px * var(--scene-tabs-scale)));
+  box-shadow:
+    calc(3px * var(--scene-tabs-scale))
+    calc(3px * var(--scene-tabs-scale))
+    0
+    rgba(0, 0, 0, 0.55);
 }
 
 .zoom-controls button {
