@@ -20,29 +20,34 @@
             <small>Tiered Europe scenario</small>
           </span>
         </a>
-        <div class="value-strip" aria-label="Core values">
-          <span>Democracy</span>
-          <span>Rule of law</span>
-          <span>Human rights</span>
-          <span>Solidarity</span>
-        </div>
+        <a class="video-link"
+           href="https://www.youtube.com/watch?v=KYl38AX8kCw"
+           target="_blank"
+           rel="noopener noreferrer"
+           aria-label="Watch on YouTube: The EU Just Took a Big Step Towards a Multi-Tier Europe!">
+          <span class="video-icon" aria-hidden="true">
+            <svg width="34" height="24" viewBox="0 0 34 24" fill="none">
+              <rect width="34" height="24" rx="5" fill="#FF0000"/>
+              <path d="M14 7L24 12L14 17Z" fill="white"/>
+            </svg>
+          </span>
+          <span class="video-link-text">
+            <strong>Watch the video</strong>
+            <small>Multi-Tier Europe</small>
+          </span>
+        </a>
       </header>
 
       <main id="main" class="infographic">
         <section class="story-panel" aria-labelledby="page-title">
           <article class="mission-card">
-            <h1 id="page-title">What could a tiered EU become?</h1>
+            <h1 id="page-title">A Europe of circles, not&nbsp;walls</h1>
             <p>
               A multi-speed Europe could let willing states integrate faster while
               keeping a clear path for candidates, neighbours, and democratic
               friends to move closer to the European project.
             </p>
-            <ul class="mission-principles">
-              <li><strong>Open doors</strong> — associate membership can make progress tangible before full accession.</li>
-              <li><strong>Shared standards</strong> — closer tiers should still orbit the same democratic and legal values.</li>
-              <li><strong>Strategic weight</strong> — security, energy, climate, and crisis response can reach beyond Europe.</li>
-              <li><strong>Forward motion</strong> — countries can move inward as capacity, trust, and public support grow.</li>
-            </ul>
+            <div class="benefit-pills" id="benefitPills"></div>
           </article>
 
           <div class="tier-deck" id="tierDeck" aria-label="Tier cards"></div>
@@ -94,6 +99,24 @@
         </p>
       </footer>
     </div>
+
+    <dialog class="benefit-modal" id="benefitModal" aria-modal="true" aria-labelledby="modalHeading">
+      <div class="modal-inner">
+        <button type="button" class="modal-close" aria-label="Close">&#x2715;</button>
+        <p class="eyebrow" id="modalEyebrow">Core principle</p>
+        <h2 class="modal-title" id="modalHeading"></h2>
+        <p class="modal-subtitle"></p>
+        <p class="modal-body"></p>
+        <div class="modal-key-idea-block">
+          <p class="eyebrow">The key idea</p>
+          <p class="modal-key-idea"></p>
+        </div>
+        <div class="modal-caveat-block">
+          <p class="eyebrow">Worth noting</p>
+          <p class="modal-caveat"></p>
+        </div>
+      </div>
+    </dialog>
 
     <script src="/vendor/d3.min.js"></script>
     <script src="/vendor/topojson-client.min.js"></script>
