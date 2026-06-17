@@ -588,7 +588,6 @@ button.country-chip {
   paint-order: stroke;
   stroke: rgba(2, 52, 95, 0.86);
   stroke-width: 1.6;
-  font-size: 0.28rem;
   font-weight: 900;
   vector-effect: non-scaling-stroke;
 }

@@ -300,6 +300,7 @@ const projection = d3.geoNaturalEarth1();
 const path = d3.geoPath(projection).pointRadius(4.8);
 const graticule = d3.geoGraticule10();
 const zoom = d3.zoom().scaleExtent([1, 12]).on("zoom", onZoom);
+const BASE_LABEL_PX = 22;
 
 let mapLayer: any = null;
 let countryLayer: any = null;
@@ -586,6 +587,11 @@ function onResize(): void {
 
 function onZoom(event: any): void {
   if (mapLayer) mapLayer.attr("transform", event.transform);
+  if (labelLayer) {
+    labelLayer
+      .selectAll(".country-label")
+      .style("font-size", `${BASE_LABEL_PX / event.transform.k}px`);
+  }
 }
 
 // ─── interaction ──────────────────────────────────────────────────────────────
@@ -706,6 +712,8 @@ function drawLabels(): void {
           .filter((item): item is LabelDatum => item !== null)
       : [];
 
+  const currentScale: number = svg.node() ? d3.zoomTransform(svg.node()).k : 1;
+
   labelLayer
     .selectAll(".country-label")
     .data(labels, (item: LabelDatum) => item.id)
@@ -715,6 +723,7 @@ function drawLabels(): void {
     .attr("y", (item: LabelDatum) => item.centroid[1])
     .attr("text-anchor", "middle")
     .attr("dominant-baseline", "middle")
+    .style("font-size", `${BASE_LABEL_PX / currentScale}px`)
     .text((item: LabelDatum) => item.text);
 }
 
