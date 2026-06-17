@@ -338,6 +338,38 @@ const benefitPills: BenefitPill[] = [
   },
 ];
 
+// Self-authored icons; distributed under the project's MIT license.
+const benefitIconSvgById: Record<string, string> = {
+  "open-doors": `
+    <svg class="pill-icon-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M7 21h10V5.2L9 3.4v17.6" />
+      <path d="M17 21h2" />
+      <path d="M11.7 12.2h.1" />
+    </svg>
+  `,
+  "shared-standards": `
+    <svg class="pill-icon-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 3.3 5.7 5.8v5.4c0 4.1 2.4 7.4 6.3 9.2 3.9-1.8 6.3-5.1 6.3-9.2V5.8L12 3.3Z" />
+      <path d="m8.4 12.3 2.2 2.2 5-5.2" />
+    </svg>
+  `,
+  "strategic-weight": `
+    <svg class="pill-icon-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="12" cy="12" r="8.4" />
+      <path d="m15.8 8.2-2.2 5.4-5.4 2.2 2.2-5.4 5.4-2.2Z" />
+      <path d="M12 3.6v2" />
+      <path d="M12 18.4v2" />
+    </svg>
+  `,
+  "forward-motion": `
+    <svg class="pill-icon-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4.2 16.8h4.4c4.5 0 7.5-2.6 8.9-7.1" />
+      <path d="M14.1 8.9h4.6v4.6" />
+      <path d="M5.1 8.3h5.4" />
+    </svg>
+  `,
+};
+
 // ─── capability info data ─────────────────────────────────────────────────────
 
 const capabilityInfoList: CapabilityInfo[] = [
@@ -673,6 +705,7 @@ function buildBenefitPills(): void {
     .map(
       (pill) =>
         `<button type="button" class="benefit-pill" data-pill="${pill.id}" data-tooltip="${escapeAttribute(pill.tooltip)}">
+          <span class="pill-icon">${benefitIconSvgById[pill.id]}</span>
           <strong class="pill-title">${pill.title}</strong>
           <span class="pill-short">${pill.shortText}</span>
         </button>`,

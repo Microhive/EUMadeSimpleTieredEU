@@ -285,39 +285,81 @@ h1 {
 }
 
 .benefit-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px 18px;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 3px solid var(--ink);
 }
 
 .benefit-pill {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 9px 13px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1px 10px;
+  align-items: start;
+  min-width: 0;
+  padding: 2px 0 4px;
   color: var(--ink);
   text-align: left;
-  background: var(--paper);
-  border: 2px solid var(--ink);
-  border-radius: 8px;
-  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.55);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: none;
   transition:
-    transform 160ms ease,
-    box-shadow 160ms ease;
+    color 160ms ease,
+    transform 160ms ease;
   cursor: pointer;
+}
+
+.pill-icon {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  color: var(--ink);
+  background: var(--cream);
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.52);
+  transition:
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.pill-icon-svg {
+  display: block;
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.15;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .benefit-pill:hover,
 .benefit-pill:focus-visible {
   outline: none;
-  transform: translate(-2px, -2px);
-  box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.72);
+  color: var(--navy);
+  transform: translateX(3px);
+}
+
+.benefit-pill:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 5px;
+}
+
+.benefit-pill:hover .pill-icon,
+.benefit-pill:focus-visible .pill-icon {
+  background: var(--gold);
+  transform: translateY(-1px);
 }
 
 .pill-title {
+  min-width: 0;
   font-size: 0.88rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -325,6 +367,8 @@ h1 {
 }
 
 .pill-short {
+  grid-column: 2;
+  min-width: 0;
   font-size: 0.75rem;
   font-weight: 600;
   color: rgba(8, 11, 15, 0.68);
@@ -502,19 +546,22 @@ h1 {
 }
 
 .tier-head {
+  --tier-number-size: 56px;
+
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 12px;
+  grid-template-columns: var(--tier-number-size) minmax(0, 1fr);
+  gap: 16px;
   align-items: start;
 }
 
 .tier-number {
   display: grid;
-  width: 42px;
-  height: 42px;
+  width: var(--tier-number-size);
+  height: var(--tier-number-size);
   place-items: center;
   flex: 0 0 auto;
   color: var(--ink);
+  font-size: 1.28rem;
   font-weight: 950;
   background: var(--cream);
   border: 3px solid var(--ink);
@@ -581,11 +628,13 @@ h1 {
   background: rgba(255, 255, 255, 0.86);
   border: 2px solid rgba(8, 11, 15, 0.85);
   border-radius: 999px;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.42);
 }
 
 button.capability {
   transition:
     background 140ms ease,
+    box-shadow 140ms ease,
     transform 140ms ease;
 }
 
@@ -593,7 +642,8 @@ button.capability:hover,
 button.capability:focus-visible {
   outline: none;
   background: rgba(255, 255, 255, 1);
-  transform: translateY(-1px);
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.58);
 }
 
 .tier-card[data-tier="inner"] button.capability:hover,
@@ -1036,13 +1086,29 @@ button.country-chip {
   }
 
   .benefit-pills {
-    gap: 6px;
-    margin-top: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 12px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top-width: 2px;
   }
 
   .benefit-pill {
-    padding: 7px 10px;
-    gap: 1px;
+    gap: 0 7px;
+    padding: 2px 0;
+  }
+
+  .pill-icon {
+    width: 23px;
+    height: 23px;
+    border-width: 1.5px;
+    box-shadow: 1.5px 1.5px 0 rgba(0, 0, 0, 0.52);
+  }
+
+  .pill-icon-svg {
+    width: 14px;
+    height: 14px;
+    stroke-width: 2.3;
   }
 
   .pill-title {
@@ -1091,13 +1157,16 @@ button.country-chip {
   }
 
   .tier-head {
-    gap: 8px;
+    --tier-number-size: 42px;
+
+    gap: 10px;
   }
 
   .tier-number {
-    width: 34px;
-    height: 34px;
+    width: var(--tier-number-size);
+    height: var(--tier-number-size);
     border-width: 2px;
+    font-size: 0.94rem;
     box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.7);
   }
 
@@ -1127,6 +1196,7 @@ button.country-chip {
     padding: 4px 6px;
     border-width: 1.5px;
     font-size: 0.54rem;
+    box-shadow: 1.5px 1.5px 0 rgba(0, 0, 0, 0.42);
   }
 
   .country-chip {
@@ -1328,6 +1398,17 @@ button.country-chip {
     box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.72);
   }
 
+  .benefit-pills {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 14px;
+    margin-top: 16px;
+    padding-top: 12px;
+  }
+
+  .benefit-pill {
+    gap: 1px 8px;
+  }
+
   .map-stage,
   .map-wrap {
     min-height: 560px;
@@ -1375,6 +1456,12 @@ button.country-chip {
     font-size: 1.35rem;
   }
 
+}
+
+@media (max-width: 430px) {
+  .benefit-pills {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
