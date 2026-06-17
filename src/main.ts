@@ -50,6 +50,7 @@ interface LabelDatum {
 interface FitOptions {
   bottomPad?: number;
   topPad?: number;
+  europeOnly?: boolean;
 }
 
 interface EuropeBounds {
@@ -94,7 +95,8 @@ const CIRCLE_FLAG_SVGS: Record<string, string> = import.meta.glob(
   { eager: true, import: "default", query: "?url" },
 );
 
-const MAP_TOPOLOGY_URLS = ["countries-110m.json", "countries-50m.json"];
+const TOPOLOGY_URL_110M = "countries-110m.json";
+const TOPOLOGY_URL_50M = "countries-50m.json";
 const UKRAINE_ID = "804";
 const CRIMEA_ID = "Crimea";
 const FRANCE_ID = "250";
@@ -409,6 +411,33 @@ function polygonIntersectsBounds(polygon: number[][][], bounds: EuropeBounds): b
   );
 }
 
+function clipFeatureToEurope(feature: any): any | null {
+  const geom = feature?.geometry;
+  if (!geom) return feature;
+
+  if (geom.type === "Point") {
+    const [lon, lat]: [number, number] = geom.coordinates;
+    return lon >= EUROPE_BOUNDS.minLon && lon <= EUROPE_BOUNDS.maxLon &&
+           lat >= EUROPE_BOUNDS.minLat && lat <= EUROPE_BOUNDS.maxLat
+      ? feature : null;
+  }
+
+  if (geom.type === "Polygon") {
+    return polygonIntersectsBounds(geom.coordinates, EUROPE_BOUNDS) ? feature : null;
+  }
+
+  if (geom.type === "MultiPolygon") {
+    const coordinates = geom.coordinates.filter(
+      (poly: number[][][]) => polygonIntersectsBounds(poly, EUROPE_BOUNDS),
+    );
+    if (!coordinates.length) return null;
+    if (coordinates.length === geom.coordinates.length) return feature;
+    return { ...feature, geometry: { ...geom, coordinates } };
+  }
+
+  return feature;
+}
+
 function layoutForFeature(feature: any): GeometryLayout | null {
   const key = keyForFeature(feature);
   const cached = geometryCache.get(key);
@@ -475,6 +504,13 @@ function buildTierCards(): void {
 }
 
 function buildLegend(): void {
+  const mobileLabels: Record<TierId, string> = {
+    inner: "Inner Union",
+    eu: "EU",
+    associate: "Associate",
+    friends: "Community",
+  };
+
   legend.innerHTML = tiers
     .slice()
     .reverse()
@@ -482,7 +518,8 @@ function buildLegend(): void {
       (tier) => `
         <div class="legend-item">
           <span class="legend-swatch" style="background:${COLORS[tier.id]}"></span>
-          <span>${tier.shortTitle}</span>
+          <span class="label-full">${tier.shortTitle}</span>
+          <span class="label-short">${mobileLabels[tier.id]}</span>
         </div>
       `,
     )
@@ -491,29 +528,60 @@ function buildLegend(): void {
 
 // ─── map loading ──────────────────────────────────────────────────────────────
 
-async function loadTopology(): Promise<unknown> {
-  if (window.__WORLD_ATLAS_COUNTRIES_110M__) return window.__WORLD_ATLAS_COUNTRIES_110M__;
-  if (window.__WORLD_ATLAS_COUNTRIES_50M__) return window.__WORLD_ATLAS_COUNTRIES_50M__;
+async function loadMixedFeatures(): Promise<any[]> {
+  const tieredIds = new Set(countryMeta.keys());
 
-  for (const url of MAP_TOPOLOGY_URLS) {
-    try {
-      const topology = await d3.json(url);
-      if (topology) return topology;
-    } catch {
-      // Try the next map source before falling back to the embedded data.
+  const [result110, result50] = await Promise.allSettled([
+    window.__WORLD_ATLAS_COUNTRIES_110M__
+      ? Promise.resolve(window.__WORLD_ATLAS_COUNTRIES_110M__)
+      : d3.json(TOPOLOGY_URL_110M),
+    window.__WORLD_ATLAS_COUNTRIES_50M__
+      ? Promise.resolve(window.__WORLD_ATLAS_COUNTRIES_50M__)
+      : d3.json(TOPOLOGY_URL_50M),
+  ]);
+
+  const topo110 = result110.status === "fulfilled" ? result110.value as any : null;
+  const topo50  = result50.status  === "fulfilled" ? result50.value  as any : null;
+
+  if (!topo110 && !topo50) {
+    if (EMBEDDED_WORLD_TOPOLOGY) {
+      const t: any = EMBEDDED_WORLD_TOPOLOGY;
+      return topojson.feature(t, t.objects.countries).features;
+    }
+    throw new Error("No map topology could be loaded.");
+  }
+
+  // If only one loaded, fall back to it entirely.
+  if (!topo50) return topojson.feature(topo110, topo110.objects.countries).features;
+  if (!topo110) return topojson.feature(topo50,  topo50.objects.countries).features;
+
+  // Both loaded — merge: high-detail 50m for tiered countries, 110m for everything else.
+  const features110: any[] = topojson.feature(topo110, topo110.objects.countries).features;
+  const features50:  any[] = topojson.feature(topo50,  topo50.objects.countries).features;
+
+  const by50 = new Map<string, any>(features50.map((f) => [String(f.id), f]));
+
+  const merged = features110.map((f) => {
+    const id = String(f.id);
+    return tieredIds.has(id) && by50.has(id) ? by50.get(id) : f;
+  });
+
+  // Add tiered countries that exist in 50m but are absent from 110m (e.g. Malta).
+  const in110 = new Set(features110.map((f) => String(f.id)));
+  for (const f of features50) {
+    if (tieredIds.has(String(f.id)) && !in110.has(String(f.id))) {
+      merged.push(f);
     }
   }
 
-  if (EMBEDDED_WORLD_TOPOLOGY) return EMBEDDED_WORLD_TOPOLOGY;
-  throw new Error("No map topology could be loaded.");
+  return merged;
 }
 
 async function loadMap(): Promise<void> {
   document.body.classList.add("is-loading");
 
   try {
-    const topology: any = await loadTopology();
-    state.features = withScenarioFeatures(topojson.feature(topology, topology.objects.countries).features);
+    state.features = withScenarioFeatures(await loadMixedFeatures());
     state.featureByKey = new Map(state.features.map((feature) => [keyForFeature(feature), feature]));
     render();
     window.addEventListener("resize", onResize);
@@ -771,12 +839,17 @@ function focusScene(scene: SceneKey, options: { intro?: boolean } = {}): void {
   }
 
   const topPad = window.innerWidth <= 720 ? 60 : 0;
-  fitToCountries(ids, options.intro ? 1400 : 900, { bottomPad: 160, topPad });
+  const europeOnly = scene !== "friends";
+  fitToCountries(ids, options.intro ? 1400 : 900, { bottomPad: 160, topPad, europeOnly });
 }
 
-function fitToCountries(ids: string[], duration = 900, { bottomPad = 0, topPad = 0 }: FitOptions = {}): void {
+function fitToCountries(ids: string[], duration = 900, { bottomPad = 0, topPad = 0, europeOnly = false }: FitOptions = {}): void {
   if (!ids.length) return;
-  const features = ids.map((id) => state.featureByKey.get(id)).filter(Boolean);
+
+  let features = ids.map((id) => state.featureByKey.get(id)).filter(Boolean);
+  if (europeOnly) {
+    features = features.map(clipFeatureToEurope).filter(Boolean);
+  }
   if (!features.length) return;
 
   const bounds = path.bounds({ type: "FeatureCollection", features });
