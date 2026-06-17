@@ -866,15 +866,6 @@ button.country-chip {
   outline: none;
 }
 
-.scene-separator {
-  width: 2px;
-  height: 32px;
-  margin: 0 2px;
-  background: rgba(255, 248, 238, 0.72);
-  border-radius: 999px;
-  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.42);
-}
-
 .map-wrap {
   position: relative;
   contain: layout paint;
@@ -1502,12 +1493,6 @@ button.country-chip {
   }
 
   .value-strip {
-    display: none;
-  }
-
-  .scene-tabs [data-scene="world"],
-  .scene-tabs [data-scene="europe"],
-  .scene-separator {
     display: none;
   }
 
