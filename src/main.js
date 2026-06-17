@@ -82,7 +82,6 @@ const tiers = [
       ["392", "JP", "Japan"],
       ["410", "KR", "South Korea"],
       ["554", "NZ", "New Zealand"],
-      ["840", "US", "United States"],
     ],
   },
   {

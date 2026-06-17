@@ -194,13 +194,7 @@ button {
 }
 
 .mission-card::before {
-  position: absolute;
-  inset: auto -120px -210px auto;
-  width: 360px;
-  height: 360px;
-  content: "";
-  border: 38px solid rgba(114, 191, 208, 0.45);
-  border-radius: 50%;
+  display: none;
 }
 
 .eyebrow {
@@ -258,13 +252,7 @@ h1 {
 }
 
 .tier-card::before {
-  position: absolute;
-  inset: 8px 8px auto auto;
-  width: 56px;
-  height: 56px;
-  content: "";
-  border: 3px solid rgba(8, 11, 15, 0.25);
-  border-radius: 50%;
+  display: none;
 }
 
 .tier-card.is-active,
@@ -372,14 +360,12 @@ h1 {
   min-height: 0;
   align-items: center;
   justify-content: center;
-  padding: 2px;
+  padding: 0;
   color: inherit;
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(255, 255, 255, 0.96);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.9);
   border-radius: 50%;
-  box-shadow:
-    0 0 0 1px rgba(8, 11, 15, 0.32),
-    2px 2px 0 rgba(0, 0, 0, 0.22);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.22);
 }
 
 button.country-chip {
@@ -390,7 +376,6 @@ button.country-chip {
 .country-chip:focus-visible {
   outline: none;
   transform: translateY(-1px);
-  background: var(--white);
 }
 
 .chip-flag {
@@ -402,7 +387,6 @@ button.country-chip {
 }
 
 .tier-card[data-tier="inner"] .country-chip {
-  background: rgba(255, 255, 255, 0.14);
   border-color: rgba(255, 248, 238, 0.72);
 }
 
@@ -804,12 +788,7 @@ button.country-chip {
     padding: 12px 14px;
   }
 
-  .mission-card::before {
-    inset: auto -70px -124px auto;
-    width: 220px;
-    height: 220px;
-    border-width: 24px;
-  }
+
 
   h1 {
     max-width: 10ch;
@@ -840,11 +819,7 @@ button.country-chip {
     padding: 9px 11px;
   }
 
-  .tier-card::before {
-    width: 42px;
-    height: 42px;
-    border-width: 2px;
-  }
+
 
   .tier-card.is-active,
   .tier-card:hover,
