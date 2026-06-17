@@ -183,6 +183,8 @@ button {
   color: rgba(255, 248, 238, 0.72);
   font-size: 0.78rem;
 }
+
+.value-strip {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -1208,7 +1210,7 @@ button.country-chip {
   }
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1279px) {
   .value-strip {
     display: none;
   }
