@@ -743,6 +743,11 @@ function focusScene(scene: SceneKey, options: { intro?: boolean } = {}): void {
     state.selectedIds = new Set();
     updateHighlights();
     drawConnections();
+    countryCard.innerHTML = `
+      <p class="eyebrow">Global view</p>
+      <h2>The democratic community</h2>
+      <p>A tiered EU extends its circle beyond Europe, connecting with like-minded states on security, climate, energy, and trade — wherever shared values create a basis for cooperation.</p>
+    `;
     svg.transition().duration(900).call(zoom.transform, d3.zoomIdentity);
     return;
   }
