@@ -185,8 +185,7 @@ button {
 
 .mission-card,
 .tier-card,
-.country-card,
-.principle-card {
+.country-card {
   background: var(--cream);
   border: var(--border);
   border-radius: 8px;
@@ -224,7 +223,6 @@ h1 {
 }
 
 .mission-card p:last-child,
-.principle-card p:last-child,
 .tier-card p:last-child,
 .country-card p:last-child {
   margin-bottom: 0;
@@ -235,9 +233,24 @@ h1 {
 }
 
 .mission-card p:not(.eyebrow) {
-  max-width: 58ch;
   font-size: 1.02rem;
   font-weight: 650;
+}
+
+.mission-principles {
+  margin: 10px 0 0;
+  padding: 0 0 0 1.1em;
+  font-size: 0.93rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.mission-principles li {
+  margin-bottom: 4px;
+}
+
+.mission-principles li:last-child {
+  margin-bottom: 0;
 }
 
 .tier-deck {
@@ -672,47 +685,6 @@ button.country-chip {
   border-radius: 50%;
 }
 
-.principles {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 18px;
-  margin: 24px 0 0;
-}
-
-.principle-card {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 18px;
-}
-
-.principle-card span {
-  display: inline-grid;
-  flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  color: var(--cream);
-  font-weight: 950;
-  background: var(--navy);
-  border: 2px solid var(--ink);
-  border-radius: 50%;
-}
-
-.principle-card div {
-  min-width: 0;
-}
-
-.principle-card h2 {
-  margin-bottom: 6px;
-  font-size: 1.18rem;
-  line-height: 1;
-}
-
-.principle-card p {
-  font-weight: 650;
-}
-
 .sources {
   margin-top: 22px;
   color: rgba(255, 248, 238, 0.78);
@@ -789,8 +761,31 @@ button.country-chip {
 
   .story-panel {
     min-height: 0;
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: auto auto;
     gap: 10px;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: var(--teal-dark) var(--navy-deep);
+    align-content: start;
+  }
+
+  .story-panel::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .story-panel::-webkit-scrollbar-track {
+    background: var(--navy-deep);
+    border-radius: 3px;
+  }
+
+  .story-panel::-webkit-scrollbar-thumb {
+    background: var(--teal-dark);
+    border-radius: 3px;
+  }
+
+  .story-panel::-webkit-scrollbar-thumb:hover {
+    background: var(--teal);
   }
 
   .mission-card {
@@ -950,32 +945,6 @@ button.country-chip {
     font-size: 0.58rem;
   }
 
-  .principles {
-    gap: 12px;
-    margin: 0;
-  }
-
-  .principle-card {
-    padding: 10px 12px;
-  }
-
-  .principle-card span {
-    width: 28px;
-    height: 28px;
-    margin-bottom: 8px;
-    font-size: 0.78rem;
-  }
-
-  .principle-card h2 {
-    margin-bottom: 5px;
-    font-size: 0.96rem;
-  }
-
-  .principle-card p {
-    font-size: 0.78rem;
-    line-height: 1.26;
-  }
-
   .sources {
     margin-top: 0;
     font-size: 0.72rem;
@@ -983,6 +952,10 @@ button.country-chip {
 }
 
 @media (max-width: 1180px) {
+  .value-strip {
+    display: none;
+  }
+
   .infographic {
     display: flex;
     flex-direction: column;
@@ -1040,9 +1013,6 @@ button.country-chip {
     display: none;
   }
 
-  .principles {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 720px) {
@@ -1074,8 +1044,7 @@ button.country-chip {
   }
 
   .mission-card,
-  .tier-card,
-  .principle-card {
+  .tier-card {
     box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.72);
   }
 
@@ -1114,9 +1083,6 @@ button.country-chip {
     right: auto;
   }
 
-  .principles {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
