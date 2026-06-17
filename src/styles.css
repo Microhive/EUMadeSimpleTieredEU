@@ -77,6 +77,13 @@ button {
   color: var(--cream);
 }
 
+.masthead-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
 .brand {
   display: inline-flex;
   align-items: center;
@@ -249,6 +256,47 @@ button {
   display: none;
 }
 
+.edit-toggle {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  grid-template-rows: auto auto;
+  align-content: center;
+  justify-content: center;
+  place-items: center;
+  padding: 5px 0 4px;
+  color: var(--ink);
+  background: var(--cream);
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.68);
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.edit-toggle:hover,
+.edit-toggle:focus-visible,
+.edit-toggle.is-active {
+  outline: none;
+  background: var(--gold);
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.78);
+}
+
+.edit-toggle-icon {
+  display: grid;
+  place-items: center;
+}
+
+.edit-toggle-label {
+  font-size: 0.5rem;
+  font-weight: 950;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
 .eyebrow {
   margin: 0 0 8px;
   color: var(--teal-dark);
@@ -298,17 +346,22 @@ h1 {
   position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 1px 10px;
+  gap: 1px 7px;
   align-items: start;
   min-width: 0;
-  padding: 2px 0 4px;
+  min-height: 48px;
+  padding: 6px 7px 7px;
   color: var(--ink);
   text-align: left;
-  background: transparent;
+  background: var(--paper);
   border: 0;
   border-radius: 6px;
-  box-shadow: none;
+  box-shadow:
+    inset 0 0 0 2px rgba(8, 11, 15, 0.82),
+    3px 3px 0 rgba(0, 0, 0, 0.52);
   transition:
+    background 160ms ease,
+    box-shadow 160ms ease,
     color 160ms ease,
     transform 160ms ease;
   cursor: pointer;
@@ -344,12 +397,23 @@ h1 {
 .benefit-pill:focus-visible {
   outline: none;
   color: var(--navy);
-  transform: translateX(3px);
+  background: var(--cream);
+  transform: translate(-2px, -2px);
+  box-shadow:
+    inset 0 0 0 2px rgba(8, 11, 15, 0.9),
+    5px 5px 0 rgba(0, 0, 0, 0.68);
 }
 
 .benefit-pill:focus-visible {
   outline: 2px solid var(--gold);
-  outline-offset: 5px;
+  outline-offset: 3px;
+}
+
+.benefit-pill:active {
+  transform: translate(1px, 1px);
+  box-shadow:
+    inset 0 0 0 2px rgba(8, 11, 15, 0.9),
+    1px 1px 0 rgba(0, 0, 0, 0.58);
 }
 
 .benefit-pill:hover .pill-icon,
@@ -528,6 +592,16 @@ h1 {
   box-shadow: 13px 13px 0 rgba(0, 0, 0, 0.82);
 }
 
+.tier-card.can-drop-country {
+  outline: 2px dashed rgba(8, 11, 15, 0.38);
+  outline-offset: -8px;
+}
+
+.tier-card.is-drop-target {
+  outline-color: var(--gold);
+  background-image: linear-gradient(rgba(240, 184, 0, 0.16), rgba(240, 184, 0, 0.16));
+}
+
 .tier-card[data-tier="friends"] {
   background: var(--cream);
 }
@@ -680,6 +754,23 @@ button.country-chip {
 .country-chip:focus-visible {
   outline: none;
   transform: translateY(-1px);
+}
+
+.is-editing-tiers .country-chip {
+  cursor: grab;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.42);
+}
+
+.is-editing-tiers .country-chip:hover,
+.is-editing-tiers .country-chip:focus-visible {
+  transform: translate(-1px, -2px);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.55);
+}
+
+.country-chip.is-dragging {
+  cursor: grabbing;
+  opacity: 0.42;
+  transform: scale(0.88);
 }
 
 .chip-flag {
@@ -1019,6 +1110,10 @@ button.country-chip {
     min-height: 50px;
   }
 
+  .masthead-actions {
+    gap: 8px;
+  }
+
   .brand-mark {
     width: 44px;
     height: 44px;
@@ -1096,6 +1191,22 @@ button.country-chip {
     padding: 12px 14px;
   }
 
+  .edit-toggle {
+    width: 40px;
+    height: 40px;
+    padding: 5px 0;
+    box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.68);
+  }
+
+  .edit-toggle svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .edit-toggle-label {
+    font-size: 0.48rem;
+  }
+
   .benefit-pills {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px 12px;
@@ -1106,7 +1217,11 @@ button.country-chip {
 
   .benefit-pill {
     gap: 0 7px;
-    padding: 2px 0;
+    min-height: 42px;
+    padding: 4px 5px 5px;
+    box-shadow:
+      inset 0 0 0 1.5px rgba(8, 11, 15, 0.82),
+      2px 2px 0 rgba(0, 0, 0, 0.52);
   }
 
   .pill-icon {
@@ -1292,6 +1407,14 @@ button.country-chip {
 }
 
 @media (max-width: 1279px) {
+  .edit-toggle {
+    display: none;
+  }
+
+  .country-label {
+    stroke-width: 1.2;
+  }
+
   .value-strip {
     display: none;
   }
@@ -1417,7 +1540,12 @@ button.country-chip {
   }
 
   .benefit-pill {
-    gap: 1px 8px;
+    gap: 1px 6px;
+    padding: 5px 5px 6px;
+  }
+
+  .pill-short {
+    font-size: 0.68rem;
   }
 
   .map-stage,

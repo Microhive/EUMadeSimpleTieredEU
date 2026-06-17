@@ -96,6 +96,7 @@ interface AppState {
   activeCountry: string | null;
   selectedIds: Set<string>;
   scene: SceneKey;
+  editMode: boolean;
   userTouched: boolean;
 }
 
@@ -588,20 +589,11 @@ for (const tier of tiers) {
   }
 }
 
-const cumulativeTierIds: Record<TierId, string[]> = {
-  inner: idsFor("inner"),
-  eu: idsFor("inner", "eu"),
-  associate: idsFor("inner", "eu", "associate"),
-  friends: idsFor("inner", "eu", "associate", "friends"),
-};
-
-const scenes: Record<SceneKey, string[] | null> = {
-  world: null,
-  europe: idsFor("inner", "eu", "associate"),
-  inner: cumulativeTierIds.inner,
-  eu: cumulativeTierIds.eu,
-  associate: cumulativeTierIds.associate,
-  friends: cumulativeTierIds.friends,
+const cumulativeTierOrder: Record<TierId, TierId[]> = {
+  inner: ["inner"],
+  eu: ["inner", "eu"],
+  associate: ["inner", "eu", "associate"],
+  friends: ["inner", "eu", "associate", "friends"],
 };
 
 // ─── state ────────────────────────────────────────────────────────────────────
@@ -613,6 +605,7 @@ const state: AppState = {
   activeCountry: null,
   selectedIds: new Set(),
   scene: "world",
+  editMode: false,
   userTouched: false,
 };
 
@@ -624,7 +617,12 @@ const sceneTabs = document.querySelector<HTMLElement>("#sceneTabs")!;
 const legend = document.querySelector<HTMLElement>("#legend")!;
 const countryCard = document.querySelector<HTMLElement>("#countryCard")!;
 const mapWrap = document.querySelector<HTMLElement>(".map-wrap")!;
+const editToggle = document.querySelector<HTMLButtonElement>("#editToggle")!;
 const benefitModal = document.querySelector<HTMLDialogElement>("#benefitModal")!;
+const EDIT_TOOLTIP_IDLE =
+  "Edit the scenario tiers. Turn this on to drag country flags between tier cards and try a different arrangement.";
+const EDIT_TOOLTIP_ACTIVE =
+  "Editing is on. Drag country flags between tier cards, then choose Done when the arrangement feels right.";
 
 // ─── d3 / map setup ───────────────────────────────────────────────────────────
 
@@ -640,7 +638,9 @@ const zoom = d3.zoom()
     return (!event.ctrlKey || event.type === "wheel") && !event.button;
   })
   .on("zoom", onZoom);
-const BASE_LABEL_PX = 22;
+const DESKTOP_LABEL_PX = 22;
+const COMPACT_LABEL_PX = 14;
+const NARROW_LABEL_PX = 12;
 
 let mapLayer: any = null;
 let countryLayer: any = null;
@@ -650,12 +650,14 @@ let countryChipElements: HTMLButtonElement[] = [];
 let geometryCache = new Map<string, GeometryLayout>();
 let width = 0;
 let height = 0;
+let draggedCountryId: string | null = null;
 let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 
 // ─── init ─────────────────────────────────────────────────────────────────────
 buildBenefitPills();
 buildTierCards();
 buildLegend();
+setupEditToggleTooltip();
 loadMap();
 // ─── benefit pill functions ───────────────────────────────────────────────────────────────────────────
 
@@ -687,6 +689,14 @@ function showPillTooltip(anchor: HTMLElement): void {
 function hidePillTooltip(): void {
   if (pillTooltipTimer) clearTimeout(pillTooltipTimer);
   pillTooltipTimer = setTimeout(() => pillTooltipEl.classList.remove("is-visible"), 100);
+}
+
+function setupEditToggleTooltip(): void {
+  if (!window.matchMedia("(hover: hover)").matches) return;
+  editToggle.addEventListener("mouseenter", () => showPillTooltip(editToggle));
+  editToggle.addEventListener("mouseleave", () => hidePillTooltip());
+  editToggle.addEventListener("focus", () => showPillTooltip(editToggle));
+  editToggle.addEventListener("blur", () => hidePillTooltip());
 }
 
 function openInfoModal(content: ModalContent): void {
@@ -749,6 +759,16 @@ function idsFor(...tierIds: TierId[]): string[] {
   return tierIds.flatMap((tierId) => tierById.get(tierId)!.directCountries.map(([id]) => id));
 }
 
+function cumulativeIdsFor(tierId: TierId): string[] {
+  return idsFor(...cumulativeTierOrder[tierId]);
+}
+
+function sceneIdsFor(scene: SceneKey): string[] | null {
+  if (scene === "world") return null;
+  if (scene === "europe") return idsFor("inner", "eu", "associate");
+  return cumulativeIdsFor(scene);
+}
+
 function keyForFeature(feature: any): string {
   return feature.id || feature.properties?.name;
 }
@@ -757,8 +777,8 @@ function tierForFeature(feature: any): TierId | undefined {
   const key = keyForFeature(feature);
   return (
     directTierByCountry.get(key) ??
-    SCENARIO_FEATURE_TIER.get(key) ??
-    directTierByCountry.get(canonicalCountryId(key))
+    directTierByCountry.get(canonicalCountryId(key)) ??
+    SCENARIO_FEATURE_TIER.get(key)
   );
 }
 
@@ -875,6 +895,93 @@ function layoutForFeature(feature: any): GeometryLayout | null {
   return layout;
 }
 
+function setEditMode(nextEditMode: boolean): void {
+  state.editMode = nextEditMode;
+  syncEditModeControls();
+}
+
+function syncEditModeControls(): void {
+  document.body.classList.toggle("is-editing-tiers", state.editMode);
+  editToggle.classList.toggle("is-active", state.editMode);
+  editToggle.setAttribute("aria-pressed", String(state.editMode));
+  editToggle.setAttribute("aria-label", state.editMode ? "Finish editing tiers" : "Edit tiers");
+  editToggle.dataset.tooltip = state.editMode ? EDIT_TOOLTIP_ACTIVE : EDIT_TOOLTIP_IDLE;
+  editToggle.querySelector<HTMLElement>(".edit-toggle-label")!.textContent =
+    state.editMode ? "Done" : "Edit";
+
+  countryChipElements.forEach((chip) => {
+    chip.draggable = state.editMode;
+    chip.setAttribute("aria-grabbed", "false");
+  });
+
+  tierCardElements.forEach((card) => {
+    card.classList.toggle("can-drop-country", state.editMode);
+    card.classList.remove("is-drop-target");
+  });
+
+  if (!state.editMode) draggedCountryId = null;
+}
+
+function moveCountryToTier(countryId: string, targetTierId: TierId): boolean {
+  const canonicalId = canonicalCountryId(countryId);
+  const sourceTierId = directTierByCountry.get(canonicalId);
+  if (!sourceTierId || sourceTierId === targetTierId) return false;
+
+  const sourceTier = tierById.get(sourceTierId)!;
+  const targetTier = tierById.get(targetTierId)!;
+  const sourceIndex = sourceTier.directCountries.findIndex(([id]) => id === canonicalId);
+  if (sourceIndex < 0) return false;
+
+  const [entry] = sourceTier.directCountries.splice(sourceIndex, 1);
+  targetTier.directCountries.push(entry);
+  directTierByCountry.set(canonicalId, targetTierId);
+
+  const meta = countryMeta.get(canonicalId);
+  if (meta) meta.tier = targetTierId;
+
+  return true;
+}
+
+function refreshTierStateAfterMove(): void {
+  buildTierCards();
+  syncEditModeControls();
+  refreshCountryTierClasses();
+
+  if (state.activeCountry) {
+    const meta = metaForCountry(state.activeCountry);
+    if (meta) {
+      state.activeTier = meta.tier;
+      state.selectedIds = selectedCountrySet([state.activeCountry]);
+      renderCountryCardForCountry(meta);
+    }
+  } else if (state.activeTier) {
+    state.selectedIds = selectedCountrySet(cumulativeIdsFor(state.activeTier));
+    renderCountryCardForTier(state.activeTier);
+  } else {
+    state.selectedIds = selectedCountrySet(sceneIdsFor(state.scene) ?? cumulativeIdsFor("friends"));
+  }
+
+  updateHighlights();
+  drawConnections();
+}
+
+function refreshCountryTierClasses(): void {
+  if (!countryLayer) return;
+
+  countryLayer.selectAll(".country").attr("class", (feature: any) => {
+    const tierId = tierForFeature(feature);
+    return `country${tierId ? ` tier-${tierId}` : ""}`;
+  });
+}
+
+function clearDropTargets(): void {
+  tierCardElements.forEach((card) => card.classList.remove("is-drop-target"));
+}
+
+function dragCountryFromEvent(event: DragEvent): string | null {
+  return draggedCountryId ?? event.dataTransfer?.getData("text/plain") ?? null;
+}
+
 // ─── render functions ─────────────────────────────────────────────────────────
 
 function buildTierCards(): void {
@@ -883,7 +990,7 @@ function buildTierCards(): void {
       const chips = tier.directCountries
         .map(([id, code, name]) => {
           const safeName = escapeAttribute(name);
-          return `<button type="button" class="country-chip" data-country="${id}" data-code="${code}" aria-label="${safeName}" title="${safeName}">
+          return `<button type="button" class="country-chip" data-country="${id}" data-code="${code}" aria-label="${safeName}" title="${safeName}" draggable="${state.editMode ? "true" : "false"}">
               <img class="chip-flag" src="${flagImageSrc(code)}" width="28" height="28" alt="" loading="lazy" decoding="async">
             </button>`;
         })
@@ -922,12 +1029,55 @@ function buildTierCards(): void {
     card.addEventListener("mouseenter", () => activateTier(card.dataset.tier as TierId));
     card.addEventListener("focusin", () => activateTier(card.dataset.tier as TierId));
     card.addEventListener("mouseleave", clearSoftFocus);
+    card.addEventListener("dragenter", (event) => {
+      if (!state.editMode || !dragCountryFromEvent(event)) return;
+      event.preventDefault();
+      card.classList.add("is-drop-target");
+    });
+    card.addEventListener("dragover", (event) => {
+      if (!state.editMode || !dragCountryFromEvent(event)) return;
+      event.preventDefault();
+      event.dataTransfer!.dropEffect = "move";
+      card.classList.add("is-drop-target");
+    });
+    card.addEventListener("dragleave", (event) => {
+      if (event.relatedTarget instanceof Node && card.contains(event.relatedTarget)) return;
+      card.classList.remove("is-drop-target");
+    });
+    card.addEventListener("drop", (event) => {
+      if (!state.editMode) return;
+      event.preventDefault();
+      const countryId = dragCountryFromEvent(event);
+      clearDropTargets();
+      if (!countryId) return;
+      const targetTierId = card.dataset.tier as TierId;
+      if (moveCountryToTier(countryId, targetTierId)) {
+        refreshTierStateAfterMove();
+      }
+    });
   });
 
   countryChipElements.forEach((button) => {
     button.addEventListener("mouseenter", () => activateCountry(button.dataset.country!, false));
     button.addEventListener("focus", () => activateCountry(button.dataset.country!, false));
     button.addEventListener("click", () => activateCountry(button.dataset.country!, true));
+    button.addEventListener("dragstart", (event) => {
+      if (!state.editMode) {
+        event.preventDefault();
+        return;
+      }
+      draggedCountryId = button.dataset.country!;
+      button.classList.add("is-dragging");
+      button.setAttribute("aria-grabbed", "true");
+      event.dataTransfer!.effectAllowed = "move";
+      event.dataTransfer!.setData("text/plain", draggedCountryId);
+    });
+    button.addEventListener("dragend", () => {
+      draggedCountryId = null;
+      button.classList.remove("is-dragging");
+      button.setAttribute("aria-grabbed", "false");
+      clearDropTargets();
+    });
   });
 
   const canHoverCap = window.matchMedia("(hover: hover)").matches;
@@ -952,6 +1102,8 @@ function buildTierCards(): void {
       });
     });
   });
+
+  syncEditModeControls();
 }
 
 function buildLegend(): void {
@@ -1119,8 +1271,14 @@ function onZoom(event: any): void {
   if (labelLayer) {
     labelLayer
       .selectAll(".country-label")
-      .style("font-size", `${BASE_LABEL_PX / event.transform.k}px`);
+      .style("font-size", `${countryLabelBasePx() / event.transform.k}px`);
   }
+}
+
+function countryLabelBasePx(): number {
+  if (window.innerWidth <= 430) return NARROW_LABEL_PX;
+  if (window.innerWidth <= 1279) return COMPACT_LABEL_PX;
+  return DESKTOP_LABEL_PX;
 }
 
 // ─── interaction ──────────────────────────────────────────────────────────────
@@ -1128,7 +1286,7 @@ function onZoom(event: any): void {
 function activateTier(tierId: TierId): void {
   state.activeTier = tierId;
   state.activeCountry = null;
-  state.selectedIds = selectedCountrySet(cumulativeTierIds[tierId]);
+  state.selectedIds = selectedCountrySet(cumulativeIdsFor(tierId));
   updateHighlights();
   renderCountryCardForTier(tierId);
   drawConnections();
@@ -1155,7 +1313,7 @@ function clearSoftFocus(): void {
   if (!state.activeTier) return;
 
   state.activeTier = null;
-  state.selectedIds = selectedCountrySet(scenes[state.scene] ?? []);
+  state.selectedIds = selectedCountrySet(sceneIdsFor(state.scene) ?? cumulativeIdsFor("friends"));
   updateHighlights();
 }
 
@@ -1252,7 +1410,7 @@ function drawLabels(): void {
     .attr("y", (item: LabelDatum) => item.centroid[1])
     .attr("text-anchor", "middle")
     .attr("dominant-baseline", "middle")
-    .style("font-size", `${BASE_LABEL_PX / currentScale}px`)
+    .style("font-size", `${countryLabelBasePx() / currentScale}px`)
     .text((item: LabelDatum) => item.text);
 }
 
@@ -1269,7 +1427,7 @@ function focusScene(scene: SceneKey, options: { intro?: boolean } = {}): void {
   if (scene === "world") {
     state.activeTier = null;
     state.activeCountry = null;
-    state.selectedIds = selectedCountrySet(cumulativeTierIds.friends);
+    state.selectedIds = selectedCountrySet(cumulativeIdsFor("friends"));
     updateHighlights();
     drawConnections();
     countryCard.innerHTML = `
@@ -1281,7 +1439,7 @@ function focusScene(scene: SceneKey, options: { intro?: boolean } = {}): void {
     return;
   }
 
-  const ids = scenes[scene]!;
+  const ids = sceneIdsFor(scene)!;
   state.activeCountry = null;
   state.activeTier = tierById.has(scene as TierId) ? (scene as TierId) : null;
   state.selectedIds = selectedCountrySet(ids);
@@ -1336,4 +1494,13 @@ sceneTabs.addEventListener("click", (event: MouseEvent) => {
   if (!button?.dataset.scene) return;
   state.userTouched = true;
   focusScene(button.dataset.scene as SceneKey);
+});
+
+editToggle.addEventListener("click", () => {
+  setEditMode(!state.editMode);
+  if (window.matchMedia("(hover: hover)").matches && editToggle.matches(":hover")) {
+    showPillTooltip(editToggle);
+  } else {
+    hidePillTooltip();
+  }
 });
