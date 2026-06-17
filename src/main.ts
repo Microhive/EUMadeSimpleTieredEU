@@ -301,7 +301,15 @@ const mapWrap = document.querySelector<HTMLElement>(".map-wrap")!;
 const projection = d3.geoNaturalEarth1();
 const path = d3.geoPath(projection).pointRadius(4.8);
 const graticule = d3.geoGraticule10();
-const zoom = d3.zoom().scaleExtent([1, 12]).on("zoom", onZoom);
+const zoom = d3.zoom()
+  .scaleExtent([1, 12])
+  .filter((event: any) => {
+    if (event.touches !== undefined) {
+      return event.touches.length >= 2;
+    }
+    return (!event.ctrlKey || event.type === "wheel") && !event.button;
+  })
+  .on("zoom", onZoom);
 const BASE_LABEL_PX = 22;
 
 let mapLayer: any = null;
