@@ -569,7 +569,15 @@ async function loadMixedFeatures(): Promise<any[]> {
   const features110: any[] = topojson.feature(topo110, topo110.objects.countries).features;
   const features50:  any[] = topojson.feature(topo50,  topo50.objects.countries).features;
 
-  const by50 = new Map<string, any>(features50.map((f) => [String(f.id), f]));
+  // Build the 50m lookup keeping only the FIRST feature per id.
+  // Some territories share a parent id (e.g. Ashmore and Cartier Is. reuse
+  // Australia's "036"), so the Map constructor would silently overwrite the
+  // main landmass with a tiny outlier if we used the last entry.
+  const by50 = new Map<string, any>();
+  for (const f of features50) {
+    const id = String(f.id);
+    if (!by50.has(id)) by50.set(id, f);
+  }
 
   const merged = features110.map((f) => {
     const id = String(f.id);
