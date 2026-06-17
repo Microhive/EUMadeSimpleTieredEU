@@ -207,6 +207,13 @@ const tiers: Tier[] = [
     directCountries: [
       ["040", "AT", "Austria"],
       ["100", "BG", "Bulgaria"],
+      ["191", "HR", "Croatia"],
+      ["196", "CY", "Cyprus"],
+      ["203", "CZ", "Czechia"],
+      ["208", "DK", "Denmark"],
+      ["233", "EE", "Estonia"],
+      ["246", "FI", "Finland"],
+      ["300", "GR", "Greece"],
       ["348", "HU", "Hungary"],
       ["372", "IE", "Ireland"],
       ["428", "LV", "Latvia"],
