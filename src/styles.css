@@ -1049,6 +1049,11 @@ button.country-chip {
 
   h1 {
     font-size: 2.35rem;
+    text-align: center;
+  }
+
+  .country-grid {
+    justify-content: center;
   }
 
   .infographic {
