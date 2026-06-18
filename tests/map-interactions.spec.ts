@@ -354,6 +354,71 @@ test.describe("tier editing drag — desktop", () => {
     await page.locator("#editToggle").click();
     await expect(page.locator("#editToggle")).toHaveAttribute("aria-pressed", "false");
   });
+
+  test("dragging a hovered map flag between tiers still works", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator("#mapFlagsButton").click();
+    await page.locator("#editToggle").click();
+
+    const countryId = "276"; // Germany
+    const sourceTier = "inner";
+    const targetTier = "eu";
+    const mapFlag = page.locator(`.map-flag[data-country="${countryId}"]`);
+    const sourceChip = page.locator(
+      `.tier-card[data-tier="${sourceTier}"] .country-chip[data-country="${countryId}"]`
+    );
+    const targetCard = page.locator(`.tier-card[data-tier="${targetTier}"]`);
+    const targetChip = page.locator(
+      `.tier-card[data-tier="${targetTier}"] .country-chip[data-country="${countryId}"]`
+    );
+
+    await mapFlag.hover();
+    await expect(mapFlag).toBeVisible();
+    await expect(sourceChip).toHaveCount(1);
+    await expect(targetChip).toHaveCount(0);
+
+    await dragLocatorToLocator(page, mapFlag, targetCard);
+
+    await expect(targetChip).toHaveCount(1);
+    await expect(sourceChip).toHaveCount(0);
+    await expect(page.locator(`#mapSvg [data-country="${countryId}"]`)).toHaveClass(/tier-eu/);
+  });
+
+  test("clearing tiers removes every chip and can be shared", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"], {
+      origin: "http://127.0.0.1:5173",
+    });
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator("#editToggle").click();
+    await page.locator("#clearTiersButton").click();
+
+    await expect(page.locator(".country-chip")).toHaveCount(0);
+    await expect(page.locator('#mapSvg [data-country="276"]')).not.toHaveClass(/tier-/);
+    await expect(page.locator('#mapSvg [data-country="Crimea"]')).not.toHaveClass(/tier-/);
+
+    await page.locator("#shareTiersButton").click();
+
+    const copiedUrl = await page.evaluate(() => navigator.clipboard.readText());
+    const params = new URL(copiedUrl).searchParams;
+    expect(params.get("inner")).toBe("");
+    expect(params.get("eu")).toBe("");
+    expect(params.get("associate")).toBe("");
+    expect(params.get("friends")).toBe("");
+  });
+
+  test("query params replace the default tier assignments", async ({ page }) => {
+    await page.goto("/?inner=276&eu=&associate=112&friends=");
+    await waitForMap(page);
+
+    await expect(page.locator('.tier-card[data-tier="inner"] .country-chip[data-country="276"]')).toHaveCount(1);
+    await expect(page.locator('.tier-card[data-tier="associate"] .country-chip[data-country="112"]')).toHaveCount(1);
+    await expect(page.locator('.tier-card[data-tier="eu"] .country-chip')).toHaveCount(0);
+    await expect(page.locator('#mapSvg [data-country="112"]')).toHaveClass(/tier-associate/);
+  });
 });
 
 test.describe("country chip — mobile tap", () => {
@@ -420,6 +485,31 @@ test.describe("map country path — desktop click", () => {
     await expect(page.locator("#countryCard h2")).not.toContainText("Germany", {
       ignoreCase: true,
     });
+  });
+
+  test("map flags reflect tier presence and hover focus", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator("#mapFlagsButton").click();
+
+    const germanyFlag = page.locator('.map-flag[data-country="276"]');
+    const belarusFlag = page.locator('.map-flag[data-country="112"]');
+    const germanyChip = page.locator('.country-chip[data-country="276"]');
+
+    await expect(germanyFlag).toHaveClass(/is-tiered/);
+    await expect(belarusFlag).not.toHaveClass(/is-tiered/);
+
+    await germanyFlag.hover();
+
+    await expect(germanyFlag).not.toHaveClass(/is-label-backed/);
+    await expect(germanyFlag).toBeVisible();
+    await expect(germanyChip).toHaveClass(/is-map-hovered/);
+
+    const flagBox = await germanyFlag.boundingBox();
+    const labelBox = await page.locator("#mapSvg .country-label").filter({ hasText: "Germany" }).boundingBox();
+    if (!flagBox || !labelBox) throw new Error("Expected Germany flag and label to be visible.");
+    expect(labelBox.y).toBeGreaterThan(flagBox.y + flagBox.height * 0.6);
   });
 
   test("clicking a country on the map shows its info card", async ({ page }) => {

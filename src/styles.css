@@ -350,6 +350,22 @@ button {
   border-radius: 50%;
 }
 
+.edit-tool-button.is-copied {
+  background: var(--gold);
+}
+
+.edit-toolbar-separator {
+  display: grid;
+  height: 44px;
+  align-items: center;
+  padding: 0 2px;
+  color: var(--cream);
+  font-size: 1.2rem;
+  font-weight: 950;
+  line-height: 1;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.72);
+}
+
 .eyebrow {
   margin: 0 0 8px;
   color: var(--teal-dark);
@@ -844,8 +860,14 @@ button.capability:focus-visible {
   border-radius: 50%;
   box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.22);
   touch-action: manipulation;
+  transition:
+    box-shadow 140ms ease,
+    filter 140ms ease,
+    opacity 140ms ease,
+    transform 140ms ease;
   user-select: none;
   -webkit-user-drag: none;
+  will-change: transform;
 }
 
 button.country-chip {
@@ -874,6 +896,16 @@ button.country-chip {
   cursor: grabbing;
   opacity: 0.42;
   transform: scale(0.88);
+}
+
+.country-chip.is-map-hovered:not(.is-dragging) {
+  position: relative;
+  z-index: 2;
+  transform: translate(-1px, -3px) scale(1.13);
+  box-shadow:
+    0 0 0 2px var(--gold),
+    5px 5px 0 rgba(0, 0, 0, 0.56);
+  filter: saturate(1.12) contrast(1.04);
 }
 
 .country-drag-ghost {
@@ -1084,6 +1116,7 @@ button.country-chip {
     0 0 0 1px rgba(255, 248, 238, 0.5),
     2px 2px 0 rgba(0, 0, 0, 0.44);
   transition:
+    filter 140ms ease,
     opacity 140ms ease,
     box-shadow 140ms ease;
   user-select: none;
@@ -1107,10 +1140,16 @@ button.country-chip {
   -webkit-user-drag: none;
 }
 
+.map-flag.is-tiered {
+  opacity: 0.42;
+  filter: saturate(0.62) contrast(0.88);
+}
+
 .map-flag:hover,
 .map-flag:focus-visible {
   z-index: 1;
   opacity: 1;
+  filter: none;
   outline: none;
   box-shadow:
     0 0 0 2px var(--gold),
@@ -1220,8 +1259,6 @@ button.country-chip {
   stroke-width: 1.15;
   filter: none;
 }
-
-
 
 .country-label {
   pointer-events: none;
@@ -1483,6 +1520,11 @@ button.country-chip {
   .edit-toggle svg {
     width: 14px;
     height: 14px;
+  }
+
+  .edit-toolbar-separator {
+    height: 40px;
+    font-size: 1.05rem;
   }
 
   .edit-toggle-label {
