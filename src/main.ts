@@ -1951,18 +1951,28 @@ function drawLiftedCountries(): void {
   });
 
   hoverLayer
-    .selectAll("path")
+    .selectAll(".country-lift")
     .data([...featuresByKey.values()], keyForFeature)
     .join(
-      (enter: any) =>
-        enter
+      (enter: any) => {
+        const group = enter.append("g").attr("class", "country-lift");
+        group.append("path").attr("class", "country-lift-shadow").attr("d", path);
+        group
           .append("path")
           .attr("class", (feature: any) => `${countryClassForFeature(feature)} country-hover-lift`)
-          .attr("d", path),
-      (update: any) =>
+          .attr("transform", "translate(-1, -1.5)")
+          .attr("d", path);
+        return group;
+      },
+      (update: any) => {
+        update.select(".country-lift-shadow").attr("d", path);
         update
+          .select(".country-hover-lift")
           .attr("class", (feature: any) => `${countryClassForFeature(feature)} country-hover-lift`)
-          .attr("d", path),
+          .attr("transform", "translate(-1, -1.5)")
+          .attr("d", path);
+        return update;
+      },
       (exit: any) => exit.remove(),
     );
 }
@@ -2128,20 +2138,20 @@ function drawConnections(): void {}
 function drawLabels(): void {
   if (!labelLayer) return;
 
-  const labels: LabelDatum[] =
-    state.selectedIds.size <= 14
-      ? [...state.selectedIds]
-          .map((id): LabelDatum | null => {
-            if (isAliasCountryId(id)) return null;
-            const feature = state.featureByKey.get(id);
-            const meta = countryMeta.get(id);
-            if (!feature || !meta) return null;
-            const layout = layoutForFeature(feature);
-            if (!layout) return null;
-            return { id, text: meta.name, centroid: layout.centroid };
-          })
-          .filter((item): item is LabelDatum => item !== null)
-      : [];
+  const labelsById = new Map<string, LabelDatum>();
+  const addLabel = (id: string): void => {
+    const label = labelForCountry(id);
+    if (label) labelsById.set(label.id, label);
+  };
+
+  if (state.selectedIds.size <= 14) {
+    [...state.selectedIds].forEach(addLabel);
+  }
+
+  if (state.activeCountry) addLabel(state.activeCountry);
+  if (state.hoveredCountry) addLabel(state.hoveredCountry);
+
+  const labels = [...labelsById.values()];
 
   const currentScale: number = svg.node() ? d3.zoomTransform(svg.node()).k : 1;
 
@@ -2156,6 +2166,20 @@ function drawLabels(): void {
     .attr("dominant-baseline", "middle")
     .style("font-size", `${countryLabelBasePx() / currentScale}px`)
     .text((item: LabelDatum) => item.text);
+}
+
+function labelForCountry(countryId: string): LabelDatum | null {
+  const id = canonicalCountryId(countryId);
+  if (isAliasCountryId(id)) return null;
+
+  const feature = state.featureByKey.get(id);
+  const meta = countryMeta.get(id);
+  if (!feature || !meta) return null;
+
+  const layout = layoutForFeature(feature);
+  if (!layout) return null;
+
+  return { id, text: meta.name, centroid: layout.centroid };
 }
 
 // ─── scene management ─────────────────────────────────────────────────────────
