@@ -128,6 +128,35 @@ test.describe("scene tab — desktop click", () => {
     await expect(tab).toHaveClass(/is-active/);
     await expect(page.locator("#countryCard")).toContainText("European Union");
   });
+
+  test("hovering another scene tab previews it without changing the selected tab", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const euTab = page.locator('[data-scene="eu"]');
+    const communityTab = page.locator('[data-scene="friends"]');
+    const austria = page.locator('#mapSvg [data-country="040"]');
+    const canada = page.locator('#mapSvg [data-country="124"]');
+
+    await expect(euTab).toHaveClass(/is-active/);
+    await expect(austria).toHaveClass(/is-highlight/);
+    await expect(canada).toHaveClass(/is-muted/);
+
+    await communityTab.hover();
+
+    await expect(canada).toHaveClass(/is-highlight/);
+    await expect(page.locator("#countryCard h2")).toContainText("Community");
+
+    await page.mouse.move(1, 1);
+    await page.waitForTimeout(80);
+
+    await expect(euTab).toHaveClass(/is-active/);
+    await expect(austria).toHaveClass(/is-highlight/);
+    await expect(canada).toHaveClass(/is-muted/);
+    await expect(page.locator("#countryCard h2")).toContainText("European Union");
+  });
 });
 
 test.describe("scene tab — mobile tap", () => {
@@ -195,6 +224,28 @@ test.describe("country chip — mobile tap", () => {
 test.describe("map country path — desktop click", () => {
   test.use(desktop);
 
+  test("country hover restores the selected tier on mouseleave", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const germany = page.locator('#mapSvg [data-country="276"]');
+    const austria = page.locator('#mapSvg [data-country="040"]');
+
+    await expect(austria).toHaveClass(/is-highlight/);
+
+    await germany.hover();
+    await page.waitForTimeout(180);
+
+    await expect(germany).toHaveClass(/is-highlight/);
+    await expect(austria).toHaveClass(/is-muted/);
+
+    await page.mouse.move(1, 1);
+    await page.waitForTimeout(80);
+
+    await expect(austria).toHaveClass(/is-highlight/);
+    await expect(page.locator("#countryCard h2")).toContainText("European Union");
+  });
+
   test("brief country hover does not update the card", async ({ page }) => {
     await page.goto("/");
     await waitForMap(page);
@@ -223,6 +274,26 @@ test.describe("map country path — desktop click", () => {
 
 test.describe("map country path — mobile tap", () => {
   test.use(mobile);
+
+  test("tapping the focused country again restores the selected tier", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const germany = page.locator('#mapSvg [data-country="276"]');
+    const austria = page.locator('#mapSvg [data-country="040"]');
+
+    await germany.tap();
+
+    await expect(page.locator("#countryCard h2")).toContainText("Germany", {
+      ignoreCase: true,
+    });
+    await expect(austria).toHaveClass(/is-muted/);
+
+    await germany.tap();
+
+    await expect(page.locator("#countryCard h2")).toContainText("European Union");
+    await expect(austria).toHaveClass(/is-highlight/);
+  });
 
   test("tapping a country on the map shows its info card", async ({ page }) => {
     await page.goto("/");

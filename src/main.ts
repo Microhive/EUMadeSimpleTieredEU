@@ -1008,8 +1008,8 @@ function refreshTierStateAfterMove(): void {
   if (state.activeCountry) {
     const meta = metaForCountry(state.activeCountry);
     if (meta) {
-      state.activeTier = meta.tier;
-      state.selectedIds = selectedCountrySet([state.activeCountry]);
+      state.activeTier = activeTierForScene() ?? meta.tier;
+      state.selectedIds = selectedCountrySet(countryIdsFor(state.activeCountry));
       renderCountryCardForCountry(meta);
     }
   } else if (state.activeTier) {
@@ -1282,6 +1282,7 @@ function render(): void {
 
   svg.selectAll("*").remove();
   svg.call(zoom);
+  svg.on("click.restore-scene", onMapBackgroundClick);
 
   mapLayer = svg.append("g").attr("class", "map-layer");
   countryLayer = mapLayer.append("g").attr("class", "country-layer");
@@ -1305,9 +1306,15 @@ function render(): void {
       if (metaForCountry(key)) scheduleCountryHover(key);
     })
     .on("mouseleave", onCountryPointerLeave)
-    .on("click", (_event: MouseEvent, feature: any) => {
+    .on("click", (event: MouseEvent, feature: any) => {
+      event.stopPropagation();
       cancelCountryHover();
       const key = keyForFeature(feature);
+      const canonicalId = canonicalCountryId(key);
+      if (state.activeCountry === canonicalId) {
+        restoreSceneSelection();
+        return;
+      }
       if (metaForCountry(key)) activateCountry(key, true);
     });
 
@@ -1358,8 +1365,8 @@ function activateCountry(countryId: string, shouldZoom: boolean): void {
   if (!meta) return;
 
   state.activeCountry = canonicalId;
-  state.activeTier = meta.tier;
-  state.selectedIds = selectedCountrySet([canonicalId]);
+  state.activeTier = activeTierForScene() ?? meta.tier;
+  state.selectedIds = selectedCountrySet(countryIdsFor(canonicalId));
   state.userTouched = true;
   updateHighlights();
   renderCountryCardForCountry(meta);
@@ -1384,16 +1391,50 @@ function cancelCountryHover(): void {
 
 function onCountryPointerLeave(): void {
   cancelCountryHover();
-  clearSoftFocus();
+  if (state.activeCountry) restoreSceneSelection();
 }
 
 function clearSoftFocus(): void {
-  if (state.activeCountry) return;
-  if (!state.activeTier) return;
+  if (state.activeCountry || !state.activeTier) return;
+  restoreSceneSelection();
+}
 
-  state.activeTier = null;
-  state.selectedIds = selectedCountrySet(sceneIdsFor(state.scene) ?? cumulativeIdsFor("friends"));
+function onMapBackgroundClick(event: MouseEvent): void {
+  if (!state.activeCountry) return;
+  if ((event.target as Element).closest(".country")) return;
+  restoreSceneSelection();
+}
+
+function activeTierForScene(scene: SceneKey = state.scene): TierId | null {
+  return tierById.has(scene as TierId) ? (scene as TierId) : null;
+}
+
+function selectedIdsForScene(scene: SceneKey = state.scene): Set<string> {
+  return selectedCountrySet(sceneIdsFor(scene) ?? cumulativeIdsFor("friends"));
+}
+
+function restoreSceneSelection(): void {
+  state.activeCountry = null;
+  state.activeTier = activeTierForScene();
+  state.selectedIds = selectedIdsForScene();
   updateHighlights();
+  renderCountryCardForScene();
+  drawConnections();
+}
+
+function previewScene(scene: SceneKey): void {
+  cancelCountryHover();
+  state.activeCountry = null;
+  state.activeTier = activeTierForScene(scene);
+  state.selectedIds = selectedIdsForScene(scene);
+  updateHighlights();
+  renderCountryCardForScene(scene);
+  drawConnections();
+}
+
+function restoreScenePreview(): void {
+  if (state.activeCountry) return;
+  restoreSceneSelection();
 }
 
 function updateHighlights(): void {
@@ -1430,6 +1471,29 @@ function renderCountryCardForTier(tierId: TierId): void {
     <span class="tier-pill" data-tier="${tier.id}">${tier.title}</span>
     <h2>${tier.shortTitle}</h2>
     <p>${tier.summary}</p>
+  `;
+}
+
+function renderCountryCardForScene(scene: SceneKey = state.scene): void {
+  if (scene === "world") {
+    countryCard.innerHTML = `
+      <p class="eyebrow">Global view</p>
+      <h2>The democratic community</h2>
+      <p>A tiered EU extends its circle beyond Europe, connecting with like-minded states on security, climate, energy, and trade — wherever shared values create a basis for cooperation.</p>
+    `;
+    return;
+  }
+
+  const tierId = activeTierForScene(scene);
+  if (tierId) {
+    renderCountryCardForTier(tierId);
+    return;
+  }
+
+  countryCard.innerHTML = `
+    <p class="eyebrow">European theatre</p>
+    <h2>Where the tiers overlap</h2>
+    <p>Current EU members, accession-path countries, and close European partners form the main arena for a tiered future.</p>
   `;
 }
 
@@ -1574,6 +1638,15 @@ sceneTabs.addEventListener("click", (event: MouseEvent) => {
   state.userTouched = true;
   focusScene(button.dataset.scene as SceneKey);
 });
+
+if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
+  sceneTabs.querySelectorAll<HTMLButtonElement>("[data-scene]").forEach((button) => {
+    button.addEventListener("mouseenter", () => {
+      if (button.dataset.scene) previewScene(button.dataset.scene as SceneKey);
+    });
+  });
+  sceneTabs.addEventListener("mouseleave", restoreScenePreview);
+}
 
 editToggle.addEventListener("click", () => {
   setEditMode(!state.editMode);
