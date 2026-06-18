@@ -642,6 +642,7 @@ const DESKTOP_LABEL_PX = 22;
 const COMPACT_LABEL_PX = 14;
 const NARROW_LABEL_PX = 12;
 const COUNTRY_HOVER_DELAY_MS = 140;
+const MAP_RESIZE_EPSILON_PX = 2;
 
 let mapLayer: any = null;
 let countryLayer: any = null;
@@ -654,6 +655,7 @@ let height = 0;
 let draggedCountryId: string | null = null;
 let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 let countryHoverTimer: ReturnType<typeof setTimeout> | null = null;
+let mapResizeObserver: ResizeObserver | null = null;
 
 // ─── init ─────────────────────────────────────────────────────────────────────
 buildBenefitPills();
@@ -1253,7 +1255,7 @@ async function loadMap(): Promise<void> {
     state.features = withScenarioFeatures(await loadMixedFeatures());
     state.featureByKey = new Map(state.features.map((feature) => [keyForFeature(feature), feature]));
     render();
-    window.addEventListener("resize", onResize);
+    setupMapResizeHandling();
     focusScene("eu");
   } catch (error) {
     countryCard.innerHTML = `
@@ -1268,10 +1270,24 @@ async function loadMap(): Promise<void> {
 
 // ─── map rendering ────────────────────────────────────────────────────────────
 
+function setupMapResizeHandling(): void {
+  if (typeof ResizeObserver !== "undefined") {
+    mapResizeObserver = new ResizeObserver(onResize);
+    mapResizeObserver.observe(mapWrap);
+    return;
+  }
+
+  window.addEventListener("resize", onResize);
+}
+
 function render(): void {
   cancelCountryHover();
-  width = mapWrap.clientWidth;
-  height = mapWrap.clientHeight;
+  const nextSize = readMapSize();
+  if (!nextSize) return;
+
+  svg.interrupt();
+  width = nextSize.width;
+  height = nextSize.height;
   geometryCache = new Map();
   svg.attr("viewBox", `0 0 ${width} ${height}`);
 
@@ -1325,12 +1341,30 @@ function render(): void {
 function onResize(): void {
   if (resizeTimer !== null) clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
-    const activeIds = new Set(state.selectedIds);
+    resizeTimer = null;
+    const nextSize = readMapSize();
+    if (!nextSize || !hasMapSizeChanged(nextSize)) return;
+
+    const fitRequest = currentMapFitRequest();
     render();
-    if (activeIds.size && (state.scene !== "world" || state.activeCountry)) {
-      fitToCountries([...activeIds], 0);
+    if (fitRequest) {
+      fitToCountries(fitRequest.ids, 0, fitRequest.options);
     }
   }, 150);
+}
+
+function readMapSize(): { width: number; height: number } | null {
+  const nextWidth = mapWrap.clientWidth;
+  const nextHeight = mapWrap.clientHeight;
+  if (nextWidth <= 0 || nextHeight <= 0) return null;
+  return { width: nextWidth, height: nextHeight };
+}
+
+function hasMapSizeChanged(nextSize: { width: number; height: number }): boolean {
+  return (
+    Math.abs(nextSize.width - width) > MAP_RESIZE_EPSILON_PX ||
+    Math.abs(nextSize.height - height) > MAP_RESIZE_EPSILON_PX
+  );
 }
 
 function onZoom(event: any): void {
@@ -1578,7 +1612,7 @@ function focusScene(scene: SceneKey, options: { intro?: boolean } = {}): void {
       <h2>The democratic community</h2>
       <p>A tiered EU extends its circle beyond Europe, connecting with like-minded states on security, climate, energy, and trade — wherever shared values create a basis for cooperation.</p>
     `;
-    svg.transition().duration(900).call(zoom.transform, d3.zoomIdentity);
+    applyZoomTransform(d3.zoomIdentity, 900);
     return;
   }
 
@@ -1600,9 +1634,7 @@ function focusScene(scene: SceneKey, options: { intro?: boolean } = {}): void {
     drawConnections();
   }
 
-  const topPad = window.innerWidth <= 720 ? 60 : 0;
-  const europeOnly = scene !== "friends";
-  fitToCountries(ids, options.intro ? 1400 : 900, { bottomPad: 160, topPad, europeOnly });
+  fitToCountries(ids, options.intro ? 1400 : 900, fitOptionsForScene(scene));
 }
 
 function fitToCountries(ids: string[], duration = 900, { bottomPad = 0, topPad = 0, europeOnly = false }: FitOptions = {}): void {
@@ -1623,11 +1655,47 @@ function fitToCountries(ids: string[], duration = 900, { bottomPad = 0, topPad =
   const scale = Math.max(1, Math.min(10, 0.84 / Math.max(dx / width, dy / effectiveHeight)));
   const translate: [number, number] = [width / 2 - scale * x, topPad + effectiveHeight / 2 - scale * y];
 
+  applyZoomTransform(d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale), duration);
+}
+
+function fitOptionsForScene(scene: SceneKey = state.scene): FitOptions {
+  if (scene === "world") return {};
+  return {
+    bottomPad: 160,
+    topPad: window.innerWidth <= 720 ? 60 : 0,
+    europeOnly: scene !== "friends",
+  };
+}
+
+function currentMapFitRequest(): { ids: string[]; options?: FitOptions } | null {
+  if (state.activeCountry) {
+    return { ids: countryIdsFor(state.activeCountry) };
+  }
+
+  if (state.activeTier) {
+    return { ids: cumulativeIdsFor(state.activeTier), options: fitOptionsForScene(state.activeTier) };
+  }
+
+  const sceneIds = sceneIdsFor(state.scene);
+  if (sceneIds) {
+    return { ids: sceneIds, options: fitOptionsForScene(state.scene) };
+  }
+
+  return null;
+}
+
+function applyZoomTransform(transform: any, duration: number): void {
+  svg.interrupt();
+  if (duration <= 0) {
+    svg.call(zoom.transform, transform);
+    return;
+  }
+
   svg
     .transition()
     .duration(duration)
     .ease(d3.easeCubicInOut)
-    .call(zoom.transform, d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale));
+    .call(zoom.transform, transform);
 }
 
 // ─── event listeners ──────────────────────────────────────────────────────────

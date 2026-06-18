@@ -36,6 +36,18 @@ async function getZoomScale(page: Page): Promise<number> {
   );
 }
 
+/** Return the current D3 zoom transform stored on #mapSvg. */
+async function getZoomTransform(
+  page: Page
+): Promise<{ x: number; y: number; k: number }> {
+  return page.evaluate(() => {
+    const transform = (window as any).d3.zoomTransform(
+      document.querySelector("#mapSvg")!
+    );
+    return { x: transform.x, y: transform.y, k: transform.k };
+  });
+}
+
 /** Return the current D3 zoom translate-x stored on #mapSvg. */
 async function getZoomX(page: Page): Promise<number> {
   return page.evaluate(
@@ -174,6 +186,26 @@ test.describe("scene tab — mobile tap", () => {
 
     await expect(tab).toHaveClass(/is-active/);
     await expect(page.locator("#countryCard")).toContainText("European Union");
+  });
+
+  test("viewport height changes preserve the selected tier framing", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.setViewportSize({ width: 393, height: 760 });
+    await page.waitForTimeout(250);
+
+    const afterResize = await getZoomTransform(page);
+
+    await page.locator('[data-scene="eu"]').tap();
+    await page.waitForTimeout(950);
+
+    const afterRetap = await getZoomTransform(page);
+    expect(afterResize.k).toBeCloseTo(afterRetap.k, 2);
+    expect(afterResize.x).toBeCloseTo(afterRetap.x, 1);
+    expect(afterResize.y).toBeCloseTo(afterRetap.y, 1);
   });
 });
 
