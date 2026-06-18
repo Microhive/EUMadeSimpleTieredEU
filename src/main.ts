@@ -76,6 +76,14 @@ interface LabelDatum {
   centroid: [number, number];
 }
 
+interface MapFlagDatum {
+  id: string;
+  code: string;
+  name: string;
+  centroid: [number, number];
+  isTiered: boolean;
+}
+
 interface FitOptions {
   bottomPad?: number;
   topPad?: number;
@@ -97,6 +105,7 @@ interface AppState {
   selectedIds: Set<string>;
   scene: SceneKey;
   editMode: boolean;
+  mapFlagsMode: boolean;
   userTouched: boolean;
 }
 
@@ -176,6 +185,188 @@ const SCENARIO_FEATURE_TIER = new Map<string, TierId>([[CRIMEA_ID, "associate"]]
 const FEATURE_ALIASES_BY_COUNTRY = new Map<string, string[]>([[UKRAINE_ID, [CRIMEA_ID]]]);
 const PRIMARY_COUNTRY_BY_ALIAS = new Map<string, string>([[CRIMEA_ID, UKRAINE_ID]]);
 const FLAG_CODE_OVERRIDES = new Map<string, string>([["UK", "GB"]]);
+const COUNTRY_DRAG_TYPE = "application/x-tiered-eu-country";
+
+const ISO2_BY_NUMERIC: Record<string, string> = {
+  "004": "AF",
+  "008": "AL",
+  "010": "AQ",
+  "012": "DZ",
+  "024": "AO",
+  "031": "AZ",
+  "032": "AR",
+  "036": "AU",
+  "040": "AT",
+  "044": "BS",
+  "050": "BD",
+  "051": "AM",
+  "056": "BE",
+  "064": "BT",
+  "068": "BO",
+  "070": "BA",
+  "072": "BW",
+  "076": "BR",
+  "084": "BZ",
+  "090": "SB",
+  "096": "BN",
+  "100": "BG",
+  "104": "MM",
+  "108": "BI",
+  "112": "BY",
+  "116": "KH",
+  "120": "CM",
+  "124": "CA",
+  "140": "CF",
+  "144": "LK",
+  "148": "TD",
+  "152": "CL",
+  "156": "CN",
+  "158": "TW",
+  "170": "CO",
+  "178": "CG",
+  "180": "CD",
+  "188": "CR",
+  "191": "HR",
+  "192": "CU",
+  "196": "CY",
+  "203": "CZ",
+  "204": "BJ",
+  "208": "DK",
+  "214": "DO",
+  "218": "EC",
+  "222": "SV",
+  "226": "GQ",
+  "231": "ET",
+  "232": "ER",
+  "233": "EE",
+  "238": "FK",
+  "242": "FJ",
+  "246": "FI",
+  "250": "FR",
+  "260": "TF",
+  "262": "DJ",
+  "266": "GA",
+  "268": "GE",
+  "270": "GM",
+  "275": "PS",
+  "276": "DE",
+  "288": "GH",
+  "300": "GR",
+  "304": "GL",
+  "320": "GT",
+  "324": "GN",
+  "328": "GY",
+  "332": "HT",
+  "340": "HN",
+  "348": "HU",
+  "352": "IS",
+  "356": "IN",
+  "360": "ID",
+  "364": "IR",
+  "368": "IQ",
+  "372": "IE",
+  "376": "IL",
+  "380": "IT",
+  "384": "CI",
+  "388": "JM",
+  "392": "JP",
+  "398": "KZ",
+  "400": "JO",
+  "404": "KE",
+  "408": "KP",
+  "410": "KR",
+  "414": "KW",
+  "417": "KG",
+  "418": "LA",
+  "422": "LB",
+  "426": "LS",
+  "428": "LV",
+  "430": "LR",
+  "434": "LY",
+  "440": "LT",
+  "442": "LU",
+  "450": "MG",
+  "454": "MW",
+  "458": "MY",
+  "466": "ML",
+  "470": "MT",
+  "478": "MR",
+  "484": "MX",
+  "496": "MN",
+  "498": "MD",
+  "499": "ME",
+  "504": "MA",
+  "508": "MZ",
+  "512": "OM",
+  "516": "NA",
+  "524": "NP",
+  "528": "NL",
+  "540": "NC",
+  "548": "VU",
+  "554": "NZ",
+  "558": "NI",
+  "562": "NE",
+  "566": "NG",
+  "578": "NO",
+  "586": "PK",
+  "591": "PA",
+  "598": "PG",
+  "600": "PY",
+  "604": "PE",
+  "608": "PH",
+  "616": "PL",
+  "620": "PT",
+  "624": "GW",
+  "626": "TL",
+  "630": "PR",
+  "634": "QA",
+  "642": "RO",
+  "643": "RU",
+  "646": "RW",
+  "682": "SA",
+  "686": "SN",
+  "688": "RS",
+  "694": "SL",
+  "703": "SK",
+  "704": "VN",
+  "705": "SI",
+  "706": "SO",
+  "710": "ZA",
+  "716": "ZW",
+  "724": "ES",
+  "728": "SS",
+  "729": "SD",
+  "732": "EH",
+  "740": "SR",
+  "748": "SZ",
+  "752": "SE",
+  "756": "CH",
+  "760": "SY",
+  "762": "TJ",
+  "764": "TH",
+  "768": "TG",
+  "780": "TT",
+  "784": "AE",
+  "788": "TN",
+  "792": "TR",
+  "795": "TM",
+  "800": "UG",
+  "804": "UA",
+  "807": "MK",
+  "818": "EG",
+  "826": "GB",
+  "834": "TZ",
+  "840": "US",
+  "854": "BF",
+  "858": "UY",
+  "860": "UZ",
+  "862": "VE",
+  "887": "YE",
+  "894": "ZM",
+  Kosovo: "XK",
+  "N. Cyprus": "CY",
+  Somaliland: "SO",
+};
 
 // ─── tier data ────────────────────────────────────────────────────────────────
 
@@ -581,13 +772,12 @@ const capabilityInfoByLabel = new Map<string, CapabilityInfo>(
 const tierById = new Map<TierId, Tier>(tiers.map((tier) => [tier.id, tier]));
 const countryMeta = new Map<string, CountryMeta>();
 const directTierByCountry = new Map<string, TierId>();
+const countryCatalog = new Map<string, CountryEntry>();
+const ORIGINAL_TIER_COUNTRIES = new Map<TierId, CountryEntry[]>(
+  tiers.map((tier) => [tier.id, tier.directCountries.map(copyCountryEntry)]),
+);
 
-for (const tier of tiers) {
-  for (const [id, code, name] of tier.directCountries) {
-    countryMeta.set(id, { id, code, name, tier: tier.id });
-    directTierByCountry.set(id, tier.id);
-  }
-}
+syncCountryTierLookups();
 
 const cumulativeTierOrder: Record<TierId, TierId[]> = {
   inner: ["inner"],
@@ -606,6 +796,7 @@ const state: AppState = {
   selectedIds: new Set(),
   scene: "world",
   editMode: false,
+  mapFlagsMode: false,
   userTouched: false,
 };
 
@@ -618,7 +809,15 @@ const legend = document.querySelector<HTMLElement>("#legend")!;
 const countryCard = document.querySelector<HTMLElement>("#countryCard")!;
 const mapWrap = document.querySelector<HTMLElement>(".map-wrap")!;
 const editToggle = document.querySelector<HTMLButtonElement>("#editToggle")!;
+const editToolbar = document.querySelector<HTMLElement>("#editToolbar")!;
+const resetTiersButton = document.querySelector<HTMLButtonElement>("#resetTiersButton")!;
+const mapFlagsButton = document.querySelector<HTMLButtonElement>("#mapFlagsButton")!;
 const benefitModal = document.querySelector<HTMLDialogElement>("#benefitModal")!;
+const mapFlagLayer = document.createElement("div");
+
+mapFlagLayer.className = "map-flag-layer";
+mapFlagLayer.setAttribute("aria-label", "Draggable country flags");
+mapWrap.appendChild(mapFlagLayer);
 const EDIT_TOOLTIP_IDLE =
   "Edit the scenario tiers. Turn this on to drag country flags between tier cards and try a different arrangement.";
 const EDIT_TOOLTIP_ACTIVE =
@@ -662,6 +861,8 @@ buildBenefitPills();
 buildTierCards();
 buildLegend();
 setupEditToggleTooltip();
+setupEditToolbar();
+setupMapDropTarget();
 setupSceneTabsScale();
 loadMap();
 // ─── benefit pill functions ───────────────────────────────────────────────────────────────────────────
@@ -759,6 +960,27 @@ function setupEditToggleTooltip(): void {
   editToggle.addEventListener("blur", () => hidePillTooltip());
 }
 
+function setupEditToolbar(): void {
+  const canHover = window.matchMedia("(hover: hover)").matches;
+  editToolbar.querySelectorAll<HTMLElement>("[data-tooltip]").forEach((button) => {
+    if (!canHover) return;
+    button.addEventListener("mouseenter", () => showPillTooltip(button));
+    button.addEventListener("mouseleave", () => hidePillTooltip());
+    button.addEventListener("focus", () => showPillTooltip(button));
+    button.addEventListener("blur", () => hidePillTooltip());
+  });
+
+  resetTiersButton.addEventListener("click", () => {
+    hidePillTooltip();
+    resetTierAssignments();
+  });
+
+  mapFlagsButton.addEventListener("click", () => {
+    hidePillTooltip();
+    setMapFlagsMode(!state.mapFlagsMode);
+  });
+}
+
 function openInfoModal(content: ModalContent): void {
   benefitModal.querySelector<HTMLElement>("#modalEyebrow")!.textContent = content.eyebrow;
   benefitModal.querySelector<HTMLElement>(".modal-title")!.textContent = content.title;
@@ -814,6 +1036,37 @@ function buildBenefitPills(): void {
   });
 }
 // ─── helpers ──────────────────────────────────────────────────────────────────
+
+function copyCountryEntry([id, code, name]: CountryEntry): CountryEntry {
+  return [id, code, name];
+}
+
+function syncCountryTierLookups(): void {
+  countryMeta.clear();
+  directTierByCountry.clear();
+
+  for (const tier of tiers) {
+    for (const entry of tier.directCountries) {
+      const [id, code, name] = entry;
+      countryCatalog.set(id, copyCountryEntry(entry));
+      countryMeta.set(id, { id, code, name, tier: tier.id });
+      directTierByCountry.set(id, tier.id);
+    }
+  }
+}
+
+function hydrateCountryCatalogFromFeatures(features: any[]): void {
+  for (const feature of features) {
+    const id = keyForFeature(feature);
+    if (isAliasCountryId(id) || countryCatalog.has(id)) continue;
+
+    const code = ISO2_BY_NUMERIC[id];
+    const name = feature.properties?.name ?? id;
+    if (!code || !flagImageSrc(code)) continue;
+
+    countryCatalog.set(id, [id, code, name]);
+  }
+}
 
 function idsFor(...tierIds: TierId[]): string[] {
   return tierIds.flatMap((tierId) => tierById.get(tierId)!.directCountries.map(([id]) => id));
@@ -957,7 +1210,14 @@ function layoutForFeature(feature: any): GeometryLayout | null {
 
 function setEditMode(nextEditMode: boolean): void {
   state.editMode = nextEditMode;
+  if (!state.editMode) state.mapFlagsMode = false;
   syncEditModeControls();
+}
+
+function setMapFlagsMode(nextMapFlagsMode: boolean): void {
+  state.mapFlagsMode = state.editMode && nextMapFlagsMode;
+  syncMapFlagsControls();
+  renderMapFlags();
 }
 
 function syncEditModeControls(): void {
@@ -968,6 +1228,10 @@ function syncEditModeControls(): void {
   editToggle.dataset.tooltip = state.editMode ? EDIT_TOOLTIP_ACTIVE : EDIT_TOOLTIP_IDLE;
   editToggle.querySelector<HTMLElement>(".edit-toggle-label")!.textContent =
     state.editMode ? "Done" : "Edit";
+  editToolbar.setAttribute("aria-hidden", String(!state.editMode));
+  editToolbar.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
+    button.disabled = !state.editMode;
+  });
 
   countryChipElements.forEach((chip) => {
     chip.draggable = state.editMode;
@@ -979,26 +1243,75 @@ function syncEditModeControls(): void {
     card.classList.remove("is-drop-target");
   });
 
-  if (!state.editMode) draggedCountryId = null;
+  if (!state.editMode) {
+    draggedCountryId = null;
+    clearMapDropTarget();
+  }
+
+  syncMapFlagsControls();
+  renderMapFlags();
+}
+
+function syncMapFlagsControls(): void {
+  mapFlagsButton.classList.toggle("is-active", state.mapFlagsMode);
+  mapFlagsButton.setAttribute("aria-pressed", String(state.mapFlagsMode));
+  mapFlagsButton.dataset.tooltip = state.mapFlagsMode
+    ? "Hide the draggable country flags on the map."
+    : "Show country flags on the map. Drag one into a tier card to add it.";
+}
+
+function resetTierAssignments(): void {
+  tiers.forEach((tier) => {
+    tier.directCountries = (ORIGINAL_TIER_COUNTRIES.get(tier.id) ?? []).map(copyCountryEntry);
+  });
+  syncCountryTierLookups();
+  refreshTierStateAfterMove();
 }
 
 function moveCountryToTier(countryId: string, targetTierId: TierId): boolean {
   const canonicalId = canonicalCountryId(countryId);
   const sourceTierId = directTierByCountry.get(canonicalId);
-  if (!sourceTierId || sourceTierId === targetTierId) return false;
+  if (sourceTierId === targetTierId) return false;
 
-  const sourceTier = tierById.get(sourceTierId)!;
+  let entry: CountryEntry | undefined;
+  if (sourceTierId) {
+    const sourceTier = tierById.get(sourceTierId)!;
+    const sourceIndex = sourceTier.directCountries.findIndex(([id]) => id === canonicalId);
+    if (sourceIndex < 0) return false;
+    [entry] = sourceTier.directCountries.splice(sourceIndex, 1);
+  } else {
+    const catalogEntry = countryCatalog.get(canonicalId);
+    if (!catalogEntry) return false;
+    entry = copyCountryEntry(catalogEntry);
+  }
+
   const targetTier = tierById.get(targetTierId)!;
-  const sourceIndex = sourceTier.directCountries.findIndex(([id]) => id === canonicalId);
-  if (sourceIndex < 0) return false;
-
-  const [entry] = sourceTier.directCountries.splice(sourceIndex, 1);
   targetTier.directCountries.push(entry);
   directTierByCountry.set(canonicalId, targetTierId);
 
   const meta = countryMeta.get(canonicalId);
-  if (meta) meta.tier = targetTierId;
+  if (meta) {
+    meta.tier = targetTierId;
+  } else {
+    const [id, code, name] = entry;
+    countryMeta.set(canonicalId, { id, code, name, tier: targetTierId });
+  }
 
+  return true;
+}
+
+function removeCountryFromTier(countryId: string): boolean {
+  const canonicalId = canonicalCountryId(countryId);
+  const sourceTierId = directTierByCountry.get(canonicalId);
+  if (!sourceTierId) return false;
+
+  const sourceTier = tierById.get(sourceTierId)!;
+  const sourceIndex = sourceTier.directCountries.findIndex(([id]) => id === canonicalId);
+  if (sourceIndex < 0) return false;
+
+  sourceTier.directCountries.splice(sourceIndex, 1);
+  directTierByCountry.delete(canonicalId);
+  countryMeta.delete(canonicalId);
   return true;
 }
 
@@ -1013,15 +1326,20 @@ function refreshTierStateAfterMove(): void {
       state.activeTier = activeTierForScene() ?? meta.tier;
       state.selectedIds = selectedCountrySet(countryIdsFor(state.activeCountry));
       renderCountryCardForCountry(meta);
+    } else {
+      state.activeCountry = null;
     }
-  } else if (state.activeTier) {
+  }
+
+  if (!state.activeCountry && state.activeTier) {
     state.selectedIds = selectedCountrySet(cumulativeIdsFor(state.activeTier));
     renderCountryCardForTier(state.activeTier);
-  } else {
+  } else if (!state.activeCountry) {
     state.selectedIds = selectedCountrySet(sceneIdsFor(state.scene) ?? cumulativeIdsFor("friends"));
   }
 
   updateHighlights();
+  renderMapFlags();
   drawConnections();
 }
 
@@ -1036,10 +1354,51 @@ function refreshCountryTierClasses(): void {
 
 function clearDropTargets(): void {
   tierCardElements.forEach((card) => card.classList.remove("is-drop-target"));
+  clearMapDropTarget();
+}
+
+function clearMapDropTarget(): void {
+  mapWrap.classList.remove("is-map-drop-target");
 }
 
 function dragCountryFromEvent(event: DragEvent): string | null {
-  return draggedCountryId ?? event.dataTransfer?.getData("text/plain") ?? null;
+  return (
+    draggedCountryId ??
+    event.dataTransfer?.getData(COUNTRY_DRAG_TYPE) ??
+    event.dataTransfer?.getData("text/plain") ??
+    null
+  );
+}
+
+function setupMapDropTarget(): void {
+  mapWrap.addEventListener("dragenter", (event) => {
+    if (!state.editMode || !dragCountryFromEvent(event)) return;
+    event.preventDefault();
+    mapWrap.classList.add("is-map-drop-target");
+  });
+
+  mapWrap.addEventListener("dragover", (event) => {
+    if (!state.editMode || !dragCountryFromEvent(event)) return;
+    event.preventDefault();
+    event.dataTransfer!.dropEffect = "move";
+    mapWrap.classList.add("is-map-drop-target");
+  });
+
+  mapWrap.addEventListener("dragleave", (event) => {
+    if (event.relatedTarget instanceof Node && mapWrap.contains(event.relatedTarget)) return;
+    clearMapDropTarget();
+  });
+
+  mapWrap.addEventListener("drop", (event) => {
+    if (!state.editMode) return;
+    const countryId = dragCountryFromEvent(event);
+    if (!countryId) return;
+    event.preventDefault();
+    clearMapDropTarget();
+    if (removeCountryFromTier(countryId)) {
+      refreshTierStateAfterMove();
+    }
+  });
 }
 
 // ─── render functions ─────────────────────────────────────────────────────────
@@ -1130,6 +1489,7 @@ function buildTierCards(): void {
       button.classList.add("is-dragging");
       button.setAttribute("aria-grabbed", "true");
       event.dataTransfer!.effectAllowed = "move";
+      event.dataTransfer!.setData(COUNTRY_DRAG_TYPE, draggedCountryId);
       event.dataTransfer!.setData("text/plain", draggedCountryId);
     });
     button.addEventListener("dragend", () => {
@@ -1254,6 +1614,7 @@ async function loadMap(): Promise<void> {
   try {
     state.features = withScenarioFeatures(await loadMixedFeatures());
     state.featureByKey = new Map(state.features.map((feature) => [keyForFeature(feature), feature]));
+    hydrateCountryCatalogFromFeatures(state.features);
     render();
     setupMapResizeHandling();
     focusScene("eu");
@@ -1336,6 +1697,7 @@ function render(): void {
 
   updateHighlights();
   svg.call(zoom.transform, d3.zoomIdentity);
+  renderMapFlags();
 }
 
 function onResize(): void {
@@ -1374,6 +1736,7 @@ function onZoom(event: any): void {
       .selectAll(".country-label")
       .style("font-size", `${countryLabelBasePx() / event.transform.k}px`);
   }
+  positionMapFlags();
 }
 
 function countryLabelBasePx(): number {
@@ -1494,6 +1857,102 @@ function updateHighlights(): void {
   });
 
   drawLabels();
+}
+
+function renderMapFlags(): void {
+  const shouldShowFlags = state.editMode && state.mapFlagsMode && state.features.length > 0;
+  mapFlagLayer.classList.toggle("is-visible", shouldShowFlags);
+
+  if (!shouldShowFlags) {
+    mapFlagLayer.innerHTML = "";
+    return;
+  }
+
+  const flags = mapFlagData();
+  mapFlagLayer.innerHTML = flags
+    .map((flag) => {
+      const safeName = escapeAttribute(flag.name);
+      return `
+        <button
+          type="button"
+          class="map-flag${flag.isTiered ? " is-tiered" : ""}"
+          data-country="${escapeAttribute(flag.id)}"
+          data-x="${flag.centroid[0]}"
+          data-y="${flag.centroid[1]}"
+          draggable="true"
+          aria-label="${safeName}"
+          title="${safeName}"
+        >
+          <img src="${flagImageSrc(flag.code)}" width="24" height="24" alt="" loading="lazy" decoding="async">
+        </button>
+      `;
+    })
+    .join("");
+
+  mapFlagLayer.querySelectorAll<HTMLButtonElement>(".map-flag").forEach((button) => {
+    button.addEventListener("click", () => {
+      const meta = metaForCountry(button.dataset.country!);
+      if (meta) activateCountry(meta.id, true);
+    });
+
+    button.addEventListener("dragstart", (event) => {
+      draggedCountryId = button.dataset.country!;
+      button.classList.add("is-dragging");
+      event.dataTransfer!.effectAllowed = "move";
+      event.dataTransfer!.setData(COUNTRY_DRAG_TYPE, draggedCountryId);
+      event.dataTransfer!.setData("text/plain", draggedCountryId);
+    });
+
+    button.addEventListener("dragend", () => {
+      draggedCountryId = null;
+      button.classList.remove("is-dragging");
+      clearDropTargets();
+    });
+  });
+
+  positionMapFlags();
+}
+
+function mapFlagData(): MapFlagDatum[] {
+  const seen = new Set<string>();
+
+  return state.features
+    .map((feature): MapFlagDatum | null => {
+      const id = keyForFeature(feature);
+      const canonicalId = canonicalCountryId(id);
+      if (seen.has(canonicalId) || isAliasCountryId(id)) return null;
+
+      const entry = countryCatalog.get(canonicalId);
+      if (!entry || !flagImageSrc(entry[1])) return null;
+
+      const layout = layoutForFeature(feature);
+      if (!layout) return null;
+
+      seen.add(canonicalId);
+      return {
+        id: canonicalId,
+        code: entry[1],
+        name: entry[2],
+        centroid: layout.centroid,
+        isTiered: directTierByCountry.has(canonicalId),
+      };
+    })
+    .filter((item): item is MapFlagDatum => item !== null);
+}
+
+function positionMapFlags(): void {
+  if (!mapFlagLayer.classList.contains("is-visible")) return;
+
+  const node = svg.node();
+  if (!node) return;
+
+  const transform = d3.zoomTransform(node);
+  mapFlagLayer.querySelectorAll<HTMLElement>(".map-flag").forEach((button) => {
+    const x = Number(button.dataset.x);
+    const y = Number(button.dataset.y);
+    const [screenX, screenY] = transform.apply([x, y]);
+    button.style.transform = `translate(${screenX}px, ${screenY}px) translate(-50%, -50%)`;
+  });
 }
 
 // ─── card rendering ───────────────────────────────────────────────────────────
