@@ -1277,6 +1277,8 @@ button.country-chip {
   transform-box: fill-box;
   transform-origin: center;
   vector-effect: non-scaling-stroke;
+  shape-rendering: geometricPrecision;
+  transition: none;
 }
 
 .country-hover-lift {
@@ -1286,6 +1288,8 @@ button.country-chip {
   stroke: var(--white);
   stroke-width: 1.15;
   filter: none;
+  shape-rendering: geometricPrecision;
+  transition: none;
 }
 
 .country-label {

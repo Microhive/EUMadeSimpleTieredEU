@@ -419,7 +419,6 @@ const tiers: Tier[] = [
       "A frontrunner group for common defence, eurozone depth, Schengen, and unified foreign policy.",
     capabilities: ["Foreign policy", "Common defence", "Eurozone", "Schengen"],
     directCountries: [
-      ["056", "BE", "Belgium"],
       ["276", "DE", "Germany"],
       ["250", "FR", "France"],
       ["380", "IT", "Italy"],
@@ -439,6 +438,7 @@ const tiers: Tier[] = [
     capabilities: ["Single market", "EU budget", "EU law", "Representation"],
     directCountries: [
       ["040", "AT", "Austria"],
+      ["056", "BE", "Belgium"],
       ["100", "BG", "Bulgaria"],
       ["191", "HR", "Croatia"],
       ["196", "CY", "Cyprus"],
@@ -1427,6 +1427,31 @@ function firstFeatureByKey(features: any[]): Map<string, any> {
   return byKey;
 }
 
+function tierCountryIdsForInteraction(): Set<string> {
+  const ids = new Set<string>();
+
+  tiers.forEach((tier) => {
+    tier.directCountries.forEach(([id]) => ids.add(canonicalCountryId(id)));
+  });
+  ORIGINAL_TIER_COUNTRIES.forEach((entries) => {
+    entries.forEach(([id]) => ids.add(canonicalCountryId(id)));
+  });
+  tierCountryIdsFromQuery().forEach((id) => ids.add(canonicalCountryId(id)));
+
+  return ids;
+}
+
+function withHighDetailInteractionFeatures(baseFeatures: any[], detailFeatures: any[]): any[] {
+  const baseByKey = firstFeatureByKey(baseFeatures);
+  const detailByKey = firstFeatureByKey(detailFeatures);
+  const missingFeatures = [...tierCountryIdsForInteraction()]
+    .filter((id) => !baseByKey.has(id))
+    .map((id) => detailByKey.get(id))
+    .filter(Boolean);
+
+  return missingFeatures.length ? baseFeatures.concat(missingFeatures) : baseFeatures;
+}
+
 function featureWithScenarioAdjustments(feature: any): any {
   if (keyForFeature(feature) !== FRANCE_ID) return feature;
   return featureWithEuropeanPolygons(feature);
@@ -2093,7 +2118,10 @@ async function loadMapFeatureSets(): Promise<MapFeatureSets> {
   // Australia's "036"), so the Map constructor would silently overwrite the
   // main landmass with a tiny outlier if we used the last entry.
   highDetailFeatureByKey = firstFeatureByKey(features50);
-  return { interactionFeatures: features110, visualFeatures: features50 };
+  return {
+    interactionFeatures: withHighDetailInteractionFeatures(features110, features50),
+    visualFeatures: features50,
+  };
 }
 
 async function loadMap(): Promise<void> {

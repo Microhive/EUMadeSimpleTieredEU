@@ -352,6 +352,33 @@ test.describe("map rendering — desktop", () => {
 
     await expect(page.locator('#mapSvg [data-country="112"]')).toHaveCSS("opacity", "0");
   });
+
+  test("places Belgium in the European Union tier by default", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await expect(page.locator('.tier-card[data-tier="inner"] .country-chip[data-country="056"]')).toHaveCount(0);
+    await expect(page.locator('.tier-card[data-tier="eu"] .country-chip[data-country="056"]')).toHaveCount(1);
+    await expect(page.locator('#mapSvg [data-country="056"]')).toHaveClass(/tier-eu/);
+    await expect(page.locator('#mapSvg [data-country="056"]')).not.toHaveClass(/tier-inner/);
+  });
+
+  test("adds a high-detail hover path for Faroe Islands", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const faroeIslands = page.locator('#mapSvg [data-country="234"]');
+    const liftedCountries = page.locator("#mapSvg .hover-layer .country-hover-lift");
+
+    await expect(faroeIslands).toHaveCount(1);
+    await expect(faroeIslands).toHaveAttribute("data-quality", "high");
+
+    await faroeIslands.dispatchEvent("mouseenter");
+
+    await expect(faroeIslands).toHaveClass(/is-hovered/);
+    await expect(faroeIslands).toHaveClass(/is-lift-source/);
+    await expect(liftedCountries).toHaveCount(1);
+  });
 });
 
 test.describe("tier editing drag — desktop", () => {
@@ -397,7 +424,7 @@ test.describe("tier editing drag — desktop", () => {
 
     await page.locator("#editToggle").click();
 
-    const countryId = "056"; // Belgium
+    const countryId = "276"; // Germany
     const sourceTier = "inner";
     const targetTier = "eu";
     const sourceChip = page.locator(
@@ -596,6 +623,15 @@ test.describe("map country path — desktop click", () => {
     await expect(germany).toHaveClass(/is-selected/);
     await expect(germany).toHaveClass(/is-lift-source/);
     await expect(liftedCountries).toHaveCount(1);
+    await expect
+      .poll(() =>
+        liftedCountries
+          .first()
+          .evaluate((element) =>
+            getComputedStyle(element).getPropertyValue("shape-rendering").toLowerCase()
+          )
+      )
+      .toBe("geometricprecision");
 
     await page.waitForTimeout(750);
     await austria.hover();
