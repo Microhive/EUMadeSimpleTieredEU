@@ -74,6 +74,7 @@ interface LabelDatum {
   id: string;
   text: string;
   centroid: [number, number];
+  isRaised: boolean;
 }
 
 interface MapFlagDatum {
@@ -188,6 +189,7 @@ const FEATURE_ALIASES_BY_COUNTRY = new Map<string, string[]>([[UKRAINE_ID, [CRIM
 const PRIMARY_COUNTRY_BY_ALIAS = new Map<string, string>([[CRIMEA_ID, UKRAINE_ID]]);
 const FLAG_CODE_OVERRIDES = new Map<string, string>([["UK", "GB"]]);
 const COUNTRY_DRAG_TYPE = "application/x-tiered-eu-country";
+const COUNTRY_LIFT_TRANSFORM = "translate(-1, -1.5)";
 
 const ISO2_BY_NUMERIC: Record<string, string> = {
   "004": "AF",
@@ -1960,7 +1962,7 @@ function drawLiftedCountries(): void {
         group
           .append("path")
           .attr("class", (feature: any) => `${countryClassForFeature(feature)} country-hover-lift`)
-          .attr("transform", "translate(-1, -1.5)")
+          .attr("transform", COUNTRY_LIFT_TRANSFORM)
           .attr("d", path);
         return group;
       },
@@ -1969,7 +1971,7 @@ function drawLiftedCountries(): void {
         update
           .select(".country-hover-lift")
           .attr("class", (feature: any) => `${countryClassForFeature(feature)} country-hover-lift`)
-          .attr("transform", "translate(-1, -1.5)")
+          .attr("transform", COUNTRY_LIFT_TRANSFORM)
           .attr("d", path);
         return update;
       },
@@ -2139,17 +2141,23 @@ function drawLabels(): void {
   if (!labelLayer) return;
 
   const labelsById = new Map<string, LabelDatum>();
-  const addLabel = (id: string): void => {
-    const label = labelForCountry(id);
-    if (label) labelsById.set(label.id, label);
+  const addLabel = (id: string, isRaised = false): void => {
+    const label = labelForCountry(id, isRaised);
+    if (!label) return;
+
+    const existing = labelsById.get(label.id);
+    labelsById.set(label.id, {
+      ...label,
+      isRaised: label.isRaised || existing?.isRaised === true,
+    });
   };
 
   if (state.selectedIds.size <= 14) {
-    [...state.selectedIds].forEach(addLabel);
+    [...state.selectedIds].forEach((id) => addLabel(id));
   }
 
-  if (state.activeCountry) addLabel(state.activeCountry);
-  if (state.hoveredCountry) addLabel(state.hoveredCountry);
+  if (state.activeCountry) addLabel(state.activeCountry, true);
+  if (state.hoveredCountry) addLabel(state.hoveredCountry, true);
 
   const labels = [...labelsById.values()];
 
@@ -2164,11 +2172,12 @@ function drawLabels(): void {
     .attr("y", (item: LabelDatum) => item.centroid[1])
     .attr("text-anchor", "middle")
     .attr("dominant-baseline", "middle")
+    .attr("transform", (item: LabelDatum) => (item.isRaised ? COUNTRY_LIFT_TRANSFORM : null))
     .style("font-size", `${countryLabelBasePx() / currentScale}px`)
     .text((item: LabelDatum) => item.text);
 }
 
-function labelForCountry(countryId: string): LabelDatum | null {
+function labelForCountry(countryId: string, isRaised = false): LabelDatum | null {
   const id = canonicalCountryId(countryId);
   if (isAliasCountryId(id)) return null;
 
@@ -2179,7 +2188,7 @@ function labelForCountry(countryId: string): LabelDatum | null {
   const layout = layoutForFeature(feature);
   if (!layout) return null;
 
-  return { id, text: meta.name, centroid: layout.centroid };
+  return { id, text: meta.name, centroid: layout.centroid, isRaised };
 }
 
 // ─── scene management ─────────────────────────────────────────────────────────
