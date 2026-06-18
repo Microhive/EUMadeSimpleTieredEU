@@ -509,7 +509,8 @@ test.describe("map country path — desktop click", () => {
     const flagBox = await germanyFlag.boundingBox();
     const labelBox = await page.locator("#mapSvg .country-label").filter({ hasText: "Germany" }).boundingBox();
     if (!flagBox || !labelBox) throw new Error("Expected Germany flag and label to be visible.");
-    expect(labelBox.y).toBeGreaterThan(flagBox.y + flagBox.height * 0.6);
+    expect(labelBox.x).toBeGreaterThan(flagBox.x + flagBox.width - 2);
+    expect(Math.abs(labelBox.y + labelBox.height / 2 - (flagBox.y + flagBox.height / 2))).toBeLessThan(18);
   });
 
   test("clicking a country on the map shows its info card", async ({ page }) => {

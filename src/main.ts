@@ -872,7 +872,7 @@ const DESKTOP_LABEL_PX = 22;
 const COMPACT_LABEL_PX = 14;
 const NARROW_LABEL_PX = 12;
 const MAP_FLAG_SIZE_PX = 30;
-const COUNTRY_LABEL_FLAG_GAP_PX = 5;
+const COUNTRY_LABEL_FLAG_GAP_PX = 8;
 const MAP_RESIZE_EPSILON_PX = 2;
 
 let mapLayer: any = null;
@@ -1461,6 +1461,7 @@ function setMapFlagsMode(nextMapFlagsMode: boolean): void {
   state.mapFlagsMode = nextMapFlagsMode;
   syncMapFlagsControls();
   renderMapFlags();
+  drawLabels();
 }
 
 function syncEditModeControls(): void {
@@ -2193,7 +2194,9 @@ function updateLabelScale(scale: number): void {
   labelLayer
     .selectAll(".country-label, .country-label-shadow")
     .style("font-size", labelFontSizeForScale(scale))
-    .attr("y", (item: LabelDatum) => labelYForScale(item, scale));
+    .attr("x", (item: LabelDatum) => labelXForScale(item, scale))
+    .attr("y", (item: LabelDatum) => labelYForScale(item))
+    .attr("text-anchor", labelTextAnchorFor);
 
   const shadowOffset = labelShadowOffsetForScale(scale);
   labelLayer
@@ -2563,13 +2566,13 @@ function drawLabels(): void {
     .data(labels, (item: LabelDatum) => item.id)
     .join("text")
     .attr("class", "country-label-shadow")
-    .attr("x", (item: LabelDatum) => item.centroid[0])
-    .attr("y", (item: LabelDatum) => labelYForScale(item, currentScale))
+    .attr("x", (item: LabelDatum) => labelXForScale(item, currentScale))
+    .attr("y", (item: LabelDatum) => labelYForScale(item))
     .attr("dx", labelShadowOffset)
     .attr("dy", labelShadowOffset)
-    .attr("text-anchor", "middle")
+    .attr("text-anchor", labelTextAnchorFor)
     .attr("dominant-baseline", "middle")
-    .attr("transform", (item: LabelDatum) => (item.isRaised ? COUNTRY_LIFT_TRANSFORM : null))
+    .attr("transform", labelTransformFor)
     .style("font-size", labelFontSizeForScale(currentScale))
     .text((item: LabelDatum) => item.text);
 
@@ -2578,28 +2581,41 @@ function drawLabels(): void {
     .data(labels, (item: LabelDatum) => item.id)
     .join("text")
     .attr("class", "country-label")
-    .attr("x", (item: LabelDatum) => item.centroid[0])
-    .attr("y", (item: LabelDatum) => labelYForScale(item, currentScale))
-    .attr("text-anchor", "middle")
+    .attr("x", (item: LabelDatum) => labelXForScale(item, currentScale))
+    .attr("y", (item: LabelDatum) => labelYForScale(item))
+    .attr("text-anchor", labelTextAnchorFor)
     .attr("dominant-baseline", "middle")
-    .attr("transform", (item: LabelDatum) => (item.isRaised ? COUNTRY_LIFT_TRANSFORM : null))
+    .attr("transform", labelTransformFor)
     .style("font-size", labelFontSizeForScale(currentScale))
     .text((item: LabelDatum) => item.text)
     .raise();
 }
 
-function labelYForScale(item: LabelDatum, scale: number): number {
-  if (!shouldPlaceLabelBelowFlag(item)) return item.centroid[1];
-  return item.centroid[1] + labelBelowFlagOffsetForScale(scale);
+function labelXForScale(item: LabelDatum, scale: number): number {
+  if (!shouldPlaceLabelRightOfFlag(item)) return item.centroid[0];
+  return item.centroid[0] + labelRightOfFlagOffsetForScale(scale);
 }
 
-function shouldPlaceLabelBelowFlag(item: LabelDatum): boolean {
-  if (!state.mapFlagsMode || !item.isRaised) return false;
-  return item.id === state.activeCountry || item.id === state.hoveredCountry;
+function labelYForScale(item: LabelDatum): number {
+  return item.centroid[1];
 }
 
-function labelBelowFlagOffsetForScale(scale: number): number {
-  return (MAP_FLAG_SIZE_PX + countryLabelBasePx() / 2 + COUNTRY_LABEL_FLAG_GAP_PX) / scale;
+function labelTextAnchorFor(item: LabelDatum): "start" | "middle" {
+  return shouldPlaceLabelRightOfFlag(item) ? "start" : "middle";
+}
+
+function labelTransformFor(item: LabelDatum): string | null {
+  if (shouldPlaceLabelRightOfFlag(item)) return null;
+  return item.isRaised ? COUNTRY_LIFT_TRANSFORM : null;
+}
+
+function shouldPlaceLabelRightOfFlag(item: LabelDatum): boolean {
+  const meta = countryMeta.get(item.id);
+  return Boolean(state.mapFlagsMode && meta && flagImageSrc(meta.code));
+}
+
+function labelRightOfFlagOffsetForScale(scale: number): number {
+  return (MAP_FLAG_SIZE_PX / 2 + COUNTRY_LABEL_FLAG_GAP_PX) / scale;
 }
 
 function labelForCountry(countryId: string, isRaised = false): LabelDatum | null {
