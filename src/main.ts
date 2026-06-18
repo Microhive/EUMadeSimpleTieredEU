@@ -102,6 +102,7 @@ interface AppState {
   featureByKey: Map<string, any>;
   activeTier: TierId | null;
   activeCountry: string | null;
+  hoveredCountry: string | null;
   selectedIds: Set<string>;
   scene: SceneKey;
   editMode: boolean;
@@ -793,6 +794,7 @@ const state: AppState = {
   featureByKey: new Map(),
   activeTier: null,
   activeCountry: null,
+  hoveredCountry: null,
   selectedIds: new Set(),
   scene: "world",
   editMode: false,
@@ -840,11 +842,11 @@ const zoom = d3.zoom()
 const DESKTOP_LABEL_PX = 22;
 const COMPACT_LABEL_PX = 14;
 const NARROW_LABEL_PX = 12;
-const COUNTRY_HOVER_DELAY_MS = 140;
 const MAP_RESIZE_EPSILON_PX = 2;
 
 let mapLayer: any = null;
 let countryLayer: any = null;
+let hoverLayer: any = null;
 let labelLayer: any = null;
 let tierCardElements: HTMLElement[] = [];
 let countryChipElements: HTMLButtonElement[] = [];
@@ -853,7 +855,6 @@ let width = 0;
 let height = 0;
 let draggedCountryId: string | null = null;
 let resizeTimer: ReturnType<typeof setTimeout> | null = null;
-let countryHoverTimer: ReturnType<typeof setTimeout> | null = null;
 let mapResizeObserver: ResizeObserver | null = null;
 
 // ─── init ─────────────────────────────────────────────────────────────────────
@@ -1093,6 +1094,11 @@ function tierForFeature(feature: any): TierId | undefined {
     directTierByCountry.get(canonicalCountryId(key)) ??
     SCENARIO_FEATURE_TIER.get(key)
   );
+}
+
+function countryClassForFeature(feature: any): string {
+  const tierId = tierForFeature(feature);
+  return `country${tierId ? ` tier-${tierId}` : ""}`;
 }
 
 function canonicalCountryId(countryId: string): string {
@@ -1346,10 +1352,8 @@ function refreshTierStateAfterMove(): void {
 function refreshCountryTierClasses(): void {
   if (!countryLayer) return;
 
-  countryLayer.selectAll(".country").attr("class", (feature: any) => {
-    const tierId = tierForFeature(feature);
-    return `country${tierId ? ` tier-${tierId}` : ""}`;
-  });
+  countryLayer.selectAll(".country").attr("class", countryClassForFeature);
+  drawHoveredCountry();
 }
 
 function clearDropTargets(): void {
@@ -1642,7 +1646,6 @@ function setupMapResizeHandling(): void {
 }
 
 function render(): void {
-  cancelCountryHover();
   const nextSize = readMapSize();
   if (!nextSize) return;
 
@@ -1662,30 +1665,26 @@ function render(): void {
   svg.on("click.restore-scene", onMapBackgroundClick);
 
   mapLayer = svg.append("g").attr("class", "map-layer");
-  countryLayer = mapLayer.append("g").attr("class", "country-layer");
-  labelLayer = mapLayer.append("g").attr("class", "label-layer");
-
   mapLayer.append("path").datum(graticule).attr("class", "graticule").attr("d", path);
+  countryLayer = mapLayer.append("g").attr("class", "country-layer");
+  hoverLayer = mapLayer.append("g").attr("class", "hover-layer");
+  labelLayer = mapLayer.append("g").attr("class", "label-layer");
 
   countryLayer
     .selectAll("path")
     .data(state.features)
     .join("path")
-    .attr("class", (feature: any) => {
-      const tierId = tierForFeature(feature);
-      return `country${tierId ? ` tier-${tierId}` : ""}`;
-    })
+    .attr("class", countryClassForFeature)
     .attr("d", path)
     .attr("data-country", keyForFeature)
     .attr("data-tier", (feature: any) => tierForFeature(feature) ?? "")
-    .on("mouseenter", (_event: MouseEvent, feature: any) => {
+    .on("mouseenter", (event: MouseEvent, feature: any) => {
       const key = keyForFeature(feature);
-      if (metaForCountry(key)) scheduleCountryHover(key);
+      if (metaForCountry(key)) setHoveredCountry(key, event.currentTarget as Element);
     })
-    .on("mouseleave", onCountryPointerLeave)
+    .on("mouseleave", clearHoveredCountry)
     .on("click", (event: MouseEvent, feature: any) => {
       event.stopPropagation();
-      cancelCountryHover();
       const key = keyForFeature(feature);
       const canonicalId = canonicalCountryId(key);
       if (state.activeCountry === canonicalId) {
@@ -1750,6 +1749,7 @@ function countryLabelBasePx(): number {
 function activateTier(tierId: TierId): void {
   state.activeTier = tierId;
   state.activeCountry = null;
+  state.hoveredCountry = null;
   state.selectedIds = selectedCountrySet(cumulativeIdsFor(tierId));
   updateHighlights();
   renderCountryCardForTier(tierId);
@@ -1762,6 +1762,7 @@ function activateCountry(countryId: string, shouldZoom: boolean): void {
   if (!meta) return;
 
   state.activeCountry = canonicalId;
+  state.hoveredCountry = null;
   state.activeTier = activeTierForScene() ?? meta.tier;
   state.selectedIds = selectedCountrySet(countryIdsFor(canonicalId));
   state.userTouched = true;
@@ -1772,23 +1773,16 @@ function activateCountry(countryId: string, shouldZoom: boolean): void {
   if (shouldZoom) fitToCountries(countryIdsFor(canonicalId), 700);
 }
 
-function scheduleCountryHover(countryId: string): void {
-  cancelCountryHover();
-  countryHoverTimer = setTimeout(() => {
-    countryHoverTimer = null;
-    activateCountry(countryId, false);
-  }, COUNTRY_HOVER_DELAY_MS);
+function setHoveredCountry(countryId: string, target: Element): void {
+  state.hoveredCountry = canonicalCountryId(countryId);
+  d3.select(target).raise();
+  updateHighlights();
 }
 
-function cancelCountryHover(): void {
-  if (countryHoverTimer === null) return;
-  clearTimeout(countryHoverTimer);
-  countryHoverTimer = null;
-}
-
-function onCountryPointerLeave(): void {
-  cancelCountryHover();
-  if (state.activeCountry) restoreSceneSelection();
+function clearHoveredCountry(): void {
+  if (!state.hoveredCountry) return;
+  state.hoveredCountry = null;
+  updateHighlights();
 }
 
 function clearSoftFocus(): void {
@@ -1812,6 +1806,7 @@ function selectedIdsForScene(scene: SceneKey = state.scene): Set<string> {
 
 function restoreSceneSelection(): void {
   state.activeCountry = null;
+  state.hoveredCountry = null;
   state.activeTier = activeTierForScene();
   state.selectedIds = selectedIdsForScene();
   updateHighlights();
@@ -1820,8 +1815,8 @@ function restoreSceneSelection(): void {
 }
 
 function previewScene(scene: SceneKey): void {
-  cancelCountryHover();
   state.activeCountry = null;
+  state.hoveredCountry = null;
   state.activeTier = activeTierForScene(scene);
   state.selectedIds = selectedIdsForScene(scene);
   updateHighlights();
@@ -1842,10 +1837,12 @@ function updateHighlights(): void {
   countryLayer.selectAll(".country").each(function (this: Element, feature: any) {
     const key = keyForFeature(feature);
     const activeIds = state.activeCountry ? countryIdsFor(state.activeCountry) : [];
+    const hoveredIds = state.hoveredCountry ? countryIdsFor(state.hoveredCountry) : [];
     const isSelected = state.selectedIds.has(key);
     this.classList.toggle("is-muted", hasSelection && !isSelected);
     this.classList.toggle("is-highlight", isSelected);
     this.classList.toggle("is-selected", activeIds.includes(key));
+    this.classList.toggle("is-hovered", hoveredIds.includes(key));
   });
 
   tierCardElements.forEach((card) => {
@@ -1857,6 +1854,33 @@ function updateHighlights(): void {
   });
 
   drawLabels();
+  drawHoveredCountry();
+}
+
+function drawHoveredCountry(): void {
+  if (!hoverLayer) return;
+
+  const features = state.hoveredCountry
+    ? countryIdsFor(state.hoveredCountry)
+        .map((id) => state.featureByKey.get(id))
+        .filter(Boolean)
+    : [];
+
+  hoverLayer
+    .selectAll("path")
+    .data(features, keyForFeature)
+    .join(
+      (enter: any) =>
+        enter
+          .append("path")
+          .attr("class", (feature: any) => `${countryClassForFeature(feature)} country-hover-lift`)
+          .attr("d", path),
+      (update: any) =>
+        update
+          .attr("class", (feature: any) => `${countryClassForFeature(feature)} country-hover-lift`)
+          .attr("d", path),
+      (exit: any) => exit.remove(),
+    );
 }
 
 function renderMapFlags(): void {
@@ -2063,6 +2087,7 @@ function focusScene(scene: SceneKey, options: { intro?: boolean } = {}): void {
   if (scene === "world") {
     state.activeTier = null;
     state.activeCountry = null;
+    state.hoveredCountry = null;
     state.selectedIds = selectedCountrySet(cumulativeIdsFor("friends"));
     updateHighlights();
     drawConnections();
@@ -2077,6 +2102,7 @@ function focusScene(scene: SceneKey, options: { intro?: boolean } = {}): void {
 
   const ids = sceneIdsFor(scene)!;
   state.activeCountry = null;
+  state.hoveredCountry = null;
   state.activeTier = tierById.has(scene as TierId) ? (scene as TierId) : null;
   state.selectedIds = selectedCountrySet(ids);
   updateHighlights();

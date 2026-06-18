@@ -256,36 +256,39 @@ test.describe("country chip — mobile tap", () => {
 test.describe("map country path — desktop click", () => {
   test.use(desktop);
 
-  test("country hover restores the selected tier on mouseleave", async ({ page }) => {
+  test("country hover lifts the country without clearing the selected tier", async ({ page }) => {
     await page.goto("/");
     await waitForMap(page);
 
     const germany = page.locator('#mapSvg [data-country="276"]');
     const austria = page.locator('#mapSvg [data-country="040"]');
+    const hoverLift = page.locator("#mapSvg .hover-layer .country-hover-lift");
 
     await expect(austria).toHaveClass(/is-highlight/);
 
     await germany.hover();
-    await page.waitForTimeout(180);
 
     await expect(germany).toHaveClass(/is-highlight/);
-    await expect(austria).toHaveClass(/is-muted/);
+    await expect(germany).toHaveClass(/is-hovered/);
+    await expect(hoverLift).toHaveCount(1);
+    await expect(austria).toHaveClass(/is-highlight/);
+    await expect(austria).not.toHaveClass(/is-muted/);
+    await expect(page.locator("#countryCard h2")).toContainText("European Union");
 
     await page.mouse.move(1, 1);
     await page.waitForTimeout(80);
 
+    await expect(germany).not.toHaveClass(/is-hovered/);
+    await expect(hoverLift).toHaveCount(0);
     await expect(austria).toHaveClass(/is-highlight/);
     await expect(page.locator("#countryCard h2")).toContainText("European Union");
   });
 
-  test("brief country hover does not update the card", async ({ page }) => {
+  test("country hover does not update the card", async ({ page }) => {
     await page.goto("/");
     await waitForMap(page);
 
     await page.locator('#mapSvg [data-country="276"]').hover();
-    await page.waitForTimeout(60);
-    await page.mouse.move(1, 1);
-    await page.waitForTimeout(200);
 
     await expect(page.locator("#countryCard h2")).not.toContainText("Germany", {
       ignoreCase: true,
