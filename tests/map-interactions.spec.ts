@@ -169,6 +169,41 @@ test.describe("scene tab — desktop click", () => {
     await expect(canada).toHaveClass(/is-muted/);
     await expect(page.locator("#countryCard h2")).toContainText("European Union");
   });
+
+  test("hovering scene tabs preserves an active raised country", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const germany = page.locator('#mapSvg [data-country="276"]');
+    const communityTab = page.locator('[data-scene="friends"]');
+    const liftedCountries = page.locator("#mapSvg .hover-layer .country-hover-lift");
+
+    await germany.click();
+    await page.waitForTimeout(750);
+
+    await expect(page.locator("#countryCard h2")).toContainText("Germany", {
+      ignoreCase: true,
+    });
+    await expect(germany).toHaveClass(/is-selected/);
+    await expect(liftedCountries).toHaveCount(1);
+
+    await communityTab.hover();
+
+    await expect(page.locator("#countryCard h2")).toContainText("Germany", {
+      ignoreCase: true,
+    });
+    await expect(germany).toHaveClass(/is-selected/);
+    await expect(liftedCountries).toHaveCount(1);
+
+    await page.mouse.move(1, 1);
+    await page.waitForTimeout(80);
+
+    await expect(page.locator("#countryCard h2")).toContainText("Germany", {
+      ignoreCase: true,
+    });
+    await expect(germany).toHaveClass(/is-selected/);
+    await expect(liftedCountries).toHaveCount(1);
+  });
 });
 
 test.describe("scene tab — mobile tap", () => {
@@ -270,6 +305,7 @@ test.describe("map country path — desktop click", () => {
 
     await expect(germany).toHaveClass(/is-highlight/);
     await expect(germany).toHaveClass(/is-hovered/);
+    await expect(germany).toHaveClass(/is-lift-source/);
     await expect(hoverLift).toHaveCount(1);
     await expect(austria).toHaveClass(/is-highlight/);
     await expect(austria).not.toHaveClass(/is-muted/);
@@ -279,6 +315,7 @@ test.describe("map country path — desktop click", () => {
     await page.waitForTimeout(80);
 
     await expect(germany).not.toHaveClass(/is-hovered/);
+    await expect(germany).not.toHaveClass(/is-lift-source/);
     await expect(hoverLift).toHaveCount(0);
     await expect(austria).toHaveClass(/is-highlight/);
     await expect(page.locator("#countryCard h2")).toContainText("European Union");
@@ -299,11 +336,34 @@ test.describe("map country path — desktop click", () => {
     await page.goto("/");
     await waitForMap(page);
 
-    await page.locator('#mapSvg [data-country="276"]').click();
+    const germany = page.locator('#mapSvg [data-country="276"]');
+    const austria = page.locator('#mapSvg [data-country="040"]');
+    const liftedCountries = page.locator("#mapSvg .hover-layer .country-hover-lift");
+
+    await germany.click();
 
     await expect(page.locator("#countryCard h2")).toContainText("Germany", {
       ignoreCase: true,
     });
+    await expect(germany).toHaveClass(/is-selected/);
+    await expect(germany).toHaveClass(/is-lift-source/);
+    await expect(liftedCountries).toHaveCount(1);
+
+    await page.waitForTimeout(750);
+    await austria.hover();
+
+    await expect(austria).toHaveClass(/is-hovered/);
+    await expect(austria).toHaveClass(/is-lift-source/);
+    await expect(germany).toHaveClass(/is-lift-source/);
+    await expect(liftedCountries).toHaveCount(2);
+
+    await page.mouse.move(1, 1);
+    await page.waitForTimeout(80);
+
+    await expect(austria).not.toHaveClass(/is-hovered/);
+    await expect(austria).not.toHaveClass(/is-lift-source/);
+    await expect(germany).toHaveClass(/is-lift-source/);
+    await expect(liftedCountries).toHaveCount(1);
   });
 });
 
@@ -316,6 +376,7 @@ test.describe("map country path — mobile tap", () => {
 
     const germany = page.locator('#mapSvg [data-country="276"]');
     const austria = page.locator('#mapSvg [data-country="040"]');
+    const liftedCountries = page.locator("#mapSvg .hover-layer .country-hover-lift");
 
     await germany.tap();
 
@@ -323,22 +384,28 @@ test.describe("map country path — mobile tap", () => {
       ignoreCase: true,
     });
     await expect(austria).toHaveClass(/is-muted/);
+    await expect(liftedCountries).toHaveCount(1);
 
     await germany.tap();
 
     await expect(page.locator("#countryCard h2")).toContainText("European Union");
     await expect(austria).toHaveClass(/is-highlight/);
+    await expect(liftedCountries).toHaveCount(0);
   });
 
   test("tapping a country on the map shows its info card", async ({ page }) => {
     await page.goto("/");
     await waitForMap(page);
 
-    await page.locator('#mapSvg [data-country="276"]').tap();
+    const germany = page.locator('#mapSvg [data-country="276"]');
+    const liftedCountries = page.locator("#mapSvg .hover-layer .country-hover-lift");
+
+    await germany.tap();
 
     await expect(page.locator("#countryCard h2")).toContainText("Germany", {
       ignoreCase: true,
     });
+    await expect(liftedCountries).toHaveCount(1);
   });
 });
 

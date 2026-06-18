@@ -135,6 +135,7 @@ const CIRCLE_FLAG_SVGS: Record<string, string> = import.meta.glob(
   { eager: true, import: "default", query: "?url" },
 );
 
+const PUBLIC_BASE_URL = import.meta.env.BASE_URL;
 const TOPOLOGY_URL_110M = "countries-110m.json";
 const TOPOLOGY_URL_50M = "countries-50m.json";
 const UKRAINE_ID = "804";
@@ -814,6 +815,7 @@ const editToggle = document.querySelector<HTMLButtonElement>("#editToggle")!;
 const editToolbar = document.querySelector<HTMLElement>("#editToolbar")!;
 const resetTiersButton = document.querySelector<HTMLButtonElement>("#resetTiersButton")!;
 const mapFlagsButton = document.querySelector<HTMLButtonElement>("#mapFlagsButton")!;
+const videoLink = document.querySelector<HTMLElement>(".video-link")!;
 const benefitModal = document.querySelector<HTMLDialogElement>("#benefitModal")!;
 const mapFlagLayer = document.createElement("div");
 
@@ -863,6 +865,7 @@ buildTierCards();
 buildLegend();
 setupEditToggleTooltip();
 setupEditToolbar();
+setupVideoTooltip();
 setupMapDropTarget();
 setupSceneTabsScale();
 loadMap();
@@ -878,6 +881,9 @@ const pillTooltipEl: HTMLDivElement = (() => {
 })();
 
 let pillTooltipTimer: ReturnType<typeof setTimeout> | null = null;
+
+pillTooltipEl.addEventListener("mouseenter", () => cancelPillTooltipHide());
+pillTooltipEl.addEventListener("mouseleave", () => hidePillTooltip(140));
 
 function setupSceneTabsScale(): void {
   const toolbar = sceneTabs.closest<HTMLElement>(".map-toolbar");
@@ -937,20 +943,67 @@ function getSceneTabsAvailableWidth(toolbar: HTMLElement): number {
 function showPillTooltip(anchor: HTMLElement): void {
   if (pillTooltipTimer) { clearTimeout(pillTooltipTimer); pillTooltipTimer = null; }
   const text = anchor.dataset.tooltip ?? "";
-  if (!text) return;
-  pillTooltipEl.textContent = text;
+  const title = anchor.dataset.tooltipTitle ?? "";
+  const image = anchor.dataset.tooltipImage ?? "";
+  if (!text && !title && !image) return;
+  pillTooltipEl.replaceChildren();
+  pillTooltipEl.classList.toggle("has-media", Boolean(image));
+  pillTooltipEl.style.width = image ? "320px" : "280px";
+  if (image) {
+    const img = document.createElement("img");
+    img.className = "pill-tooltip-image";
+    img.src = publicAssetSrc(image);
+    img.alt = "";
+    img.loading = "lazy";
+    img.decoding = "async";
+    if (anchor instanceof HTMLAnchorElement) {
+      const link = document.createElement("a");
+      link.className = "pill-tooltip-image-link";
+      link.href = anchor.href;
+      link.target = anchor.target;
+      link.rel = anchor.rel;
+      link.setAttribute("aria-label", anchor.ariaLabel || title || "Open video");
+      link.addEventListener("click", () => hidePillTooltip(0));
+      link.appendChild(img);
+      pillTooltipEl.appendChild(link);
+    } else {
+      pillTooltipEl.appendChild(img);
+    }
+  }
+  if (title) {
+    const titleEl = document.createElement("strong");
+    titleEl.className = "pill-tooltip-title";
+    titleEl.textContent = title;
+    pillTooltipEl.appendChild(titleEl);
+  }
+  if (text) {
+    const bodyEl = document.createElement("span");
+    bodyEl.className = "pill-tooltip-body";
+    bodyEl.textContent = text;
+    pillTooltipEl.appendChild(bodyEl);
+  }
   pillTooltipEl.classList.add("is-visible");
+  pillTooltipEl.setAttribute("aria-hidden", "false");
   const r = anchor.getBoundingClientRect();
-  const TOOLTIP_W = 280;
+  const TOOLTIP_W = image ? 320 : 280;
   let left = r.left + r.width / 2 - TOOLTIP_W / 2;
   left = Math.max(8, Math.min(left, window.innerWidth - TOOLTIP_W - 8));
   pillTooltipEl.style.left = `${left}px`;
   pillTooltipEl.style.top = `${r.bottom + 10}px`;
 }
 
-function hidePillTooltip(): void {
+function cancelPillTooltipHide(): void {
+  if (!pillTooltipTimer) return;
+  clearTimeout(pillTooltipTimer);
+  pillTooltipTimer = null;
+}
+
+function hidePillTooltip(delayMs = 100): void {
   if (pillTooltipTimer) clearTimeout(pillTooltipTimer);
-  pillTooltipTimer = setTimeout(() => pillTooltipEl.classList.remove("is-visible"), 100);
+  pillTooltipTimer = setTimeout(() => {
+    pillTooltipEl.classList.remove("is-visible");
+    pillTooltipEl.setAttribute("aria-hidden", "true");
+  }, delayMs);
 }
 
 function setupEditToggleTooltip(): void {
@@ -980,6 +1033,15 @@ function setupEditToolbar(): void {
     hidePillTooltip();
     setMapFlagsMode(!state.mapFlagsMode);
   });
+}
+
+function setupVideoTooltip(): void {
+  if (!window.matchMedia("(hover: hover)").matches) return;
+  videoLink.addEventListener("mouseenter", () => showPillTooltip(videoLink));
+  videoLink.addEventListener("mouseleave", () => hidePillTooltip(260));
+  videoLink.addEventListener("focus", () => showPillTooltip(videoLink));
+  videoLink.addEventListener("blur", () => hidePillTooltip());
+  videoLink.addEventListener("click", () => hidePillTooltip());
 }
 
 function openInfoModal(content: ModalContent): void {
@@ -1132,6 +1194,17 @@ function flagCodeFor(code: string): string {
 
 function flagImageSrc(code: string): string {
   return CIRCLE_FLAG_SVGS[`../node_modules/circle-flags/flags/${flagCodeFor(code)}.svg`] ?? "";
+}
+
+function publicAssetSrc(assetPath: string): string {
+  if (
+    /^(?:https?:)?\/\//.test(assetPath) ||
+    assetPath.startsWith("data:") ||
+    assetPath.startsWith("blob:")
+  ) {
+    return assetPath;
+  }
+  return `${PUBLIC_BASE_URL}${assetPath.replace(/^\/+/, "")}`;
 }
 
 function escapeAttribute(value: string): string {
@@ -1353,7 +1426,7 @@ function refreshCountryTierClasses(): void {
   if (!countryLayer) return;
 
   countryLayer.selectAll(".country").attr("class", countryClassForFeature);
-  drawHoveredCountry();
+  drawLiftedCountries();
 }
 
 function clearDropTargets(): void {
@@ -1449,8 +1522,8 @@ function buildTierCards(): void {
   countryChipElements = [...tierDeck.querySelectorAll<HTMLButtonElement>("[data-country]")];
 
   tierCardElements.forEach((card) => {
-    card.addEventListener("mouseenter", () => activateTier(card.dataset.tier as TierId));
-    card.addEventListener("focusin", () => activateTier(card.dataset.tier as TierId));
+    card.addEventListener("mouseenter", () => previewTier(card.dataset.tier as TierId));
+    card.addEventListener("focusin", () => previewTier(card.dataset.tier as TierId));
     card.addEventListener("mouseleave", clearSoftFocus);
     card.addEventListener("dragenter", (event) => {
       if (!state.editMode || !dragCountryFromEvent(event)) return;
@@ -1756,6 +1829,11 @@ function activateTier(tierId: TierId): void {
   drawConnections();
 }
 
+function previewTier(tierId: TierId): void {
+  if (state.activeCountry) return;
+  activateTier(tierId);
+}
+
 function activateCountry(countryId: string, shouldZoom: boolean): void {
   const canonicalId = canonicalCountryId(countryId);
   const meta = metaForCountry(countryId);
@@ -1815,6 +1893,7 @@ function restoreSceneSelection(): void {
 }
 
 function previewScene(scene: SceneKey): void {
+  if (state.activeCountry) return;
   state.activeCountry = null;
   state.hoveredCountry = null;
   state.activeTier = activeTierForScene(scene);
@@ -1838,11 +1917,13 @@ function updateHighlights(): void {
     const key = keyForFeature(feature);
     const activeIds = state.activeCountry ? countryIdsFor(state.activeCountry) : [];
     const hoveredIds = state.hoveredCountry ? countryIdsFor(state.hoveredCountry) : [];
+    const isLifted = activeIds.includes(key) || hoveredIds.includes(key);
     const isSelected = state.selectedIds.has(key);
     this.classList.toggle("is-muted", hasSelection && !isSelected);
     this.classList.toggle("is-highlight", isSelected);
     this.classList.toggle("is-selected", activeIds.includes(key));
     this.classList.toggle("is-hovered", hoveredIds.includes(key));
+    this.classList.toggle("is-lift-source", isLifted);
   });
 
   tierCardElements.forEach((card) => {
@@ -1854,21 +1935,24 @@ function updateHighlights(): void {
   });
 
   drawLabels();
-  drawHoveredCountry();
+  drawLiftedCountries();
 }
 
-function drawHoveredCountry(): void {
+function drawLiftedCountries(): void {
   if (!hoverLayer) return;
 
-  const features = state.hoveredCountry
-    ? countryIdsFor(state.hoveredCountry)
-        .map((id) => state.featureByKey.get(id))
-        .filter(Boolean)
-    : [];
+  const featuresByKey = new Map<string, any>();
+  [state.activeCountry, state.hoveredCountry].forEach((countryId) => {
+    if (!countryId) return;
+    countryIdsFor(countryId)
+      .map((id) => state.featureByKey.get(id))
+      .filter(Boolean)
+      .forEach((feature) => featuresByKey.set(keyForFeature(feature), feature));
+  });
 
   hoverLayer
     .selectAll("path")
-    .data(features, keyForFeature)
+    .data([...featuresByKey.values()], keyForFeature)
     .join(
       (enter: any) =>
         enter
