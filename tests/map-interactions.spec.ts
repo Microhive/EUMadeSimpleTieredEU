@@ -58,6 +58,50 @@ async function getZoomX(page: Page): Promise<number> {
   );
 }
 
+async function getCanvasPaintStats(
+  page: Page
+): Promise<{ width: number; height: number; paintedSamples: number }> {
+  return page.locator(".map-canvas").evaluate((canvas: HTMLCanvasElement) => {
+    const context = canvas.getContext("2d");
+    if (!context) return { width: canvas.width, height: canvas.height, paintedSamples: 0 };
+
+    const { width, height } = canvas;
+    const data = context.getImageData(0, 0, width, height).data;
+    let paintedSamples = 0;
+
+    for (let y = 0; y < height; y += 24) {
+      for (let x = 0; x < width; x += 24) {
+        if (data[(y * width + x) * 4 + 3] > 0) paintedSamples += 1;
+      }
+    }
+
+    return { width, height, paintedSamples };
+  });
+}
+
+async function getCanvasRenderRevision(page: Page): Promise<number> {
+  return page.locator(".map-canvas").evaluate((canvas: HTMLCanvasElement) => {
+    return Number(canvas.dataset.renderRevision ?? 0);
+  });
+}
+
+async function getCanvasRenderTransform(
+  page: Page
+): Promise<{ x: number; y: number; k: number }> {
+  return page.locator(".map-canvas").evaluate((canvas: HTMLCanvasElement) => {
+    const [x = 0, y = 0, k = 1] = (canvas.dataset.renderTransform ?? "0|0|1")
+      .split("|")
+      .map(Number);
+    return { x, y, k };
+  });
+}
+
+async function getCanvasComputedTransform(page: Page): Promise<string> {
+  return page.locator(".map-canvas").evaluate((canvas) => {
+    return getComputedStyle(canvas).transform;
+  });
+}
+
 /**
  * Dispatch a raw touch-drag sequence directly on #mapSvg by injecting
  * TouchEvents via page.evaluate.  This bypasses the browser's native
@@ -291,6 +335,25 @@ test.describe("country chip — desktop click", () => {
   });
 });
 
+test.describe("map rendering — desktop", () => {
+  test.use(desktop);
+
+  test("paints the high-detail country layer on canvas", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const canvas = page.locator(".map-canvas");
+    await expect(canvas).toHaveCount(1);
+
+    const stats = await getCanvasPaintStats(page);
+    expect(stats.width).toBeGreaterThan(0);
+    expect(stats.height).toBeGreaterThan(0);
+    expect(stats.paintedSamples).toBeGreaterThan(100);
+
+    await expect(page.locator('#mapSvg [data-country="112"]')).toHaveCSS("opacity", "0");
+  });
+});
+
 test.describe("tier editing drag — desktop", () => {
   test.use({ ...desktop, viewport: { width: 1280, height: 900 } });
 
@@ -306,20 +369,24 @@ test.describe("tier editing drag — desktop", () => {
     const countryId = "112"; // Belarus
     const targetTier = "inner";
     const mapFlag = page.locator(`.map-flag[data-country="${countryId}"]`);
+    const countryPath = page.locator(`#mapSvg [data-country="${countryId}"]`);
     const targetCard = page.locator(`.tier-card[data-tier="${targetTier}"]`);
     const targetChip = page.locator(
       `.tier-card[data-tier="${targetTier}"] .country-chip[data-country="${countryId}"]`
     );
 
     await expect(mapFlag).toBeVisible();
+    await expect(countryPath).toHaveAttribute("data-quality", "standard");
+    const standardGeometry = await countryPath.getAttribute("d");
+    await expect(countryPath).toHaveCSS("opacity", "0");
     await expect(targetChip).toHaveCount(0);
 
     await dragLocatorToLocator(page, mapFlag, targetCard);
 
     await expect(targetChip).toHaveCount(1);
-    await expect(page.locator(`#mapSvg [data-country="${countryId}"]`)).toHaveClass(
-      /tier-inner/
-    );
+    await expect(countryPath).toHaveClass(/tier-inner/);
+    await expect(countryPath).toHaveAttribute("data-quality", "standard");
+    expect(await countryPath.getAttribute("d")).toBe(standardGeometry);
   });
 
   test("dragging a tier chip between cards moves it and leaves editing responsive", async ({
@@ -629,6 +696,7 @@ test.describe("map touch pan/zoom policy", () => {
     const cy = box.y + box.height / 2;
 
     const kBefore = await getZoomScale(page);
+    const canvasRevisionBefore = await getCanvasRenderRevision(page);
 
     // Two fingers start 40 px apart, spread to 200 px apart → ~5× scale
     await dispatchTouchDrag(page, [
@@ -638,6 +706,14 @@ test.describe("map touch pan/zoom policy", () => {
     await page.waitForTimeout(300);
 
     expect(await getZoomScale(page)).toBeGreaterThan(kBefore);
+    expect(await getCanvasRenderRevision(page)).toBeGreaterThan(canvasRevisionBefore);
+    expect(await getCanvasComputedTransform(page)).toBe("none");
+
+    const zoomTransform = await getZoomTransform(page);
+    const canvasRenderTransform = await getCanvasRenderTransform(page);
+    expect(canvasRenderTransform.k).toBeCloseTo(zoomTransform.k, 4);
+    expect(canvasRenderTransform.x).toBeCloseTo(zoomTransform.x, 1);
+    expect(canvasRenderTransform.y).toBeCloseTo(zoomTransform.y, 1);
   });
 });
 
@@ -657,9 +733,18 @@ test.describe("map mouse wheel zoom (desktop)", () => {
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 
     const kBefore = await getZoomScale(page);
+    const canvasRevisionBefore = await getCanvasRenderRevision(page);
     await page.mouse.wheel(0, -300); // negative deltaY = zoom in
     await page.waitForTimeout(300);
 
     expect(await getZoomScale(page)).toBeGreaterThan(kBefore);
+    expect(await getCanvasRenderRevision(page)).toBeGreaterThan(canvasRevisionBefore);
+    expect(await getCanvasComputedTransform(page)).toBe("none");
+
+    const zoomTransform = await getZoomTransform(page);
+    const canvasRenderTransform = await getCanvasRenderTransform(page);
+    expect(canvasRenderTransform.k).toBeCloseTo(zoomTransform.k, 4);
+    expect(canvasRenderTransform.x).toBeCloseTo(zoomTransform.x, 1);
+    expect(canvasRenderTransform.y).toBeCloseTo(zoomTransform.y, 1);
   });
 });
