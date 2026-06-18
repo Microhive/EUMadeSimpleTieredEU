@@ -10,7 +10,7 @@
  *    (so page scrolling still works on mobile), while a two-finger pinch MUST
  *    zoom the map, and the mouse wheel MUST zoom the map on desktop.
  */
-import { test, expect, devices, type Page } from "@playwright/test";
+import { test, expect, devices, type Locator, type Page } from "@playwright/test";
 
 // `defaultBrowserType` can't be overridden inside a describe block, so strip it.
 const { defaultBrowserType: _d, ...desktop } = devices["Desktop Chrome"];
@@ -121,6 +121,31 @@ async function dispatchTouchDrag(
       })
     );
   }, fingers);
+}
+
+async function dragLocatorToLocator(
+  page: Page,
+  source: Locator,
+  target: Locator
+): Promise<void> {
+  const sourceBox = await source.boundingBox();
+  const targetBox = await target.boundingBox();
+
+  if (!sourceBox || !targetBox) {
+    throw new Error("Cannot drag: source or target is not visible.");
+  }
+
+  await page.mouse.move(
+    sourceBox.x + sourceBox.width / 2,
+    sourceBox.y + sourceBox.height / 2
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    targetBox.x + targetBox.width / 2,
+    targetBox.y + targetBox.height / 2,
+    { steps: 24 }
+  );
+  await page.mouse.up();
 }
 
 // ─── scene tab — click vs tap ─────────────────────────────────────────────────
@@ -263,6 +288,71 @@ test.describe("country chip — desktop click", () => {
     await expect(page.locator("#countryCard")).toContainText(name, {
       ignoreCase: true,
     });
+  });
+});
+
+test.describe("tier editing drag — desktop", () => {
+  test.use({ ...desktop, viewport: { width: 1280, height: 900 } });
+
+  test("dragging a map flag into a tier card adds it as a chip", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator("#mapFlagsButton").click();
+    await page.locator("#editToggle").click();
+
+    const countryId = "112"; // Belarus
+    const targetTier = "inner";
+    const mapFlag = page.locator(`.map-flag[data-country="${countryId}"]`);
+    const targetCard = page.locator(`.tier-card[data-tier="${targetTier}"]`);
+    const targetChip = page.locator(
+      `.tier-card[data-tier="${targetTier}"] .country-chip[data-country="${countryId}"]`
+    );
+
+    await expect(mapFlag).toBeVisible();
+    await expect(targetChip).toHaveCount(0);
+
+    await dragLocatorToLocator(page, mapFlag, targetCard);
+
+    await expect(targetChip).toHaveCount(1);
+    await expect(page.locator(`#mapSvg [data-country="${countryId}"]`)).toHaveClass(
+      /tier-inner/
+    );
+  });
+
+  test("dragging a tier chip between cards moves it and leaves editing responsive", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator("#editToggle").click();
+
+    const countryId = "056"; // Belgium
+    const sourceTier = "inner";
+    const targetTier = "eu";
+    const sourceChip = page.locator(
+      `.tier-card[data-tier="${sourceTier}"] .country-chip[data-country="${countryId}"]`
+    );
+    const targetCard = page.locator(`.tier-card[data-tier="${targetTier}"]`);
+    const targetChip = page.locator(
+      `.tier-card[data-tier="${targetTier}"] .country-chip[data-country="${countryId}"]`
+    );
+
+    await expect(sourceChip).toHaveCount(1);
+    await expect(targetChip).toHaveCount(0);
+
+    await dragLocatorToLocator(page, sourceChip, targetCard);
+
+    await expect(targetChip).toHaveCount(1);
+    await expect(sourceChip).toHaveCount(0);
+    await expect(page.locator(".country-drag-ghost")).toHaveCount(0);
+    await expect(page.locator(".is-drop-target")).toHaveCount(0);
+
+    await page.locator("#editToggle").click();
+    await expect(page.locator("#editToggle")).toHaveAttribute("aria-pressed", "false");
   });
 });
 

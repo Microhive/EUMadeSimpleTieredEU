@@ -843,6 +843,9 @@ button.capability:focus-visible {
   border: 1px solid rgba(255, 255, 255, 0.9);
   border-radius: 50%;
   box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.22);
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 button.country-chip {
@@ -858,6 +861,7 @@ button.country-chip {
 .is-editing-tiers .country-chip {
   cursor: grab;
   box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.42);
+  touch-action: none;
 }
 
 .is-editing-tiers .country-chip:hover,
@@ -872,12 +876,29 @@ button.country-chip {
   transform: scale(0.88);
 }
 
+.country-drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 10000;
+  margin: 0;
+  pointer-events: none;
+  cursor: grabbing;
+  opacity: 0.9;
+  box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.48);
+  transition: none;
+  transform-origin: top left;
+}
+
 .chip-flag {
   display: block;
   width: 100%;
   height: 100%;
   border-radius: 50%;
   object-fit: cover;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .tier-card[data-tier="inner"] .country-chip {
@@ -962,6 +983,26 @@ button.country-chip {
     rgba(0, 0, 0, 0.55);
 }
 
+.scene-tab-separator {
+  color: rgba(255, 248, 238, 0.78);
+  font-size: calc(1.1rem * var(--scene-tabs-scale));
+  font-weight: 900;
+  line-height: 1;
+}
+
+.scene-tabs .map-flags-toggle {
+  display: grid;
+  width: calc(38px * var(--scene-tabs-scale));
+  min-width: calc(38px * var(--scene-tabs-scale));
+  place-items: center;
+  padding: 0;
+}
+
+.map-flags-toggle svg {
+  width: calc(18px * var(--scene-tabs-scale));
+  height: calc(18px * var(--scene-tabs-scale));
+}
+
 .zoom-controls button {
   width: 38px;
   padding: 0;
@@ -1024,6 +1065,7 @@ button.country-chip {
 }
 
 .map-flag {
+  appearance: none;
   position: absolute;
   top: 0;
   left: 0;
@@ -1034,7 +1076,7 @@ button.country-chip {
   place-items: center;
   padding: 2px;
   pointer-events: auto;
-  cursor: grab;
+  cursor: pointer;
   background: rgba(255, 248, 238, 0.92);
   border: 2px solid rgba(8, 11, 15, 0.84);
   border-radius: 50%;
@@ -1044,7 +1086,14 @@ button.country-chip {
   transition:
     opacity 140ms ease,
     box-shadow 140ms ease;
+  user-select: none;
+  touch-action: manipulation;
+  -webkit-user-drag: none;
   will-change: transform;
+}
+
+.country-drag-ghost {
+  pointer-events: none;
 }
 
 .map-flag img {
@@ -1053,10 +1102,9 @@ button.country-chip {
   height: 100%;
   border-radius: 50%;
   object-fit: cover;
-}
-
-.map-flag.is-tiered {
-  opacity: 0.5;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .map-flag:hover,
@@ -1070,8 +1118,7 @@ button.country-chip {
 }
 
 .map-flag.is-dragging {
-  opacity: 0.38;
-  cursor: grabbing;
+  opacity: 0.42;
 }
 
 .graticule {
@@ -1182,6 +1229,17 @@ button.country-chip {
   paint-order: stroke;
   stroke: rgba(2, 52, 95, 0.86);
   stroke-width: 1.6;
+  font-weight: 900;
+  vector-effect: non-scaling-stroke;
+}
+
+.country-label-shadow {
+  pointer-events: none;
+  fill: rgba(0, 0, 0, 0.86);
+  opacity: 0.95;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.72);
+  stroke-width: 1;
   font-weight: 900;
   vector-effect: non-scaling-stroke;
 }

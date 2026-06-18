@@ -82,7 +82,23 @@ interface MapFlagDatum {
   code: string;
   name: string;
   centroid: [number, number];
-  isTiered: boolean;
+}
+
+type CountryDragSource = "chip" | "map-flag";
+
+interface CountryDragState {
+  pointerId: number;
+  countryId: string;
+  sourceElement: HTMLElement;
+  source: CountryDragSource;
+  startX: number;
+  startY: number;
+  offsetX: number;
+  offsetY: number;
+  hasMoved: boolean;
+  ghost: HTMLElement | null;
+  dropTier: HTMLElement | null;
+  dropOnMap: boolean;
 }
 
 interface FitOptions {
@@ -188,8 +204,8 @@ const SCENARIO_FEATURE_TIER = new Map<string, TierId>([[CRIMEA_ID, "associate"]]
 const FEATURE_ALIASES_BY_COUNTRY = new Map<string, string[]>([[UKRAINE_ID, [CRIMEA_ID]]]);
 const PRIMARY_COUNTRY_BY_ALIAS = new Map<string, string>([[CRIMEA_ID, UKRAINE_ID]]);
 const FLAG_CODE_OVERRIDES = new Map<string, string>([["UK", "GB"]]);
-const COUNTRY_DRAG_TYPE = "application/x-tiered-eu-country";
-const COUNTRY_LIFT_TRANSFORM = "translate(-1, -1.5)";
+const COUNTRY_LIFT_TRANSFORM = "translate(-1, -0.75)";
+const CHIP_DRAG_START_THRESHOLD_PX = 4;
 
 const ISO2_BY_NUMERIC: Record<string, string> = {
   "004": "AF",
@@ -822,7 +838,7 @@ const benefitModal = document.querySelector<HTMLDialogElement>("#benefitModal")!
 const mapFlagLayer = document.createElement("div");
 
 mapFlagLayer.className = "map-flag-layer";
-mapFlagLayer.setAttribute("aria-label", "Draggable country flags");
+mapFlagLayer.setAttribute("aria-label", "Country flags");
 mapWrap.appendChild(mapFlagLayer);
 const EDIT_TOOLTIP_IDLE =
   "Edit the scenario tiers. Turn this on to drag country flags between tier cards and try a different arrangement.";
@@ -857,7 +873,8 @@ let countryChipElements: HTMLButtonElement[] = [];
 let geometryCache = new Map<string, GeometryLayout>();
 let width = 0;
 let height = 0;
-let draggedCountryId: string | null = null;
+let countryDragState: CountryDragState | null = null;
+let suppressNextCountryClickId: string | null = null;
 let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 let mapResizeObserver: ResizeObserver | null = null;
 
@@ -867,8 +884,9 @@ buildTierCards();
 buildLegend();
 setupEditToggleTooltip();
 setupEditToolbar();
+setupMapFlagsButton();
+setupMapFlagLayerInteractions();
 setupVideoTooltip();
-setupMapDropTarget();
 setupSceneTabsScale();
 loadMap();
 // ─── benefit pill functions ───────────────────────────────────────────────────────────────────────────
@@ -1030,11 +1048,47 @@ function setupEditToolbar(): void {
     hidePillTooltip();
     resetTierAssignments();
   });
+}
 
+function setupMapFlagsButton(): void {
   mapFlagsButton.addEventListener("click", () => {
-    hidePillTooltip();
     setMapFlagsMode(!state.mapFlagsMode);
   });
+
+  mapFlagsButton.addEventListener("mouseenter", restoreScenePreview);
+}
+
+function setupMapFlagLayerInteractions(): void {
+  mapFlagLayer.addEventListener("pointerdown", (event) => {
+    const flag = (event.target as Element).closest<HTMLElement>(".map-flag");
+    if (!flag) return;
+    startMapFlagPointerDrag(flag, event);
+  });
+
+  mapFlagLayer.addEventListener("click", (event) => {
+    const flag = (event.target as Element).closest<HTMLElement>(".map-flag");
+    if (!flag) return;
+    activateMapFlag(flag);
+  });
+
+  mapFlagLayer.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+
+    const flag = (event.target as Element).closest<HTMLElement>(".map-flag");
+    if (!flag) return;
+
+    event.preventDefault();
+    activateMapFlag(flag);
+  });
+}
+
+function activateMapFlag(flag: HTMLElement): void {
+  const countryId = flag.dataset.country;
+  if (!countryId) return;
+  if (consumeSuppressedCountryClick(countryId)) return;
+
+  const meta = metaForCountry(countryId);
+  if (meta) activateCountry(meta.id, true);
 }
 
 function setupVideoTooltip(): void {
@@ -1291,12 +1345,11 @@ function layoutForFeature(feature: any): GeometryLayout | null {
 
 function setEditMode(nextEditMode: boolean): void {
   state.editMode = nextEditMode;
-  if (!state.editMode) state.mapFlagsMode = false;
   syncEditModeControls();
 }
 
 function setMapFlagsMode(nextMapFlagsMode: boolean): void {
-  state.mapFlagsMode = state.editMode && nextMapFlagsMode;
+  state.mapFlagsMode = nextMapFlagsMode;
   syncMapFlagsControls();
   renderMapFlags();
 }
@@ -1315,7 +1368,7 @@ function syncEditModeControls(): void {
   });
 
   countryChipElements.forEach((chip) => {
-    chip.draggable = state.editMode;
+    chip.draggable = false;
     chip.setAttribute("aria-grabbed", "false");
   });
 
@@ -1325,7 +1378,7 @@ function syncEditModeControls(): void {
   });
 
   if (!state.editMode) {
-    draggedCountryId = null;
+    cancelCountryDrag();
     clearMapDropTarget();
   }
 
@@ -1336,9 +1389,13 @@ function syncEditModeControls(): void {
 function syncMapFlagsControls(): void {
   mapFlagsButton.classList.toggle("is-active", state.mapFlagsMode);
   mapFlagsButton.setAttribute("aria-pressed", String(state.mapFlagsMode));
-  mapFlagsButton.dataset.tooltip = state.mapFlagsMode
-    ? "Hide the draggable country flags on the map."
-    : "Show country flags on the map. Drag one into a tier card to add it.";
+  mapFlagsButton.setAttribute(
+    "aria-label",
+    state.mapFlagsMode ? "Hide country flags on the map" : "Show country flags on the map",
+  );
+  mapFlagsButton.title = state.mapFlagsMode
+    ? "Hide country flags on the map"
+    : "Show country flags on the map";
 }
 
 function resetTierAssignments(): void {
@@ -1440,44 +1497,198 @@ function clearMapDropTarget(): void {
   mapWrap.classList.remove("is-map-drop-target");
 }
 
-function dragCountryFromEvent(event: DragEvent): string | null {
-  return (
-    draggedCountryId ??
-    event.dataTransfer?.getData(COUNTRY_DRAG_TYPE) ??
-    event.dataTransfer?.getData("text/plain") ??
-    null
-  );
+function startChipPointerDrag(button: HTMLButtonElement, event: PointerEvent): void {
+  startCountryPointerDrag(button, button.dataset.country!, "chip", event);
 }
 
-function setupMapDropTarget(): void {
-  mapWrap.addEventListener("dragenter", (event) => {
-    if (!state.editMode || !dragCountryFromEvent(event)) return;
-    event.preventDefault();
-    mapWrap.classList.add("is-map-drop-target");
-  });
+function startMapFlagPointerDrag(flag: HTMLElement, event: PointerEvent): void {
+  const countryId = flag.dataset.country;
+  if (!countryId) return;
+  startCountryPointerDrag(flag, countryId, "map-flag", event);
+}
 
-  mapWrap.addEventListener("dragover", (event) => {
-    if (!state.editMode || !dragCountryFromEvent(event)) return;
-    event.preventDefault();
-    event.dataTransfer!.dropEffect = "move";
-    mapWrap.classList.add("is-map-drop-target");
-  });
+function startCountryPointerDrag(
+  sourceElement: HTMLElement,
+  countryId: string,
+  source: CountryDragSource,
+  event: PointerEvent,
+): void {
+  if (!state.editMode) return;
+  if (event.pointerType === "mouse" && event.button !== 0) return;
 
-  mapWrap.addEventListener("dragleave", (event) => {
-    if (event.relatedTarget instanceof Node && mapWrap.contains(event.relatedTarget)) return;
-    clearMapDropTarget();
-  });
+  cancelCountryDrag();
 
-  mapWrap.addEventListener("drop", (event) => {
-    if (!state.editMode) return;
-    const countryId = dragCountryFromEvent(event);
-    if (!countryId) return;
+  const rect = sourceElement.getBoundingClientRect();
+  countryDragState = {
+    pointerId: event.pointerId,
+    countryId,
+    sourceElement,
+    source,
+    startX: event.clientX,
+    startY: event.clientY,
+    offsetX: event.clientX - rect.left,
+    offsetY: event.clientY - rect.top,
+    hasMoved: false,
+    ghost: null,
+    dropTier: null,
+    dropOnMap: false,
+  };
+
+  sourceElement.focus({ preventScroll: true });
+  sourceElement.setPointerCapture?.(event.pointerId);
+  window.addEventListener("pointermove", handleCountryPointerMove, { passive: false });
+  window.addEventListener("pointerup", handleCountryPointerUp, { passive: false });
+  window.addEventListener("pointercancel", handleCountryPointerCancel, { passive: false });
+  event.preventDefault();
+}
+
+function handleCountryPointerMove(event: PointerEvent): void {
+  const drag = countryDragState;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+
+  const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+  if (!drag.hasMoved && distance < CHIP_DRAG_START_THRESHOLD_PX) return;
+
+  event.preventDefault();
+
+  if (!drag.hasMoved) {
+    beginCountryDragVisuals(drag);
+  }
+
+  positionCountryDragGhost(drag, event.clientX, event.clientY);
+  updateCountryDropTarget(drag, event.clientX, event.clientY);
+}
+
+function handleCountryPointerUp(event: PointerEvent): void {
+  const drag = countryDragState;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+
+  const didDrag = drag.hasMoved;
+  if (didDrag) {
     event.preventDefault();
-    clearMapDropTarget();
-    if (removeCountryFromTier(countryId)) {
-      refreshTierStateAfterMove();
+    updateCountryDropTarget(drag, event.clientX, event.clientY);
+  }
+
+  const countryId = drag.countryId;
+  const source = drag.source;
+  const targetTierId = drag.dropTier?.dataset.tier as TierId | undefined;
+  const dropOnMap = drag.dropOnMap;
+  cleanupCountryDrag();
+
+  if (!didDrag) {
+    activateCountry(countryId, true);
+    suppressNextCountryClick(countryId);
+    return;
+  }
+
+  suppressNextCountryClick(countryId);
+
+  if (targetTierId && moveCountryToTier(countryId, targetTierId)) {
+    refreshTierStateAfterMove();
+    return;
+  }
+
+  if (source === "chip" && dropOnMap && removeCountryFromTier(countryId)) {
+    refreshTierStateAfterMove();
+  }
+}
+
+function handleCountryPointerCancel(event: PointerEvent): void {
+  const drag = countryDragState;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+  cleanupCountryDrag();
+}
+
+function beginCountryDragVisuals(drag: CountryDragState): void {
+  drag.hasMoved = true;
+
+  const rect = drag.sourceElement.getBoundingClientRect();
+  const ghost = drag.sourceElement.cloneNode(true) as HTMLElement;
+  ghost.classList.add(
+    "country-drag-ghost",
+    drag.source === "chip" ? "country-chip-drag-ghost" : "map-flag-drag-ghost",
+  );
+  ghost.classList.remove("is-dragging");
+  ghost.setAttribute("aria-hidden", "true");
+  ghost.setAttribute("tabindex", "-1");
+  ghost.style.width = `${rect.width}px`;
+  ghost.style.height = `${rect.height}px`;
+  document.body.appendChild(ghost);
+  drag.ghost = ghost;
+
+  drag.sourceElement.classList.add("is-dragging");
+  if (drag.source === "chip") {
+    drag.sourceElement.setAttribute("aria-grabbed", "true");
+  }
+}
+
+function positionCountryDragGhost(drag: CountryDragState, clientX: number, clientY: number): void {
+  if (!drag.ghost) return;
+  drag.ghost.style.transform = `translate3d(${clientX - drag.offsetX}px, ${clientY - drag.offsetY}px, 0)`;
+}
+
+function updateCountryDropTarget(drag: CountryDragState, clientX: number, clientY: number): void {
+  const target = document.elementFromPoint(clientX, clientY);
+  const dropTier = target?.closest<HTMLElement>(".tier-card") ?? null;
+  const dropOnMap = !dropTier && Boolean(target?.closest(".map-wrap"));
+
+  drag.dropTier = dropTier;
+  drag.dropOnMap = dropOnMap;
+
+  tierCardElements.forEach((card) => {
+    card.classList.toggle("is-drop-target", card === dropTier);
+  });
+  mapWrap.classList.toggle("is-map-drop-target", dropOnMap);
+}
+
+function cancelCountryDrag(): void {
+  if (!countryDragState) {
+    clearDropTargets();
+    return;
+  }
+
+  cleanupCountryDrag();
+}
+
+function cleanupCountryDrag(): void {
+  const drag = countryDragState;
+  if (!drag) return;
+
+  window.removeEventListener("pointermove", handleCountryPointerMove);
+  window.removeEventListener("pointerup", handleCountryPointerUp);
+  window.removeEventListener("pointercancel", handleCountryPointerCancel);
+
+  try {
+    if (drag.sourceElement.hasPointerCapture?.(drag.pointerId)) {
+      drag.sourceElement.releasePointerCapture(drag.pointerId);
     }
-  });
+  } catch {
+    // The source element may have been detached by a rerender.
+  }
+
+  drag.sourceElement.classList.remove("is-dragging");
+  if (drag.source === "chip") {
+    drag.sourceElement.setAttribute("aria-grabbed", "false");
+  }
+  drag.ghost?.remove();
+  countryDragState = null;
+  clearDropTargets();
+}
+
+function suppressNextCountryClick(countryId: string): void {
+  suppressNextCountryClickId = countryId;
+  window.setTimeout(() => {
+    if (suppressNextCountryClickId === countryId) {
+      suppressNextCountryClickId = null;
+    }
+  }, 0);
+}
+
+function consumeSuppressedCountryClick(countryId: string): boolean {
+  if (suppressNextCountryClickId !== countryId) return false;
+
+  suppressNextCountryClickId = null;
+  return true;
 }
 
 // ─── render functions ─────────────────────────────────────────────────────────
@@ -1488,8 +1699,8 @@ function buildTierCards(): void {
       const chips = tier.directCountries
         .map(([id, code, name]) => {
           const safeName = escapeAttribute(name);
-          return `<button type="button" class="country-chip" data-country="${id}" data-code="${code}" aria-label="${safeName}" title="${safeName}" draggable="${state.editMode ? "true" : "false"}">
-              <img class="chip-flag" src="${flagImageSrc(code)}" width="28" height="28" alt="" loading="lazy" decoding="async">
+          return `<button type="button" class="country-chip" data-country="${id}" data-code="${code}" aria-label="${safeName}" title="${safeName}" draggable="false">
+              <img class="chip-flag" src="${flagImageSrc(code)}" width="28" height="28" alt="" loading="lazy" decoding="async" draggable="false">
             </button>`;
         })
         .join("");
@@ -1527,56 +1738,18 @@ function buildTierCards(): void {
     card.addEventListener("mouseenter", () => previewTier(card.dataset.tier as TierId));
     card.addEventListener("focusin", () => previewTier(card.dataset.tier as TierId));
     card.addEventListener("mouseleave", clearSoftFocus);
-    card.addEventListener("dragenter", (event) => {
-      if (!state.editMode || !dragCountryFromEvent(event)) return;
-      event.preventDefault();
-      card.classList.add("is-drop-target");
-    });
-    card.addEventListener("dragover", (event) => {
-      if (!state.editMode || !dragCountryFromEvent(event)) return;
-      event.preventDefault();
-      event.dataTransfer!.dropEffect = "move";
-      card.classList.add("is-drop-target");
-    });
-    card.addEventListener("dragleave", (event) => {
-      if (event.relatedTarget instanceof Node && card.contains(event.relatedTarget)) return;
-      card.classList.remove("is-drop-target");
-    });
-    card.addEventListener("drop", (event) => {
-      if (!state.editMode) return;
-      event.preventDefault();
-      const countryId = dragCountryFromEvent(event);
-      clearDropTargets();
-      if (!countryId) return;
-      const targetTierId = card.dataset.tier as TierId;
-      if (moveCountryToTier(countryId, targetTierId)) {
-        refreshTierStateAfterMove();
-      }
-    });
   });
 
   countryChipElements.forEach((button) => {
     button.addEventListener("mouseenter", () => activateCountry(button.dataset.country!, false));
     button.addEventListener("focus", () => activateCountry(button.dataset.country!, false));
-    button.addEventListener("click", () => activateCountry(button.dataset.country!, true));
-    button.addEventListener("dragstart", (event) => {
-      if (!state.editMode) {
-        event.preventDefault();
-        return;
-      }
-      draggedCountryId = button.dataset.country!;
-      button.classList.add("is-dragging");
-      button.setAttribute("aria-grabbed", "true");
-      event.dataTransfer!.effectAllowed = "move";
-      event.dataTransfer!.setData(COUNTRY_DRAG_TYPE, draggedCountryId);
-      event.dataTransfer!.setData("text/plain", draggedCountryId);
+    button.addEventListener("click", () => {
+      if (consumeSuppressedCountryClick(button.dataset.country!)) return;
+
+      activateCountry(button.dataset.country!, true);
     });
-    button.addEventListener("dragend", () => {
-      draggedCountryId = null;
-      button.classList.remove("is-dragging");
-      button.setAttribute("aria-grabbed", "false");
-      clearDropTargets();
-    });
+    button.addEventListener("pointerdown", (event) => startChipPointerDrag(button, event));
+    button.addEventListener("dragstart", (event) => event.preventDefault());
   });
 
   const canHoverCap = window.matchMedia("(hover: hover)").matches;
@@ -1805,11 +1978,7 @@ function hasMapSizeChanged(nextSize: { width: number; height: number }): boolean
 
 function onZoom(event: any): void {
   if (mapLayer) mapLayer.attr("transform", event.transform);
-  if (labelLayer) {
-    labelLayer
-      .selectAll(".country-label")
-      .style("font-size", `${countryLabelBasePx() / event.transform.k}px`);
-  }
+  updateLabelScale(event.transform.k);
   positionMapFlags();
 }
 
@@ -1817,6 +1986,28 @@ function countryLabelBasePx(): number {
   if (window.innerWidth <= 430) return NARROW_LABEL_PX;
   if (window.innerWidth <= 1279) return COMPACT_LABEL_PX;
   return DESKTOP_LABEL_PX;
+}
+
+function labelFontSizeForScale(scale: number): string {
+  return `${countryLabelBasePx() / scale}px`;
+}
+
+function labelShadowOffsetForScale(scale: number): number {
+  return 2.75 / scale;
+}
+
+function updateLabelScale(scale: number): void {
+  if (!labelLayer) return;
+
+  labelLayer
+    .selectAll(".country-label, .country-label-shadow")
+    .style("font-size", labelFontSizeForScale(scale));
+
+  const shadowOffset = labelShadowOffsetForScale(scale);
+  labelLayer
+    .selectAll(".country-label-shadow")
+    .attr("dx", shadowOffset)
+    .attr("dy", shadowOffset);
 }
 
 // ─── interaction ──────────────────────────────────────────────────────────────
@@ -1980,7 +2171,7 @@ function drawLiftedCountries(): void {
 }
 
 function renderMapFlags(): void {
-  const shouldShowFlags = state.editMode && state.mapFlagsMode && state.features.length > 0;
+  const shouldShowFlags = state.mapFlagsMode && state.features.length > 0;
   mapFlagLayer.classList.toggle("is-visible", shouldShowFlags);
 
   if (!shouldShowFlags) {
@@ -1993,42 +2184,21 @@ function renderMapFlags(): void {
     .map((flag) => {
       const safeName = escapeAttribute(flag.name);
       return `
-        <button
-          type="button"
-          class="map-flag${flag.isTiered ? " is-tiered" : ""}"
+        <span
+          role="button"
+          tabindex="0"
+          class="map-flag"
           data-country="${escapeAttribute(flag.id)}"
           data-x="${flag.centroid[0]}"
           data-y="${flag.centroid[1]}"
-          draggable="true"
           aria-label="${safeName}"
           title="${safeName}"
         >
-          <img src="${flagImageSrc(flag.code)}" width="24" height="24" alt="" loading="lazy" decoding="async">
-        </button>
+          <img src="${flagImageSrc(flag.code)}" width="24" height="24" alt="" loading="lazy" decoding="async" draggable="false">
+        </span>
       `;
     })
     .join("");
-
-  mapFlagLayer.querySelectorAll<HTMLButtonElement>(".map-flag").forEach((button) => {
-    button.addEventListener("click", () => {
-      const meta = metaForCountry(button.dataset.country!);
-      if (meta) activateCountry(meta.id, true);
-    });
-
-    button.addEventListener("dragstart", (event) => {
-      draggedCountryId = button.dataset.country!;
-      button.classList.add("is-dragging");
-      event.dataTransfer!.effectAllowed = "move";
-      event.dataTransfer!.setData(COUNTRY_DRAG_TYPE, draggedCountryId);
-      event.dataTransfer!.setData("text/plain", draggedCountryId);
-    });
-
-    button.addEventListener("dragend", () => {
-      draggedCountryId = null;
-      button.classList.remove("is-dragging");
-      clearDropTargets();
-    });
-  });
 
   positionMapFlags();
 }
@@ -2054,7 +2224,6 @@ function mapFlagData(): MapFlagDatum[] {
         code: entry[1],
         name: entry[2],
         centroid: layout.centroid,
-        isTiered: directTierByCountry.has(canonicalId),
       };
     })
     .filter((item): item is MapFlagDatum => item !== null);
@@ -2162,6 +2331,22 @@ function drawLabels(): void {
   const labels = [...labelsById.values()];
 
   const currentScale: number = svg.node() ? d3.zoomTransform(svg.node()).k : 1;
+  const labelShadowOffset = labelShadowOffsetForScale(currentScale);
+
+  labelLayer
+    .selectAll(".country-label-shadow")
+    .data(labels, (item: LabelDatum) => item.id)
+    .join("text")
+    .attr("class", "country-label-shadow")
+    .attr("x", (item: LabelDatum) => item.centroid[0])
+    .attr("y", (item: LabelDatum) => item.centroid[1])
+    .attr("dx", labelShadowOffset)
+    .attr("dy", labelShadowOffset)
+    .attr("text-anchor", "middle")
+    .attr("dominant-baseline", "middle")
+    .attr("transform", (item: LabelDatum) => (item.isRaised ? COUNTRY_LIFT_TRANSFORM : null))
+    .style("font-size", labelFontSizeForScale(currentScale))
+    .text((item: LabelDatum) => item.text);
 
   labelLayer
     .selectAll(".country-label")
@@ -2173,8 +2358,9 @@ function drawLabels(): void {
     .attr("text-anchor", "middle")
     .attr("dominant-baseline", "middle")
     .attr("transform", (item: LabelDatum) => (item.isRaised ? COUNTRY_LIFT_TRANSFORM : null))
-    .style("font-size", `${countryLabelBasePx() / currentScale}px`)
-    .text((item: LabelDatum) => item.text);
+    .style("font-size", labelFontSizeForScale(currentScale))
+    .text((item: LabelDatum) => item.text)
+    .raise();
 }
 
 function labelForCountry(countryId: string, isRaised = false): LabelDatum | null {

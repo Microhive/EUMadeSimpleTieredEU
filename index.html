@@ -35,19 +35,6 @@
                   <path d="M4.2 4.6v5.2h5.2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
               </button>
-              <button
-                type="button"
-                class="edit-tool-button"
-                id="mapFlagsButton"
-                aria-label="Show draggable flags on the map"
-                aria-pressed="false"
-                data-tooltip="Show country flags on the map. Drag one into a tier card to add it."
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M6 21V4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
-                  <path d="M7 4.5h9.4l-1.7 3.2 1.7 3.1H7" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
-                </svg>
-              </button>
             </div>
             <button
               type="button"
@@ -112,6 +99,20 @@
                 <button type="button" data-scene="eu">EU</button>
                 <button type="button" data-scene="associate">Associate</button>
                 <button type="button" data-scene="friends">Community</button>
+                <span class="scene-tab-separator" aria-hidden="true">|</span>
+                <button
+                  type="button"
+                  class="map-flags-toggle"
+                  id="mapFlagsButton"
+                  aria-label="Show country flags on the map"
+                  aria-pressed="false"
+                  title="Show country flags on the map"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M6 21V4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                    <path d="M7 4.5h9.4l-1.7 3.2 1.7 3.1H7" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
+                  </svg>
+                </button>
               </div>
             </div>
             <svg id="mapSvg" role="img" aria-labelledby="mapTitle mapDesc">
