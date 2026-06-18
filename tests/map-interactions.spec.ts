@@ -195,6 +195,20 @@ test.describe("country chip — mobile tap", () => {
 test.describe("map country path — desktop click", () => {
   test.use(desktop);
 
+  test("brief country hover does not update the card", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator('#mapSvg [data-country="276"]').hover();
+    await page.waitForTimeout(60);
+    await page.mouse.move(1, 1);
+    await page.waitForTimeout(200);
+
+    await expect(page.locator("#countryCard h2")).not.toContainText("Germany", {
+      ignoreCase: true,
+    });
+  });
+
   test("clicking a country on the map shows its info card", async ({ page }) => {
     await page.goto("/");
     await waitForMap(page);

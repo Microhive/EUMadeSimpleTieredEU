@@ -641,6 +641,7 @@ const zoom = d3.zoom()
 const DESKTOP_LABEL_PX = 22;
 const COMPACT_LABEL_PX = 14;
 const NARROW_LABEL_PX = 12;
+const COUNTRY_HOVER_DELAY_MS = 140;
 
 let mapLayer: any = null;
 let countryLayer: any = null;
@@ -652,6 +653,7 @@ let width = 0;
 let height = 0;
 let draggedCountryId: string | null = null;
 let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+let countryHoverTimer: ReturnType<typeof setTimeout> | null = null;
 
 // ─── init ─────────────────────────────────────────────────────────────────────
 buildBenefitPills();
@@ -1267,6 +1269,7 @@ async function loadMap(): Promise<void> {
 // ─── map rendering ────────────────────────────────────────────────────────────
 
 function render(): void {
+  cancelCountryHover();
   width = mapWrap.clientWidth;
   height = mapWrap.clientHeight;
   geometryCache = new Map();
@@ -1299,10 +1302,11 @@ function render(): void {
     .attr("data-tier", (feature: any) => tierForFeature(feature) ?? "")
     .on("mouseenter", (_event: MouseEvent, feature: any) => {
       const key = keyForFeature(feature);
-      if (metaForCountry(key)) activateCountry(key, false);
+      if (metaForCountry(key)) scheduleCountryHover(key);
     })
-    .on("mouseleave", clearSoftFocus)
+    .on("mouseleave", onCountryPointerLeave)
     .on("click", (_event: MouseEvent, feature: any) => {
+      cancelCountryHover();
       const key = keyForFeature(feature);
       if (metaForCountry(key)) activateCountry(key, true);
     });
@@ -1362,6 +1366,25 @@ function activateCountry(countryId: string, shouldZoom: boolean): void {
   drawConnections();
 
   if (shouldZoom) fitToCountries(countryIdsFor(canonicalId), 700);
+}
+
+function scheduleCountryHover(countryId: string): void {
+  cancelCountryHover();
+  countryHoverTimer = setTimeout(() => {
+    countryHoverTimer = null;
+    activateCountry(countryId, false);
+  }, COUNTRY_HOVER_DELAY_MS);
+}
+
+function cancelCountryHover(): void {
+  if (countryHoverTimer === null) return;
+  clearTimeout(countryHoverTimer);
+  countryHoverTimer = null;
+}
+
+function onCountryPointerLeave(): void {
+  cancelCountryHover();
+  clearSoftFocus();
 }
 
 function clearSoftFocus(): void {
