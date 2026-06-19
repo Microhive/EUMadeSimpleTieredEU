@@ -605,17 +605,37 @@ test.describe("benefit modal — mobile tap", () => {
     expect(scrollMetrics.overflowY).toBe("auto");
     expect(scrollMetrics.scrollHeight).toBeGreaterThan(scrollMetrics.clientHeight);
 
-    await modalInner.evaluate((element) => {
-      element.scrollTop = 70;
-    });
-    await page.waitForTimeout(80);
+    const clipping = await modalInner.evaluate((element) => {
+      const keyIdea = element.querySelector<HTMLElement>(".modal-key-idea-block");
+      if (!keyIdea) throw new Error("Expected key idea block to exist.");
 
-    const keyIdeaBox = await modal.locator(".modal-key-idea-block").boundingBox();
-    if (!keyIdeaBox) throw new Error("Expected key idea block to be visible after scrolling.");
-    expect(keyIdeaBox.x).toBeGreaterThan(modalBox.x);
-    expect(keyIdeaBox.x + keyIdeaBox.width).toBeLessThan(modalBox.x + modalBox.width);
-    expect(keyIdeaBox.y).toBeGreaterThanOrEqual(modalBox.y + 4);
-    expect(keyIdeaBox.y + keyIdeaBox.height).toBeLessThanOrEqual(modalBox.y + modalBox.height - 4);
+      element.scrollTop = 70;
+      const innerRect = element.getBoundingClientRect();
+      const keyIdeaRect = keyIdea.getBoundingClientRect();
+      const probeX = innerRect.left + 24;
+      const probeY = innerRect.bottom + 8;
+      const outsideElement = document.elementFromPoint(probeX, probeY);
+
+      return {
+        innerLeft: innerRect.left,
+        innerRight: innerRect.right,
+        keyIdeaLeft: keyIdeaRect.left,
+        keyIdeaRight: keyIdeaRect.right,
+        keyIdeaTop: keyIdeaRect.top,
+        keyIdeaBottom: keyIdeaRect.bottom,
+        scrollTop: element.scrollTop,
+        viewportTop: innerRect.top,
+        viewportBottom: innerRect.bottom,
+        outsideProbeHitsKeyIdea: Boolean(outsideElement?.closest(".modal-key-idea-block")),
+      };
+    });
+
+    expect(clipping.scrollTop).toBeGreaterThan(0);
+    expect(clipping.keyIdeaLeft).toBeGreaterThan(clipping.innerLeft);
+    expect(clipping.keyIdeaRight).toBeLessThan(clipping.innerRight);
+    expect(clipping.keyIdeaTop).toBeLessThan(clipping.viewportBottom);
+    expect(clipping.keyIdeaBottom).toBeGreaterThan(clipping.viewportTop);
+    expect(clipping.outsideProbeHitsKeyIdea).toBe(false);
   });
 });
 
