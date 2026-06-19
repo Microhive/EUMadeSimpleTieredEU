@@ -594,6 +594,14 @@ test.describe("map country path — desktop click", () => {
     await expect(germanyFlag).toHaveClass(/is-tiered/);
     await expect(belarusFlag).not.toHaveClass(/is-tiered/);
 
+    const flagVisibilityStats = await page.locator(".map-flag").evaluateAll((flags) => {
+      const hidden = flags.filter((flag) => getComputedStyle(flag).display === "none").length;
+      return { total: flags.length, hidden };
+    });
+    expect(flagVisibilityStats.total).toBeGreaterThan(100);
+    expect(flagVisibilityStats.hidden).toBeGreaterThan(0);
+    expect(flagVisibilityStats.hidden).toBeLessThan(flagVisibilityStats.total);
+
     await germanyFlag.hover();
 
     await expect(germanyFlag).not.toHaveClass(/is-label-backed/);

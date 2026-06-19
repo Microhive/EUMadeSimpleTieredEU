@@ -1102,7 +1102,9 @@ button.country-chip {
   inset: 0;
   z-index: 2;
   display: none;
+  overflow: hidden;
   pointer-events: none;
+  contain: layout paint;
 }
 
 .map-flag-layer.is-visible {
@@ -1135,10 +1137,15 @@ button.country-chip {
   user-select: none;
   touch-action: manipulation;
   -webkit-user-drag: none;
-  will-change: transform;
+  contain: layout paint style;
 }
 
 .country-drag-ghost {
+  pointer-events: none;
+}
+
+.map-flag.is-offscreen {
+  display: none;
   pointer-events: none;
 }
 

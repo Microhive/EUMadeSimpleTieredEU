@@ -85,6 +85,14 @@ interface MapFlagDatum {
   inTierList: boolean;
 }
 
+interface MapFlagRenderItem {
+  element: HTMLElement;
+  id: string;
+  x: number;
+  y: number;
+  visible: boolean;
+}
+
 interface MapFeatureSets {
   interactionFeatures: any[];
   visualFeatures: any[];
@@ -904,6 +912,7 @@ const NARROW_LABEL_PX = 12;
 const MAP_FLAG_SIZE_PX = 30;
 const COUNTRY_LABEL_FLAG_GAP_PX = 8;
 const MAP_RESIZE_EPSILON_PX = 2;
+const MAP_FLAG_VIEWPORT_BUFFER_PX = 48;
 
 let mapLayer: any = null;
 let countryLayer: any = null;
@@ -922,6 +931,7 @@ let mapResizeObserver: ResizeObserver | null = null;
 let mapVisualFrame: number | null = null;
 let pendingMapTransform: any = d3.zoomIdentity;
 let canvasRenderRevision = 0;
+let mapFlagRenderItems: MapFlagRenderItem[] = [];
 
 // ─── init ─────────────────────────────────────────────────────────────────────
 buildBenefitPills();
@@ -2540,6 +2550,7 @@ function renderMapFlags(): void {
 
   if (!shouldShowFlags) {
     mapFlagLayer.innerHTML = "";
+    mapFlagRenderItems = [];
     return;
   }
 
@@ -2565,17 +2576,28 @@ function renderMapFlags(): void {
     })
     .join("");
 
+  syncMapFlagRenderItems();
   bindMapFlagHoverHandlers();
   positionMapFlags();
   syncMapFlagStates();
 }
 
+function syncMapFlagRenderItems(): void {
+  mapFlagRenderItems = Array.from(mapFlagLayer.querySelectorAll<HTMLElement>(".map-flag")).map((flag) => ({
+    element: flag,
+    id: canonicalCountryId(flag.dataset.country ?? ""),
+    x: Number(flag.dataset.x),
+    y: Number(flag.dataset.y),
+    visible: true,
+  }));
+}
+
 function bindMapFlagHoverHandlers(): void {
-  mapFlagLayer.querySelectorAll<HTMLElement>(".map-flag").forEach((flag) => {
-    flag.addEventListener("mouseenter", () => previewMapFlag(flag));
-    flag.addEventListener("mouseleave", clearHoveredCountry);
-    flag.addEventListener("focus", () => previewMapFlag(flag));
-    flag.addEventListener("blur", clearHoveredCountry);
+  mapFlagRenderItems.forEach(({ element }) => {
+    element.addEventListener("mouseenter", () => previewMapFlag(element));
+    element.addEventListener("mouseleave", clearHoveredCountry);
+    element.addEventListener("focus", () => previewMapFlag(element));
+    element.addEventListener("blur", clearHoveredCountry);
   });
 }
 
@@ -2612,24 +2634,34 @@ function mapFlagData(): MapFlagDatum[] {
 }
 
 function syncMapFlagStates(): void {
-  mapFlagLayer.querySelectorAll<HTMLElement>(".map-flag").forEach((flag) => {
-    const countryId = flag.dataset.country;
-    if (!countryId) return;
-
-    const canonicalId = canonicalCountryId(countryId);
-    flag.classList.toggle("is-tiered", directTierByCountry.has(canonicalId));
+  mapFlagRenderItems.forEach(({ element, id }) => {
+    element.classList.toggle("is-tiered", directTierByCountry.has(id));
   });
 }
 
 function positionMapFlags(transform: any = currentZoomTransform()): void {
   if (!mapFlagLayer.classList.contains("is-visible")) return;
 
-  mapFlagLayer.querySelectorAll<HTMLElement>(".map-flag").forEach((button) => {
-    const x = Number(button.dataset.x);
-    const y = Number(button.dataset.y);
-    const [screenX, screenY] = transform.apply([x, y]);
-    button.style.transform = `translate(${screenX}px, ${screenY}px) translate(-50%, -50%)`;
+  mapFlagRenderItems.forEach((item) => {
+    const [screenX, screenY] = transform.apply([item.x, item.y]);
+    const isVisible = isMapFlagWithinViewport(screenX, screenY);
+    if (isVisible) {
+      item.element.style.transform = `translate3d(${screenX}px, ${screenY}px, 0) translate(-50%, -50%)`;
+    }
+    if (item.visible !== isVisible) {
+      item.visible = isVisible;
+      item.element.classList.toggle("is-offscreen", !isVisible);
+    }
   });
+}
+
+function isMapFlagWithinViewport(screenX: number, screenY: number): boolean {
+  return (
+    screenX >= -MAP_FLAG_VIEWPORT_BUFFER_PX &&
+    screenX <= width + MAP_FLAG_VIEWPORT_BUFFER_PX &&
+    screenY >= -MAP_FLAG_VIEWPORT_BUFFER_PX &&
+    screenY <= height + MAP_FLAG_VIEWPORT_BUFFER_PX
+  );
 }
 
 // ─── card rendering ───────────────────────────────────────────────────────────
