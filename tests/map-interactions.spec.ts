@@ -315,14 +315,20 @@ test.describe("first paint content", () => {
     await expect(legend).toContainText("European Union");
     await expect(legend).toContainText("Inner Union");
 
-    const [legendBox, mapBox] = await Promise.all([
+    const [legendBox, mapBox, sourcesBox, sourcesParent] = await Promise.all([
       legend.boundingBox(),
       mapWrap.boundingBox(),
+      page.locator("#sources").boundingBox(),
+      page.locator("#sources").evaluate((element) => element.parentElement?.className ?? ""),
     ]);
     expect(legendBox).not.toBeNull();
     expect(mapBox).not.toBeNull();
     expect(legendBox!.x).toBeLessThan(mapBox!.x + 40);
-    expect(legendBox!.y + legendBox!.height).toBeGreaterThan(mapBox!.y + mapBox!.height - 40);
+    if (sourcesParent.includes("map-wrap") && sourcesBox) {
+      expect(legendBox!.y + legendBox!.height).toBeLessThan(sourcesBox.y - 6);
+    } else {
+      expect(legendBox!.y + legendBox!.height).toBeGreaterThan(mapBox!.y + mapBox!.height - 40);
+    }
 
     await expect(loadingStars).toBeVisible();
     await expect(loadingStars).toHaveClass(/is-visible/);
@@ -332,6 +338,21 @@ test.describe("first paint content", () => {
       "rgb(255, 204, 0)"
     );
     await expect(page.locator("#countryCard")).toBeHidden();
+  });
+
+  test("renders the desktop disclaimer inside the map before app JavaScript runs", async ({ page }) => {
+    await page.route(/\/src\/main\.ts$/, (route) => route.abort());
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+
+    const sourcesParent = await page.locator("#sources").evaluate((element) => {
+      return element.parentElement?.className ?? "";
+    });
+    expect(sourcesParent).toContain("map-wrap");
+
+    const position = await page.locator("#sources").evaluate((element) => {
+      return getComputedStyle(element).position;
+    });
+    expect(position).toBe("absolute");
   });
 });
 
@@ -478,6 +499,53 @@ test.describe("country chip — desktop click", () => {
       ignoreCase: true,
     });
   });
+
+  test("hovering a country chip gives its flag the active highlight", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const chip = page.locator('.country-chip[data-country="276"]');
+    await chip.hover();
+
+    await expect(chip).toHaveClass(/is-active/);
+    const boxShadow = await chip.evaluate((element) => getComputedStyle(element).boxShadow);
+    expect(boxShadow).toContain("rgb(240, 184, 0)");
+  });
+});
+
+test.describe("benefit modal — desktop click", () => {
+  test.use(desktop);
+
+  test("keeps the close button sticky while modal content scrolls", async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 480 });
+    await page.goto("/");
+    await waitForMap(page);
+
+    const modal = page.locator("#benefitModal");
+    const closeButton = modal.locator(".modal-close");
+
+    await page.locator('.benefit-pill[data-pill="open-doors"]').click();
+    await expect(modal).toBeVisible();
+    await expect(closeButton).toHaveCSS("position", "sticky");
+
+    const before = await closeButton.boundingBox();
+    if (!before) throw new Error("Expected modal close button to be visible.");
+
+    const scrollTop = await modal.evaluate((element: HTMLDialogElement) => {
+      element.scrollTop = element.scrollHeight;
+      return element.scrollTop;
+    });
+    expect(scrollTop).toBeGreaterThan(0);
+    await page.waitForTimeout(80);
+
+    const after = await closeButton.boundingBox();
+    if (!after) throw new Error("Expected modal close button to remain visible after scrolling.");
+    expect(Math.abs(after.y - before.y)).toBeLessThan(2);
+    expect(Math.abs(after.x + after.width - before.x - before.width)).toBeLessThan(2);
+
+    await closeButton.click();
+    await expect(modal).not.toBeVisible();
+  });
 });
 
 test.describe("map rendering — desktop", () => {
@@ -541,6 +609,32 @@ test.describe("map rendering — desktop", () => {
     await expect(page.locator(".map-wrap")).toHaveAttribute("aria-busy", "false");
     await expect(page.locator(".map-wrap")).toHaveClass(/is-map-ready/);
     await expect(page.locator("#countryCard")).toBeHidden();
+  });
+
+  test("docks the desktop disclaimer inside the map and offsets bottom overlays", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator('[data-scene="eu"]').click();
+    await expect(page.locator("#countryCard")).toBeVisible();
+    await expect(page.locator("body")).toHaveClass(/has-map-sources-docked/);
+
+    const sourcesParent = await page.locator("#sources").evaluate((element) => {
+      return element.parentElement?.className ?? "";
+    });
+    expect(sourcesParent).toContain("map-wrap");
+
+    const [sourcesBox, legendBox, countryCardBox] = await Promise.all([
+      page.locator("#sources").boundingBox(),
+      page.locator("#legend").boundingBox(),
+      page.locator("#countryCard").boundingBox(),
+    ]);
+
+    expect(sourcesBox).not.toBeNull();
+    expect(legendBox).not.toBeNull();
+    expect(countryCardBox).not.toBeNull();
+    expect(legendBox!.y + legendBox!.height).toBeLessThan(sourcesBox!.y - 6);
+    expect(countryCardBox!.y + countryCardBox!.height).toBeLessThan(sourcesBox!.y - 6);
   });
 
   test("shows the pulsing EU stars while topology is pending", async ({
@@ -726,7 +820,33 @@ test.describe("tier editing drag — desktop", () => {
     await expect(sourceChip).toHaveCount(1);
     await expect(targetChip).toHaveCount(0);
 
-    await dragLocatorToLocator(page, sourceChip, targetCard);
+    const sourceBox = await sourceChip.boundingBox();
+    const targetBox = await targetCard.boundingBox();
+    if (!sourceBox || !targetBox) {
+      throw new Error("Cannot drag: source or target is not visible.");
+    }
+
+    const startX = sourceBox.x + sourceBox.width / 2;
+    const startY = sourceBox.y + sourceBox.height / 2;
+    const midX = startX + 18;
+    const midY = startY + 18;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(midX, midY, { steps: 4 });
+
+    const chipGhost = page.locator(".country-chip-drag-ghost");
+    await expect(chipGhost).toBeVisible();
+    const ghostBox = await chipGhost.boundingBox();
+    if (!ghostBox) throw new Error("Expected chip drag ghost to have a bounding box.");
+    expect(Math.abs(ghostBox.x + ghostBox.width / 2 - midX)).toBeLessThan(8);
+    expect(Math.abs(ghostBox.y + ghostBox.height / 2 - midY)).toBeLessThan(8);
+
+    await page.mouse.move(
+      targetBox.x + targetBox.width / 2,
+      targetBox.y + targetBox.height / 2,
+      { steps: 24 }
+    );
+    await page.mouse.up();
 
     await expect(targetChip).toHaveCount(1);
     await expect(sourceChip).toHaveCount(0);
@@ -895,6 +1015,28 @@ test.describe("map country path — desktop click", () => {
     });
   });
 
+  test("country labels grow as the map zooms in", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator('[data-scene="inner"]').click();
+    await page.waitForTimeout(950);
+
+    const germanyLabel = page.locator("#mapSvg .country-label").filter({ hasText: "Germany" }).first();
+    await expect(germanyLabel).toBeVisible();
+
+    const beforeBox = await germanyLabel.boundingBox();
+    if (!beforeBox) throw new Error("Expected Germany label to have a bounding box.");
+
+    await page.mouse.move(beforeBox.x + beforeBox.width / 2, beforeBox.y + beforeBox.height / 2);
+    await page.mouse.wheel(0, -1600);
+    await page.waitForTimeout(300);
+
+    const afterBox = await germanyLabel.boundingBox();
+    if (!afterBox) throw new Error("Expected Germany label to remain visible.");
+    expect(afterBox.height).toBeGreaterThan(beforeBox.height * 1.04);
+  });
+
   test("map flags reflect tier presence and hover focus", async ({ page }) => {
     await page.goto("/");
     await waitForMap(page);
@@ -906,6 +1048,16 @@ test.describe("map country path — desktop click", () => {
     await expect(page.locator(".map-flag")).toHaveCount(0);
     await expect(page.locator(".map-flag-canvas")).toHaveCount(1);
     await expect(page.locator(".map-flag-layer")).toHaveAttribute("data-render-mode", "canvas");
+    await expect(page.locator(".map-flag-canvas")).toHaveClass(/is-visible/);
+    const flagCanvasTransition = await page.locator(".map-flag-canvas").evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        property: style.transitionProperty,
+        duration: style.transitionDuration,
+      };
+    });
+    expect(flagCanvasTransition.property).toContain("opacity");
+    expect(flagCanvasTransition.duration).toContain("0.18s");
 
     const germanyFlag = await getCanvasFlagHitbox(page, "276");
     const belarusFlag = await getCanvasFlagHitbox(page, "112");
@@ -949,6 +1101,10 @@ test.describe("map country path — desktop click", () => {
     if (!labelBox) throw new Error("Expected Germany label to be visible.");
     expect(labelBox.x).toBeGreaterThan(hoveredGermanyFlag.clientX + hoveredGermanyFlag.size / 2 - 2);
     expect(Math.abs(labelBox.y + labelBox.height / 2 - hoveredGermanyFlag.clientY)).toBeLessThan(18);
+
+    await page.locator("#mapFlagsButton").click();
+    await expect(page.locator(".map-flag-canvas")).not.toHaveClass(/is-visible/);
+    await expect(page.locator(".map-flag-layer")).toHaveAttribute("data-render-mode", "off");
   });
 
   test("clicking a country on the map shows its info card", async ({ page }) => {
@@ -1094,6 +1250,24 @@ test.describe("map touch pan/zoom policy", () => {
     expect(canvasRenderTransform.k).toBeCloseTo(zoomTransform.k, 4);
     expect(canvasRenderTransform.x).toBeCloseTo(zoomTransform.x, 1);
     expect(canvasRenderTransform.y).toBeCloseTo(zoomTransform.y, 1);
+  });
+
+  test("mobile pinch can zoom beyond the desktop ceiling", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const box = await page.locator("#mapSvg").boundingBox();
+    if (!box) throw new Error("Could not get #mapSvg bounding box");
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+
+    await dispatchTouchDrag(page, [
+      { id: 1, x1: cx - 10, y1: cy, x2: cx - 190, y2: cy },
+      { id: 2, x1: cx + 10, y1: cy, x2: cx + 190, y2: cy },
+    ]);
+    await page.waitForTimeout(300);
+
+    expect(await getZoomScale(page)).toBeGreaterThan(12);
   });
 });
 

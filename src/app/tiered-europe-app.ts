@@ -99,6 +99,10 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   // ─── constants ────────────────────────────────────────────────────────────────
 
   const ZOOM_WHEEL_DELTA_MULTIPLIER = 0.86;
+  const DESKTOP_MAX_ZOOM_SCALE = 12;
+  const MOBILE_MAX_ZOOM_SCALE = 16;
+  const FIT_MAX_ZOOM_SCALE = 10;
+  const LABEL_MIN_SCREEN_SCALE = 0.52;
 
   const CIRCLE_FLAG_SVGS: Record<string, string> = import.meta.glob(
     "../../node_modules/circle-flags/flags/*.svg",
@@ -140,6 +144,8 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   const legend = document.querySelector<HTMLElement>("#legend")!;
   const countryCard = document.querySelector<HTMLElement>("#countryCard")!;
   const mapWrap = document.querySelector<HTMLElement>(".map-wrap")!;
+  const sources = document.querySelector<HTMLElement>("#sources")!;
+  const sourcesMobileMount = document.querySelector<HTMLElement>("#sourcesMobileMount")!;
   const editToggle = document.querySelector<HTMLButtonElement>("#editToggle")!;
   const editToolbar = document.querySelector<HTMLElement>("#editToolbar")!;
   const resetTiersButton = document.querySelector<HTMLButtonElement>("#resetTiersButton")!;
@@ -184,8 +190,19 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     const modeScale = event.deltaMode === 1 ? 0.05 : event.deltaMode ? 1 : 0.002;
     return -event.deltaY * modeScale * (event.ctrlKey ? 10 : 1) * ZOOM_WHEEL_DELTA_MULTIPLIER;
   }
+
+  function maxMapZoomScale(): number {
+    return window.matchMedia("(max-width: 720px), (pointer: coarse)").matches
+      ? MOBILE_MAX_ZOOM_SCALE
+      : DESKTOP_MAX_ZOOM_SCALE;
+  }
+
+  function syncZoomScaleExtent(): void {
+    zoom.scaleExtent([1, maxMapZoomScale()]);
+  }
+
   const zoom = d3.zoom()
-    .scaleExtent([1, 12])
+    .scaleExtent([1, maxMapZoomScale()])
     .wheelDelta(mapWheelDelta)
     .filter((event: any) => {
       if (countryDrag.isDragging()) return false;
@@ -259,6 +276,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   let height = 0;
   let resizeTimer: ReturnType<typeof setTimeout> | null = null;
   let mapResizeObserver: ResizeObserver | null = null;
+  let sourcesResizeObserver: ResizeObserver | null = null;
   let tierDeckInteractionsBound = false;
 
   // ─── init ─────────────────────────────────────────────────────────────────────
@@ -269,6 +287,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   setupEditToolbar();
   setupMapFlagsButton();
   setupMapFlagLayerInteractions();
+  setupSourcesPlacement();
   setupVideoTooltip();
   setupSceneTabsScale(sceneTabs);
   loadMap();
@@ -320,6 +339,42 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     mapWrap.addEventListener("pointermove", onMapFlagPointerMove, { capture: true });
     mapWrap.addEventListener("pointerleave", clearMapFlagHover);
     mapWrap.addEventListener("click", onMapFlagClick, { capture: true });
+  }
+
+  function setupSourcesPlacement(): void {
+    const desktopSourcesQuery = window.matchMedia("(min-width: 1280px)");
+    const syncSourcesPlacement = (): void => {
+      const shouldDockSources = desktopSourcesQuery.matches;
+
+      if (shouldDockSources && sources.parentElement !== mapWrap) {
+        mapWrap.appendChild(sources);
+      } else if (!shouldDockSources && sources.nextElementSibling !== sourcesMobileMount) {
+        sourcesMobileMount.parentElement?.insertBefore(sources, sourcesMobileMount);
+      }
+
+      document.body.classList.toggle("has-map-sources-docked", shouldDockSources);
+      updateSourcesOffset();
+    };
+
+    desktopSourcesQuery.addEventListener("change", syncSourcesPlacement);
+    window.addEventListener("resize", updateSourcesOffset);
+
+    if (typeof ResizeObserver !== "undefined") {
+      sourcesResizeObserver = new ResizeObserver(updateSourcesOffset);
+      sourcesResizeObserver.observe(sources);
+    }
+
+    syncSourcesPlacement();
+  }
+
+  function updateSourcesOffset(): void {
+    if (sources.parentElement !== mapWrap) {
+      mapWrap.style.setProperty("--map-disclaimer-offset", "0px");
+      return;
+    }
+
+    const offset = Math.ceil(sources.getBoundingClientRect().height + 14);
+    mapWrap.style.setProperty("--map-disclaimer-offset", `${offset}px`);
   }
 
   function onMapFlagPointerDown(event: PointerEvent): void {
@@ -942,6 +997,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     );
 
     svg.selectAll("*").remove();
+    syncZoomScaleExtent();
     svg.call(zoom);
     svg.on("click.restore-scene", onMapBackgroundClick);
 
@@ -1086,8 +1142,16 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     return DESKTOP_LABEL_PX;
   }
 
+  function labelScreenPxForScale(scale: number): number {
+    const zoomRange = Math.max(1, maxMapZoomScale() - 1);
+    const progress = Math.max(0, Math.min(1, (scale - 1) / zoomRange));
+    const easedProgress = Math.sqrt(progress);
+    const scaleFactor = LABEL_MIN_SCREEN_SCALE + (1 - LABEL_MIN_SCREEN_SCALE) * easedProgress;
+    return countryLabelBasePx() * scaleFactor;
+  }
+
   function labelFontSizeForScale(scale: number): string {
-    return `${countryLabelBasePx() / scale}px`;
+    return `${labelScreenPxForScale(scale) / Math.max(1, scale)}px`;
   }
 
   function labelShadowOffsetForScale(scale: number): number {
@@ -1532,7 +1596,10 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     const x: number = (bounds[0][0] + bounds[1][0]) / 2;
     const y: number = (bounds[0][1] + bounds[1][1]) / 2;
     const effectiveHeight = height - bottomPad - topPad;
-    const scale = Math.max(1, Math.min(10, 0.84 / Math.max(dx / width, dy / effectiveHeight)));
+    const scale = Math.max(
+      1,
+      Math.min(FIT_MAX_ZOOM_SCALE, maxMapZoomScale(), 0.84 / Math.max(dx / width, dy / effectiveHeight)),
+    );
     const translate: [number, number] = [width / 2 - scale * x, topPad + effectiveHeight / 2 - scale * y];
 
     applyZoomTransform(d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale), duration);

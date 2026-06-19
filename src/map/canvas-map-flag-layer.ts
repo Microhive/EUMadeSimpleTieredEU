@@ -52,6 +52,8 @@ interface CanvasMapFlagLayerOptions {
   onImageReady: () => void;
 }
 
+const FLAG_CANVAS_FADE_OUT_MS = 180;
+
 export function createCanvasMapFlagLayer({
   canvas,
   layer,
@@ -72,16 +74,25 @@ export function createCanvasMapFlagLayer({
   let items: MapFlagRenderItem[] = [];
   let hoveredId: string | null = null;
   let draggingId: string | null = null;
+  let clearTimer: ReturnType<typeof window.setTimeout> | null = null;
 
   const setEnabled = (nextEnabled: boolean): void => {
+    if (clearTimer !== null) {
+      window.clearTimeout(clearTimer);
+      clearTimer = null;
+    }
+
     enabled = nextEnabled;
     layer.classList.toggle("is-visible", enabled);
+    canvas.classList.toggle("is-visible", enabled);
     layer.dataset.renderMode = enabled ? "canvas" : "off";
+    canvas.dataset.renderMode = enabled ? "canvas" : "off";
 
     if (!enabled) {
-      items = [];
       hoveredId = null;
+      draggingId = null;
       mapWrap.classList.remove("has-map-flag-hover");
+      scheduleCanvasClear();
     }
 
     syncMetadata();
@@ -143,13 +154,12 @@ export function createCanvasMapFlagLayer({
 
     const dpr = window.devicePixelRatio || 1;
     context.setTransform(1, 0, 0, 1, 0, 0);
-    context.clearRect(0, 0, canvas.width, canvas.height);
-
     if (!enabled) {
       canvas.dataset.renderRevision = String(++renderRevision);
       return;
     }
 
+    context.clearRect(0, 0, canvas.width, canvas.height);
     position(transform, viewport);
 
     context.save();
@@ -234,6 +244,24 @@ export function createCanvasMapFlagLayer({
     image.src = src;
     imageCache.set(src, image);
     return image;
+  };
+
+  const clearCanvas = (): void => {
+    if (!context) return;
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    canvas.dataset.renderRevision = String(++renderRevision);
+  };
+
+  const scheduleCanvasClear = (): void => {
+    clearTimer = window.setTimeout(() => {
+      clearTimer = null;
+      if (enabled) return;
+
+      items = [];
+      clearCanvas();
+      syncMetadata();
+    }, FLAG_CANVAS_FADE_OUT_MS);
   };
 
   const badgeVariantFor = (item: MapFlagRenderItem): CanvasFlagBadgeVariant => {

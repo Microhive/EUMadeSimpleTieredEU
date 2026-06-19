@@ -81,7 +81,21 @@ export function createCountryDragOrchestrator({
   };
 
   function startChipDrag(button: HTMLButtonElement, event: PointerEvent): void {
-    startCountryDrag(button, button.dataset.country!, "chip", event);
+    const width = button.offsetWidth || button.getBoundingClientRect().width;
+    const height = button.offsetHeight || button.getBoundingClientRect().height;
+    const image = button.querySelector<HTMLImageElement>(".chip-flag");
+    const sourceRect = new DOMRectReadOnly(
+      event.clientX - width / 2,
+      event.clientY - height / 2,
+      width,
+      height,
+    );
+
+    startCountryDrag(button, button.dataset.country!, "chip", event, {
+      sourceImageSrc: image?.currentSrc || image?.src,
+      sourceName: button.getAttribute("aria-label") ?? button.title,
+      sourceRect,
+    });
   }
 
   function startMapFlagDrag(flag: MapFlagDragSource, event: PointerEvent): void {
@@ -205,7 +219,7 @@ export function createCountryDragOrchestrator({
     const rect = drag.sourceRect;
     const ghost = drag.source === "map-flag"
       ? createMapFlagDragGhost(drag)
-      : drag.sourceElement.cloneNode(true) as HTMLElement;
+      : createChipDragGhost(drag);
     ghost.classList.add(
       "country-drag-ghost",
       drag.source === "chip" ? "country-chip-drag-ghost" : "map-flag-drag-ghost",
@@ -226,6 +240,25 @@ export function createCountryDragOrchestrator({
       drag.sourceElement.classList.add("is-dragging");
       drag.sourceElement.setAttribute("aria-grabbed", "true");
     }
+  }
+
+  function createChipDragGhost(drag: CountryDragState): HTMLElement {
+    const ghost = document.createElement("span");
+    ghost.className = "country-chip is-loaded";
+    ghost.dataset.country = drag.countryId;
+    ghost.setAttribute("aria-label", drag.sourceName ?? drag.countryId);
+    ghost.title = drag.sourceName ?? drag.countryId;
+
+    if (drag.sourceImageSrc) {
+      const image = document.createElement("img");
+      image.className = "chip-flag";
+      image.src = drag.sourceImageSrc;
+      image.alt = "";
+      image.draggable = false;
+      ghost.appendChild(image);
+    }
+
+    return ghost;
   }
 
   function createMapFlagDragGhost(drag: CountryDragState): HTMLElement {
@@ -250,7 +283,8 @@ export function createCountryDragOrchestrator({
 
   function positionDragGhost(drag: CountryDragState, clientX: number, clientY: number): void {
     if (!drag.ghost) return;
-    drag.ghost.style.transform = `translate3d(${clientX - drag.offsetX}px, ${clientY - drag.offsetY}px, 0)`;
+    drag.ghost.style.left = `${clientX - drag.offsetX}px`;
+    drag.ghost.style.top = `${clientY - drag.offsetY}px`;
   }
 
   function updateDropTarget(drag: CountryDragState, clientX: number, clientY: number): void {
