@@ -4,7 +4,7 @@
 
 An interactive infographic exploring what a tiered European Union could look like. Countries are grouped into four integration tiers — Inner Union, European Union, Associate Membership, and Community + Friends — and displayed on an interactive world map.
 
-**Live site:** https://microhive.github.io/EUMadeSimpleTieredEU/
+**Live site:** https://tiered.eu/
 
 ![EU Made Simple — Tiered Europe screenshot](assets/screenshot.png)
 
