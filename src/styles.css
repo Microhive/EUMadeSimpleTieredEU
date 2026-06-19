@@ -2325,6 +2325,7 @@ img.chip-flag {
 
   .benefit-modal {
     --modal-close-inset: 12px;
+    --modal-close-size: 44px;
     --modal-mobile-max-height: calc(100svh - var(--modal-close-size) - 32px);
 
     position: fixed;
@@ -2356,6 +2357,7 @@ img.chip-flag {
     bottom: calc(-1 * var(--modal-border-width));
     left: 50%;
     margin: 0;
+    font-size: 1.18rem;
     transform: translate(-50%, 50%);
   }
 

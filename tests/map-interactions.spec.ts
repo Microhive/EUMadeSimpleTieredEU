@@ -593,6 +593,8 @@ test.describe("benefit modal — mobile tap", () => {
     const closeBox = await closeButton.boundingBox();
     if (!modalBox || !innerBox || !closeBox) throw new Error("Expected modal, inner viewport, and close button to be visible.");
 
+    expect(closeBox.width).toBeGreaterThanOrEqual(44);
+    expect(closeBox.height).toBeGreaterThanOrEqual(44);
     expect(innerBox.y).toBeGreaterThanOrEqual(modalBox.y + 2);
     expect(innerBox.y + innerBox.height).toBeLessThanOrEqual(modalBox.y + modalBox.height - 2);
     expect(Math.abs(closeBox.x + closeBox.width / 2 - (modalBox.x + modalBox.width / 2))).toBeLessThan(2);
