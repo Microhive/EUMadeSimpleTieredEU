@@ -571,11 +571,13 @@ test.describe("benefit modal — desktop click", () => {
 test.describe("benefit modal — mobile tap", () => {
   test.use(mobile);
 
-  test("places the close button halfway outside the bottom center", async ({ page }) => {
+  test("keeps the scroll viewport inside the dialog with the close button halfway outside", async ({ page }) => {
+    await page.setViewportSize({ width: 449, height: 360 });
     await page.goto("/");
     await waitForMap(page);
 
     const modal = page.locator("#benefitModal");
+    const modalInner = modal.locator(".modal-inner");
     const closeButton = modal.locator(".modal-close");
 
     await page.locator('.benefit-pill[data-pill="shared-standards"]').tap();
@@ -583,11 +585,37 @@ test.describe("benefit modal — mobile tap", () => {
     await expect(closeButton).toHaveCSS("position", "absolute");
 
     const modalBox = await modal.boundingBox();
+    const innerBox = await modalInner.boundingBox();
     const closeBox = await closeButton.boundingBox();
-    if (!modalBox || !closeBox) throw new Error("Expected modal and close button to be visible.");
+    if (!modalBox || !innerBox || !closeBox) throw new Error("Expected modal, inner viewport, and close button to be visible.");
 
+    expect(innerBox.y).toBeGreaterThanOrEqual(modalBox.y + 2);
+    expect(innerBox.y + innerBox.height).toBeLessThanOrEqual(modalBox.y + modalBox.height - 2);
     expect(Math.abs(closeBox.x + closeBox.width / 2 - (modalBox.x + modalBox.width / 2))).toBeLessThan(2);
     expect(Math.abs(closeBox.y + closeBox.height / 2 - (modalBox.y + modalBox.height))).toBeLessThan(2);
+
+    const scrollMetrics = await modalInner.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        clientHeight: element.clientHeight,
+        overflowY: style.overflowY,
+        scrollHeight: element.scrollHeight,
+      };
+    });
+    expect(scrollMetrics.overflowY).toBe("auto");
+    expect(scrollMetrics.scrollHeight).toBeGreaterThan(scrollMetrics.clientHeight);
+
+    await modalInner.evaluate((element) => {
+      element.scrollTop = 70;
+    });
+    await page.waitForTimeout(80);
+
+    const keyIdeaBox = await modal.locator(".modal-key-idea-block").boundingBox();
+    if (!keyIdeaBox) throw new Error("Expected key idea block to be visible after scrolling.");
+    expect(keyIdeaBox.x).toBeGreaterThan(modalBox.x);
+    expect(keyIdeaBox.x + keyIdeaBox.width).toBeLessThan(modalBox.x + modalBox.width);
+    expect(keyIdeaBox.y).toBeGreaterThanOrEqual(modalBox.y + 4);
+    expect(keyIdeaBox.y + keyIdeaBox.height).toBeLessThanOrEqual(modalBox.y + modalBox.height - 4);
   });
 });
 
