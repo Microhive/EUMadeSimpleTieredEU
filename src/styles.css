@@ -1099,9 +1099,14 @@ button.country-chip {
   transform: scale(0.88);
 }
 
+.country-chip.is-flag-out-of-focus:not(.is-dragging) {
+  opacity: 0.38;
+  filter: saturate(0.62) contrast(0.88);
+}
+
 .country-chip:hover:not(.is-dragging),
 .country-chip:focus-visible:not(.is-dragging),
-.country-chip.is-active:not(.is-dragging),
+.country-chip.is-flag-focused:not(.is-dragging),
 .country-chip.is-map-hovered:not(.is-dragging) {
   position: relative;
   z-index: 2;
@@ -1128,15 +1133,22 @@ button.country-chip {
 
 .chip-flag {
   display: block;
+  overflow: hidden;
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  object-fit: cover;
   opacity: 0;
   pointer-events: none;
   transition: opacity 160ms ease;
   user-select: none;
   -webkit-user-drag: none;
+}
+
+.chip-flag svg,
+img.chip-flag {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .country-chip.is-loaded .chip-flag {

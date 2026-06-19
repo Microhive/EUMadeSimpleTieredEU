@@ -11,7 +11,7 @@ import { MOBILE_LEGEND_LABELS, TIER_COLORS } from "./tier-appearance";
 interface RenderTierDeckOptions {
   tiers: Tier[];
   capabilityInfoByLabel: ReadonlyMap<string, CapabilityInfo>;
-  flagImageSrc: (code: string) => string;
+  flagSvgMarkup: (code: string) => string;
 }
 
 export function capabilityLookupKey(label: string): string {
@@ -37,11 +37,11 @@ export function renderBenefitPills(
 export function renderTierDeck({
   tiers,
   capabilityInfoByLabel,
-  flagImageSrc,
+  flagSvgMarkup,
 }: RenderTierDeckOptions): string {
   return tiers
     .map((tier) => {
-      const chips = renderCountryGrid(tier, flagImageSrc);
+      const chips = renderCountryGrid(tier, flagSvgMarkup);
       const capabilities = tier.capabilities
         .map((capability) => renderCapability(capability, capabilityInfoByLabel))
         .join("");
@@ -67,10 +67,10 @@ export function renderTierDeck({
 
 export function renderCountryGrid(
   tier: Tier,
-  flagImageSrc: (code: string) => string,
+  flagSvgMarkup: (code: string) => string,
 ): string {
   return tier.directCountries
-    .map(([id, code, name]) => renderCountryChip(id, code, name, flagImageSrc))
+    .map(([id, code, name]) => renderCountryChip(id, code, name, flagSvgMarkup))
     .join("");
 }
 
@@ -128,11 +128,11 @@ function renderCountryChip(
   id: string,
   code: string,
   name: string,
-  flagImageSrc: (code: string) => string,
+  flagSvgMarkup: (code: string) => string,
 ): string {
   const safeName = escapeAttribute(name);
   return `<button type="button" class="country-chip" data-country="${escapeAttribute(id)}" data-code="${escapeAttribute(code)}" aria-label="${safeName}" title="${safeName}" draggable="false">
-      <img class="chip-flag" src="${flagImageSrc(code)}" width="28" height="28" alt="" loading="lazy" decoding="async" draggable="false">
+      <span class="chip-flag" aria-hidden="true">${flagSvgMarkup(code)}</span>
     </button>`;
 }
 

@@ -1,4 +1,4 @@
-export type CanvasFlagBadgeVariant = "normal" | "muted" | "hovered";
+export type CanvasFlagBadgeVariant = "normal" | "muted" | "selected" | "hovered";
 
 export interface CanvasFlagBadgeSprite {
   canvas: HTMLCanvasElement;
@@ -16,6 +16,8 @@ interface CanvasFlagSpriteOptions {
 const SPRITE_PADDING_PX = 4;
 const SHADOW_OFFSET_PX = 2;
 const HOVER_SHADOW_OFFSET_PX = 3;
+const MUTED_ALPHA = 0.28;
+const MUTED_FLAG_FILTER = "grayscale(1) saturate(0) contrast(0.82) brightness(0.92)";
 
 export function createCanvasFlagSprites({ badgeSize, imageSize }: CanvasFlagSpriteOptions) {
   const cache = new Map<string, CanvasFlagBadgeSprite>();
@@ -64,11 +66,13 @@ function renderSprite(
   }
 
   const isHovered = variant === "hovered";
+  const isHighlighted = variant === "hovered" || variant === "selected";
+  const isMuted = variant === "muted";
   context.scale(dpr, dpr);
-  context.globalAlpha = variant === "muted" ? 0.42 : 1;
-  context.shadowColor = "rgba(0, 0, 0, 0.44)";
-  context.shadowOffsetX = isHovered ? HOVER_SHADOW_OFFSET_PX : SHADOW_OFFSET_PX;
-  context.shadowOffsetY = isHovered ? HOVER_SHADOW_OFFSET_PX : SHADOW_OFFSET_PX;
+  context.globalAlpha = isMuted ? MUTED_ALPHA : 1;
+  context.shadowColor = isMuted ? "transparent" : "rgba(0, 0, 0, 0.44)";
+  context.shadowOffsetX = isMuted ? 0 : isHovered ? HOVER_SHADOW_OFFSET_PX : SHADOW_OFFSET_PX;
+  context.shadowOffsetY = isMuted ? 0 : isHovered ? HOVER_SHADOW_OFFSET_PX : SHADOW_OFFSET_PX;
   context.shadowBlur = 0;
 
   context.beginPath();
@@ -77,8 +81,8 @@ function renderSprite(
   context.fill();
 
   context.shadowColor = "transparent";
-  context.lineWidth = isHovered ? 3 : 2;
-  context.strokeStyle = isHovered ? "#f0b800" : "rgba(8, 11, 15, 0.84)";
+  context.lineWidth = isHighlighted ? 3 : 2;
+  context.strokeStyle = isHighlighted ? "#f0b800" : "rgba(8, 11, 15, 0.84)";
   context.stroke();
 
   if (image) {
@@ -86,6 +90,7 @@ function renderSprite(
     context.beginPath();
     context.arc(center, center, imageRadius, 0, Math.PI * 2);
     context.clip();
+    if (isMuted) context.filter = MUTED_FLAG_FILTER;
     context.drawImage(
       image,
       center - imageRadius,
@@ -93,6 +98,7 @@ function renderSprite(
       imageSize,
       imageSize,
     );
+    context.filter = "none";
     context.restore();
   }
 

@@ -25,6 +25,7 @@ interface CountryDragState {
   dropOnMap: boolean;
   sourceRect: DOMRectReadOnly;
   sourceImageSrc?: string;
+  sourceFlagMarkup?: string;
   sourceName?: string;
 }
 
@@ -83,7 +84,7 @@ export function createCountryDragOrchestrator({
   function startChipDrag(button: HTMLButtonElement, event: PointerEvent): void {
     const width = button.offsetWidth || button.getBoundingClientRect().width;
     const height = button.offsetHeight || button.getBoundingClientRect().height;
-    const image = button.querySelector<HTMLImageElement>(".chip-flag");
+    const flag = button.querySelector<HTMLElement>(".chip-flag");
     const sourceRect = new DOMRectReadOnly(
       event.clientX - width / 2,
       event.clientY - height / 2,
@@ -92,7 +93,7 @@ export function createCountryDragOrchestrator({
     );
 
     startCountryDrag(button, button.dataset.country!, "chip", event, {
-      sourceImageSrc: image?.currentSrc || image?.src,
+      sourceFlagMarkup: flag?.innerHTML,
       sourceName: button.getAttribute("aria-label") ?? button.title,
       sourceRect,
     });
@@ -120,6 +121,7 @@ export function createCountryDragOrchestrator({
     event: PointerEvent,
     options: {
       sourceImageSrc?: string;
+      sourceFlagMarkup?: string;
       sourceName?: string;
       sourceRect?: DOMRectReadOnly;
     } = {},
@@ -145,6 +147,7 @@ export function createCountryDragOrchestrator({
       dropOnMap: false,
       sourceRect: rect,
       sourceImageSrc: options.sourceImageSrc,
+      sourceFlagMarkup: options.sourceFlagMarkup,
       sourceName: options.sourceName,
     };
 
@@ -249,7 +252,13 @@ export function createCountryDragOrchestrator({
     ghost.setAttribute("aria-label", drag.sourceName ?? drag.countryId);
     ghost.title = drag.sourceName ?? drag.countryId;
 
-    if (drag.sourceImageSrc) {
+    if (drag.sourceFlagMarkup) {
+      const flag = document.createElement("span");
+      flag.className = "chip-flag";
+      flag.setAttribute("aria-hidden", "true");
+      flag.innerHTML = drag.sourceFlagMarkup;
+      ghost.appendChild(flag);
+    } else if (drag.sourceImageSrc) {
       const image = document.createElement("img");
       image.className = "chip-flag";
       image.src = drag.sourceImageSrc;

@@ -29,6 +29,8 @@ interface MapFlagRenderItem extends MapFlagDatum {
   clientY: number;
   src: string;
   visible: boolean;
+  isFocused: boolean;
+  isInFocusScope: boolean;
 }
 
 interface TransformLike {
@@ -74,6 +76,7 @@ export function createCanvasMapFlagLayer({
   let items: MapFlagRenderItem[] = [];
   let hoveredId: string | null = null;
   let draggingId: string | null = null;
+  let hasActiveFocusScope = false;
   let clearTimer: ReturnType<typeof window.setTimeout> | null = null;
 
   const setEnabled = (nextEnabled: boolean): void => {
@@ -118,6 +121,8 @@ export function createCanvasMapFlagLayer({
         clientY: 0,
         src,
         visible: true,
+        isFocused: false,
+        isInFocusScope: false,
       };
     });
     syncMetadata();
@@ -127,6 +132,16 @@ export function createCanvasMapFlagLayer({
     items.forEach((item) => {
       item.inTierList = isInTierList(item.id);
     });
+    syncMetadata();
+  };
+
+  const syncFocus = (focusedIds: ReadonlySet<string>, focusScopeIds: ReadonlySet<string>): void => {
+    hasActiveFocusScope = focusScopeIds.size > 0;
+    items.forEach((item) => {
+      item.isFocused = focusedIds.has(item.id);
+      item.isInFocusScope = focusScopeIds.has(item.id);
+    });
+    layer.dataset.flagFocusScopeCount = String(focusScopeIds.size);
     syncMetadata();
   };
 
@@ -266,8 +281,10 @@ export function createCanvasMapFlagLayer({
 
   const badgeVariantFor = (item: MapFlagRenderItem): CanvasFlagBadgeVariant => {
     if (hoveredId === item.id) return "hovered";
-    if (draggingId === item.id || item.inTierList) return "muted";
-    return "normal";
+    if (draggingId === item.id) return "muted";
+    if (item.isFocused) return "selected";
+    if (hasActiveFocusScope && !item.isInFocusScope) return "muted";
+    return item.inTierList ? "normal" : "muted";
   };
 
   const isWithinViewport = (screenX: number, screenY: number, viewport: MapViewport): boolean => (
@@ -295,6 +312,9 @@ export function createCanvasMapFlagLayer({
           screenY: Number(item.screenY.toFixed(2)),
           size: badgeSize,
           inTierList: item.inTierList,
+          isFocused: item.isFocused,
+          isInFocusScope: item.isInFocusScope,
+          variant: badgeVariantFor(item),
         })),
       );
     } else {
@@ -306,6 +326,7 @@ export function createCanvasMapFlagLayer({
     setEnabled,
     setFlags,
     syncTierPresence,
+    syncFocus,
     position,
     draw,
     hitTest,

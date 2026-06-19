@@ -89,6 +89,8 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     activeCountry: string | null;
     hoveredCountry: string | null;
     selectedIds: Set<string>;
+    flagFocusIds: Set<string>;
+    flagFocusScopeIds: Set<string>;
     scene: SceneKey;
     editMode: boolean;
     mapFlagsMode: boolean;
@@ -106,12 +108,13 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   const CIRCLE_FLAG_SVGS: Record<string, string> = import.meta.glob(
     "../../node_modules/circle-flags/flags/*.svg",
-    { eager: true, import: "default", query: "?url" },
+    { eager: true, import: "default", query: "?raw" },
   );
 
   const PUBLIC_BASE_URL = import.meta.env.BASE_URL;
   const COUNTRY_LIFT_TRANSFORM = "translate(-1, -0.75)";
   const CHIP_DRAG_START_THRESHOLD_PX = 4;
+  const flagImageSrcCache = new Map<string, string>();
 
   // ─── derived lookups ──────────────────────────────────────────────────────────
 
@@ -128,6 +131,8 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     activeCountry: null,
     hoveredCountry: null,
     selectedIds: new Set(),
+    flagFocusIds: new Set(),
+    flagFocusScopeIds: new Set(),
     scene: "world",
     editMode: false,
     mapFlagsMode: false,
@@ -475,7 +480,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   function resolveCountryEntry(countryId: string): CountryEntry | null {
     const canonicalId = canonicalCountryId(countryId);
     const code = ISO2_BY_NUMERIC[canonicalId];
-    if (!code || !flagImageSrc(code)) return null;
+    if (!code || !hasFlag(code)) return null;
 
     const feature = visualFeatureForCountry(canonicalId) ?? state.featureByKey.get(canonicalId);
     const name = feature?.properties?.name ?? canonicalId;
@@ -490,7 +495,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
         const code = ISO2_BY_NUMERIC[id];
         const name = feature.properties?.name ?? id;
-        if (!code || !flagImageSrc(code)) return null;
+        if (!code || !hasFlag(code)) return null;
 
         return [id, code, name];
       })
@@ -534,7 +539,28 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   }
 
   function flagImageSrc(code: string): string {
-    return CIRCLE_FLAG_SVGS[`../../node_modules/circle-flags/flags/${flagCodeFor(code)}.svg`] ?? "";
+    const path = flagSvgPath(code);
+    const cached = flagImageSrcCache.get(path);
+    if (cached) return cached;
+
+    const svg = CIRCLE_FLAG_SVGS[path];
+    if (!svg) return "";
+
+    const src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    flagImageSrcCache.set(path, src);
+    return src;
+  }
+
+  function flagSvgMarkup(code: string): string {
+    return CIRCLE_FLAG_SVGS[flagSvgPath(code)] ?? "";
+  }
+
+  function hasFlag(code: string): boolean {
+    return Boolean(flagSvgMarkup(code));
+  }
+
+  function flagSvgPath(code: string): string {
+    return `../../node_modules/circle-flags/flags/${flagCodeFor(code)}.svg`;
   }
 
   function publicAssetSrc(assetPath: string): string {
@@ -748,7 +774,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   function buildTierCards(): void {
     if (!hasRenderableTierShell()) {
-      tierDeck.innerHTML = renderTierDeck({ tiers, capabilityInfoByLabel, flagImageSrc });
+      tierDeck.innerHTML = renderTierDeck({ tiers, capabilityInfoByLabel, flagSvgMarkup });
     } else {
       syncTierCountryGrids();
     }
@@ -756,6 +782,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     tierCardElements = [...tierDeck.querySelectorAll<HTMLElement>(".tier-card")];
     countryChipElements = [...tierDeck.querySelectorAll<HTMLButtonElement>("[data-country]")];
     syncCapabilityMetadata();
+    syncFlagFocusHighlights();
     primeCountryFlagImageStates();
     bindTierDeckInteractions();
     syncEditModeControls();
@@ -772,7 +799,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     tiers.forEach((tier) => {
       const grid = tierDeck.querySelector<HTMLElement>(`.tier-card[data-tier="${tier.id}"] .country-grid`);
       if (!grid) return;
-      grid.innerHTML = renderCountryGrid(tier, flagImageSrc);
+      grid.innerHTML = renderCountryGrid(tier, flagSvgMarkup);
       grid.removeAttribute("aria-label");
     });
   }
@@ -792,6 +819,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       const target = event.target as Element;
       const chip = target.closest<HTMLButtonElement>("[data-country]");
       if (chip?.dataset.country) {
+        focusFlagForCountry(chip.dataset.country, flagFocusScopeForElement(chip));
         activateCountry(chip.dataset.country, false);
         return;
       }
@@ -802,13 +830,17 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       }
 
       const card = target.closest<HTMLElement>(".tier-card");
-      if (card?.dataset.tier) previewTier(card.dataset.tier as TierId);
+      if (card?.dataset.tier) {
+        focusFlagsForTier(card.dataset.tier as TierId);
+        previewTier(card.dataset.tier as TierId);
+      }
     });
 
     tierDeck.addEventListener("focusin", (event: FocusEvent) => {
       const target = event.target as Element;
       const chip = target.closest<HTMLButtonElement>("[data-country]");
       if (chip?.dataset.country) {
+        focusFlagForCountry(chip.dataset.country, flagFocusScopeForElement(chip));
         activateCountry(chip.dataset.country, false);
         return;
       }
@@ -820,23 +852,39 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       }
 
       const card = target.closest<HTMLElement>(".tier-card");
-      if (card?.dataset.tier) previewTier(card.dataset.tier as TierId);
+      if (card?.dataset.tier) {
+        focusFlagsForTier(card.dataset.tier as TierId);
+        previewTier(card.dataset.tier as TierId);
+      }
     });
 
     tierDeck.addEventListener("focusout", (event: FocusEvent) => {
       const capability = (event.target as Element).closest<HTMLElement>("[data-cap-key]");
       if (capability) hidePillTooltip();
+
+      if (!tierDeck.contains(event.relatedTarget as Node | null)) {
+        clearFlagFocus();
+      } else {
+        restoreFlagFocusFromElement(event.relatedTarget as Element | null);
+      }
     });
 
     tierDeck.addEventListener("mouseout", (event: MouseEvent) => {
       const target = event.target as Element;
+      const relatedTarget = event.relatedTarget as Element | null;
       const capability = target.closest<HTMLElement>("[data-cap-key]");
       if (capability && window.matchMedia("(hover: hover)").matches) {
         hidePillTooltip();
       }
 
+      const chip = target.closest<HTMLButtonElement>("[data-country]");
+      if (chip && !chip.contains(relatedTarget as Node | null)) {
+        restoreFlagFocusFromElement(relatedTarget);
+      }
+
       const card = target.closest<HTMLElement>(".tier-card");
-      if (card && !card.contains(event.relatedTarget as Node | null)) {
+      if (card && !card.contains(relatedTarget as Node | null)) {
+        clearFlagFocus();
         clearSoftFocus();
       }
     });
@@ -878,20 +926,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   function primeCountryFlagImageStates(): void {
     countryChipElements.forEach((chip) => {
-      const image = chip.querySelector<HTMLImageElement>(".chip-flag");
-      if (!image) return;
-
-      const markLoaded = (): void => {
-        chip.classList.add("is-loaded");
-      };
-
-      if (image.complete) {
-        markLoaded();
-        return;
-      }
-
-      image.addEventListener("load", markLoaded, { once: true });
-      image.addEventListener("error", markLoaded, { once: true });
+      if (chip.querySelector(".chip-flag svg")) chip.classList.add("is-loaded");
     });
   }
 
@@ -905,11 +940,11 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       chip.setAttribute("aria-label", meta.name);
       chip.title = meta.name;
 
-      const image = chip.querySelector<HTMLImageElement>(".chip-flag");
-      const nextSrc = flagImageSrc(meta.code);
-      if (image && nextSrc && image.getAttribute("src") !== nextSrc) {
+      const flag = chip.querySelector<HTMLElement>(".chip-flag");
+      const nextSvg = flagSvgMarkup(meta.code);
+      if (flag && nextSvg && flag.innerHTML !== nextSvg) {
         chip.classList.remove("is-loaded");
-        image.src = nextSrc;
+        flag.innerHTML = nextSvg;
       }
     });
 
@@ -1243,6 +1278,62 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     return selectedCountrySet(sceneIdsFor(scene) ?? cumulativeIdsFor("friends"));
   }
 
+  function flagFocusIdsForTier(tierId: TierId): Set<string> {
+    return selectedCountrySet(cumulativeIdsFor(tierId));
+  }
+
+  function flagFocusIdsForScene(scene: SceneKey): Set<string> {
+    return selectedIdsForScene(scene);
+  }
+
+  function setFlagFocusIds(ids: Set<string>, scopeIds: Set<string> = ids): void {
+    state.flagFocusIds = ids;
+    state.flagFocusScopeIds = scopeIds;
+    syncFlagFocusHighlights();
+  }
+
+  function focusFlagsForTier(tierId: TierId): void {
+    setFlagFocusIds(flagFocusIdsForTier(tierId));
+  }
+
+  function focusFlagsForScene(scene: SceneKey): void {
+    setFlagFocusIds(flagFocusIdsForScene(scene));
+  }
+
+  function focusFlagForCountry(countryId: string, scopeIds: Set<string> = selectedCountrySet(countryIdsFor(countryId))): void {
+    setFlagFocusIds(selectedCountrySet(countryIdsFor(countryId)), scopeIds);
+  }
+
+  function clearFlagFocus(): void {
+    if (state.flagFocusIds.size === 0 && state.flagFocusScopeIds.size === 0) return;
+    setFlagFocusIds(new Set());
+  }
+
+  function flagFocusScopeForElement(element: Element): Set<string> {
+    const card = element.closest<HTMLElement>(".tier-card");
+    if (card?.dataset.tier) return flagFocusIdsForTier(card.dataset.tier as TierId);
+    const sceneButton = element.closest<HTMLButtonElement>("[data-scene]");
+    if (sceneButton?.dataset.scene) return flagFocusIdsForScene(sceneButton.dataset.scene as SceneKey);
+    const countryId = (element as HTMLElement).dataset.country;
+    return countryId ? selectedCountrySet(countryIdsFor(countryId)) : new Set();
+  }
+
+  function restoreFlagFocusFromElement(element: Element | null): void {
+    const sceneButton = element?.closest<HTMLButtonElement>("[data-scene]");
+    if (sceneButton?.dataset.scene) {
+      focusFlagsForScene(sceneButton.dataset.scene as SceneKey);
+      return;
+    }
+
+    const card = element?.closest<HTMLElement>(".tier-card");
+    if (card?.dataset.tier) {
+      focusFlagsForTier(card.dataset.tier as TierId);
+      return;
+    }
+
+    clearFlagFocus();
+  }
+
   function restoreSceneSelection(): void {
     state.activeCountry = null;
     state.hoveredCountry = null;
@@ -1293,6 +1384,11 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
     countryChipElements.forEach((chip) => {
       chip.classList.toggle("is-active", state.selectedIds.has(chip.dataset.country!));
+      chip.classList.toggle("is-flag-focused", state.flagFocusIds.has(canonicalCountryId(chip.dataset.country!)));
+      chip.classList.toggle(
+        "is-flag-out-of-focus",
+        state.flagFocusScopeIds.size > 0 && !state.flagFocusScopeIds.has(canonicalCountryId(chip.dataset.country!)),
+      );
       chip.classList.toggle(
         "is-map-hovered",
         Boolean(state.hoveredCountry && canonicalCountryId(chip.dataset.country!) === state.hoveredCountry),
@@ -1303,6 +1399,18 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     drawLiftedCountries();
     drawLabels();
     syncMapFlagStates();
+  }
+
+  function syncFlagFocusHighlights(): void {
+    countryChipElements.forEach((chip) => {
+      chip.classList.toggle("is-flag-focused", state.flagFocusIds.has(canonicalCountryId(chip.dataset.country!)));
+      chip.classList.toggle(
+        "is-flag-out-of-focus",
+        state.flagFocusScopeIds.size > 0 && !state.flagFocusScopeIds.has(canonicalCountryId(chip.dataset.country!)),
+      );
+    });
+    mapFlags.syncFocus(state.flagFocusIds, state.flagFocusScopeIds);
+    queueMapFlagRender();
   }
 
   function drawLiftedCountries(): void {
@@ -1369,7 +1477,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
         if (seen.has(canonicalId) || isAliasCountryId(id)) return null;
 
         const entry = tierArrangement.entryForCountry(canonicalId);
-        if (!entry || !flagImageSrc(entry[1])) return null;
+        if (!entry || !hasFlag(entry[1])) return null;
 
         const layout = layoutForFeature(feature);
         if (!layout) return null;
@@ -1388,6 +1496,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   function syncMapFlagStates(): void {
     mapFlags.syncTierPresence((countryId) => tierArrangement.hasDirectTier(countryId));
+    mapFlags.syncFocus(state.flagFocusIds, state.flagFocusScopeIds);
     queueMapFlagRender();
   }
 
@@ -1515,12 +1624,18 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   }
 
   function shouldPlaceLabelRightOfFlag(item: LabelDatum): boolean {
-    const meta = tierArrangement.metaForCountry(item.id);
-    return Boolean(state.mapFlagsMode && meta && flagImageSrc(meta.code));
+    const code = flagCodeForCountry(item.id);
+    return Boolean(state.mapFlagsMode && code && hasFlag(code));
   }
 
   function labelRightOfFlagOffsetForScale(scale: number): number {
     return (MAP_FLAG_SIZE_PX / 2 + COUNTRY_LABEL_FLAG_GAP_PX) / scale;
+  }
+
+  function flagCodeForCountry(countryId: string): string | null {
+    const meta = tierArrangement.metaForCountry(countryId);
+    if (meta) return meta.code;
+    return tierArrangement.entryForCountry(countryId)?.[1] ?? null;
   }
 
   function labelForCountry(countryId: string, isRaised = false): LabelDatum | null {
@@ -1529,12 +1644,14 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
     const feature = visualFeatureForCountry(id) ?? state.featureByKey.get(id);
     const meta = tierArrangement.metaForCountry(id);
-    if (!feature || !meta) return null;
+    const entry = meta ? null : tierArrangement.entryForCountry(id);
+    const name = meta?.name ?? entry?.[2] ?? feature?.properties?.name;
+    if (!feature || !name) return null;
 
     const layout = layoutForFeature(feature);
     if (!layout) return null;
 
-    return { id, text: meta.name, centroid: layout.centroid, isRaised };
+    return { id, text: name, centroid: layout.centroid, isRaised };
   }
 
   // ─── scene management ─────────────────────────────────────────────────────────
@@ -1652,15 +1769,36 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     if (!button?.dataset.scene) return;
     state.userTouched = true;
     focusScene(button.dataset.scene as SceneKey);
+    if (button.matches(":hover, :focus-visible")) {
+      focusFlagsForScene(button.dataset.scene as SceneKey);
+    }
+  });
+
+  sceneTabs.addEventListener("focusin", (event: FocusEvent) => {
+    const button = (event.target as Element).closest<HTMLButtonElement>("[data-scene]");
+    if (button?.dataset.scene) focusFlagsForScene(button.dataset.scene as SceneKey);
+  });
+
+  sceneTabs.addEventListener("focusout", (event: FocusEvent) => {
+    if (!sceneTabs.contains(event.relatedTarget as Node | null)) {
+      clearFlagFocus();
+    } else {
+      restoreFlagFocusFromElement(event.relatedTarget as Element | null);
+    }
   });
 
   if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
     sceneTabs.querySelectorAll<HTMLButtonElement>("[data-scene]").forEach((button) => {
       button.addEventListener("mouseenter", () => {
-        if (button.dataset.scene) previewScene(button.dataset.scene as SceneKey);
+        if (!button.dataset.scene) return;
+        focusFlagsForScene(button.dataset.scene as SceneKey);
+        previewScene(button.dataset.scene as SceneKey);
       });
     });
-    sceneTabs.addEventListener("mouseleave", restoreScenePreview);
+    sceneTabs.addEventListener("mouseleave", () => {
+      clearFlagFocus();
+      restoreScenePreview();
+    });
   }
 
   editToggle.addEventListener("click", () => {

@@ -204,6 +204,9 @@ type CanvasFlagHitbox = {
   screenY: number;
   size: number;
   inTierList: boolean;
+  isFocused: boolean;
+  isInFocusScope: boolean;
+  variant: "normal" | "muted" | "selected" | "hovered";
 };
 
 async function getCanvasFlagHitbox(
@@ -228,10 +231,26 @@ async function getCanvasFlagHitbox(
   return flag;
 }
 
+async function waitForCanvasFlagVariant(
+  page: Page,
+  countryId: string,
+  variant: CanvasFlagHitbox["variant"]
+): Promise<CanvasFlagHitbox> {
+  await expect
+    .poll(async () => (await getCanvasFlagHitbox(page, countryId)).variant)
+    .toBe(variant);
+  return getCanvasFlagHitbox(page, countryId);
+}
+
 async function hoverCanvasFlag(page: Page, countryId: string): Promise<CanvasFlagHitbox> {
   const flag = await getCanvasFlagHitbox(page, countryId);
   await page.mouse.move(flag.clientX, flag.clientY);
-  return flag;
+  await page.waitForFunction((id) => {
+    const layer = document.querySelector<HTMLElement>(".map-flag-layer");
+    const flags = JSON.parse(layer?.dataset.flagHitboxes ?? "[]") as CanvasFlagHitbox[];
+    return flags.find((item) => item.id === id)?.variant === "hovered";
+  }, countryId);
+  return getCanvasFlagHitbox(page, countryId);
 }
 
 async function dragCanvasFlagToLocator(
@@ -500,16 +519,17 @@ test.describe("country chip — desktop click", () => {
     });
   });
 
-  test("hovering a country chip gives its flag the active highlight", async ({ page }) => {
+  test("hovering a country chip gives its flag the focused highlight", async ({ page }) => {
     await page.goto("/");
     await waitForMap(page);
 
     const chip = page.locator('.country-chip[data-country="276"]');
     await chip.hover();
 
-    await expect(chip).toHaveClass(/is-active/);
-    const boxShadow = await chip.evaluate((element) => getComputedStyle(element).boxShadow);
-    expect(boxShadow).toContain("rgb(240, 184, 0)");
+    await expect(chip).toHaveClass(/is-flag-focused/);
+    await expect
+      .poll(() => chip.evaluate((element) => getComputedStyle(element).boxShadow))
+      .toContain("rgb(240, 184, 0)");
   });
 });
 
@@ -945,6 +965,14 @@ test.describe("tier editing drag — desktop", () => {
     await expect(page.locator('.tier-card[data-tier="eu"] .country-chip')).toHaveCount(0);
     await expect(page.locator('#mapSvg [data-country="112"]')).toHaveClass(/tier-associate/);
   });
+
+  test("tier chip flags render inline instead of as image resources", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await expect(page.locator(".country-chip img.chip-flag")).toHaveCount(0);
+    await expect(page.locator(".country-chip .chip-flag svg").first()).toBeVisible();
+  });
 });
 
 test.describe("country chip — mobile tap", () => {
@@ -1044,6 +1072,7 @@ test.describe("map country path — desktop click", () => {
     await page.locator("#mapFlagsButton").click();
 
     const germanyChip = page.locator('.country-chip[data-country="276"]');
+    const austriaChip = page.locator('.country-chip[data-country="040"]');
 
     await expect(page.locator(".map-flag")).toHaveCount(0);
     await expect(page.locator(".map-flag-canvas")).toHaveCount(1);
@@ -1060,9 +1089,70 @@ test.describe("map country path — desktop click", () => {
     expect(flagCanvasTransition.duration).toContain("0.18s");
 
     const germanyFlag = await getCanvasFlagHitbox(page, "276");
+    const austriaFlag = await getCanvasFlagHitbox(page, "040");
     const belarusFlag = await getCanvasFlagHitbox(page, "112");
     expect(germanyFlag.inTierList).toBe(true);
+    expect(austriaFlag.inTierList).toBe(true);
     expect(belarusFlag.inTierList).toBe(false);
+    expect(germanyFlag.isFocused).toBe(false);
+    expect(austriaFlag.isFocused).toBe(false);
+    expect(belarusFlag.isFocused).toBe(false);
+    expect(germanyFlag.isInFocusScope).toBe(false);
+    expect(austriaFlag.isInFocusScope).toBe(false);
+    expect(belarusFlag.isInFocusScope).toBe(false);
+    expect(germanyFlag.variant).toBe("normal");
+    expect(austriaFlag.variant).toBe("normal");
+    expect(belarusFlag.variant).toBe("muted");
+
+    await page.locator('[data-scene="inner"]').hover();
+    await expect(germanyChip).toHaveClass(/is-flag-focused/);
+    await expect(germanyChip).not.toHaveClass(/is-flag-out-of-focus/);
+    await expect(austriaChip).not.toHaveClass(/is-flag-focused/);
+    await expect(austriaChip).toHaveClass(/is-flag-out-of-focus/);
+    await waitForCanvasFlagVariant(page, "276", "selected");
+    await waitForCanvasFlagVariant(page, "040", "muted");
+
+    await page.locator('[data-scene="eu"]').hover();
+    await expect(germanyChip).toHaveClass(/is-flag-focused/);
+    await expect(austriaChip).toHaveClass(/is-flag-focused/);
+    await expect(germanyChip).not.toHaveClass(/is-flag-out-of-focus/);
+    await expect(austriaChip).not.toHaveClass(/is-flag-out-of-focus/);
+    await waitForCanvasFlagVariant(page, "276", "selected");
+    await waitForCanvasFlagVariant(page, "040", "selected");
+
+    await page.mouse.move(1, 1);
+    await waitForCanvasFlagVariant(page, "276", "normal");
+    await waitForCanvasFlagVariant(page, "040", "normal");
+    await expect(germanyChip).not.toHaveClass(/is-flag-focused/);
+    await expect(austriaChip).not.toHaveClass(/is-flag-focused/);
+    await expect(germanyChip).not.toHaveClass(/is-flag-out-of-focus/);
+    await expect(austriaChip).not.toHaveClass(/is-flag-out-of-focus/);
+
+    await page.locator('.tier-card[data-tier="inner"]').hover();
+    await expect(germanyChip).toHaveClass(/is-flag-focused/);
+    await expect(germanyChip).not.toHaveClass(/is-flag-out-of-focus/);
+    await expect(austriaChip).not.toHaveClass(/is-flag-focused/);
+    await expect(austriaChip).toHaveClass(/is-flag-out-of-focus/);
+    await waitForCanvasFlagVariant(page, "276", "selected");
+    await waitForCanvasFlagVariant(page, "040", "muted");
+
+    await page.locator('.tier-card[data-tier="eu"]').hover();
+    await waitForCanvasFlagVariant(page, "276", "selected");
+    await waitForCanvasFlagVariant(page, "040", "selected");
+
+    await austriaChip.hover();
+    await waitForCanvasFlagVariant(page, "276", "normal");
+    await waitForCanvasFlagVariant(page, "040", "selected");
+    await expect(germanyChip).not.toHaveClass(/is-flag-focused/);
+    await expect(germanyChip).not.toHaveClass(/is-flag-out-of-focus/);
+    await expect(austriaChip).toHaveClass(/is-flag-focused/);
+    await expect(austriaChip).not.toHaveClass(/is-flag-out-of-focus/);
+
+    await page.locator('.tier-card[data-tier="eu"]').hover({ position: { x: 10, y: 10 } });
+    await waitForCanvasFlagVariant(page, "276", "selected");
+    await waitForCanvasFlagVariant(page, "040", "selected");
+    await expect(germanyChip).toHaveClass(/is-flag-focused/);
+    await expect(austriaChip).toHaveClass(/is-flag-focused/);
 
     const flagVisibilityStats = await page.locator(".map-flag-layer").evaluate((layer) => {
       const total = Number((layer as HTMLElement).dataset.flagTotalCount ?? 0);
@@ -1076,7 +1166,16 @@ test.describe("map country path — desktop click", () => {
     const flagPaintStats = await getCanvasPaintStats(page, ".map-flag-canvas");
     expect(flagPaintStats.paintedSamples).toBeGreaterThan(10);
 
+    const hoveredBelarusFlag = await hoverCanvasFlag(page, "112");
+    const belarusLabel = page.locator("#mapSvg .country-label").filter({ hasText: "Belarus" });
+    await expect(belarusLabel).toBeVisible();
+    const belarusLabelBox = await belarusLabel.boundingBox();
+    if (!belarusLabelBox) throw new Error("Expected Belarus label to be visible.");
+    expect(belarusLabelBox.x).toBeGreaterThan(hoveredBelarusFlag.clientX + hoveredBelarusFlag.size / 2 - 2);
+    expect(Math.abs(belarusLabelBox.y + belarusLabelBox.height / 2 - hoveredBelarusFlag.clientY)).toBeLessThan(18);
+
     const hoveredGermanyFlag = await hoverCanvasFlag(page, "276");
+    expect(hoveredGermanyFlag.variant).toBe("hovered");
     await page.locator('#mapSvg [data-country="276"]').hover();
 
     const stackOrder = await page.locator(".map-wrap").evaluate((wrap) => {
