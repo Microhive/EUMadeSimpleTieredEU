@@ -27,6 +27,8 @@ interface MapFlagRenderItem extends MapFlagDatum {
   screenY: number;
   clientX: number;
   clientY: number;
+  renderSize: number;
+  renderHitRadius: number;
   src: string;
   visible: boolean;
   isFocused: boolean;
@@ -35,6 +37,7 @@ interface MapFlagRenderItem extends MapFlagDatum {
 
 interface TransformLike {
   apply(point: [number, number]): [number, number];
+  k?: number;
 }
 
 interface MapViewport {
@@ -51,6 +54,7 @@ interface CanvasMapFlagLayerOptions {
   imageSize: number;
   hitRadius: number;
   viewportBuffer: number;
+  sizeScaleForZoom: (zoomScale: number) => number;
   onImageReady: () => void;
 }
 
@@ -65,6 +69,7 @@ export function createCanvasMapFlagLayer({
   imageSize,
   hitRadius,
   viewportBuffer,
+  sizeScaleForZoom,
   onImageReady,
 }: CanvasMapFlagLayerOptions) {
   const context = canvas.getContext("2d", { alpha: true });
@@ -119,6 +124,8 @@ export function createCanvasMapFlagLayer({
         screenY: 0,
         clientX: 0,
         clientY: 0,
+        renderSize: badgeSize,
+        renderHitRadius: hitRadius,
         src,
         visible: true,
         isFocused: false,
@@ -152,6 +159,10 @@ export function createCanvasMapFlagLayer({
     }
 
     const mapRect = mapWrap.getBoundingClientRect();
+    const displayScale = flagDisplayScaleForTransform(transform);
+    const renderSize = badgeSize * displayScale;
+    const renderHitRadius = Math.max(14, hitRadius * displayScale);
+
     items.forEach((item) => {
       const [screenX, screenY] = transform.apply([item.x, item.y]);
       const visible = isWithinViewport(screenX, screenY, viewport);
@@ -159,6 +170,8 @@ export function createCanvasMapFlagLayer({
       item.screenY = screenY;
       item.clientX = mapRect.left + screenX;
       item.clientY = mapRect.top + screenY;
+      item.renderSize = renderSize;
+      item.renderHitRadius = renderHitRadius;
       item.visible = visible;
     });
     syncMetadata();
@@ -185,9 +198,12 @@ export function createCanvasMapFlagLayer({
 
       const image = primeImage(item.src);
       const sprite = sprites.spriteFor(image, badgeVariantFor(item), dpr);
-      const x = Math.round(item.screenX - sprite.offsetX);
-      const y = Math.round(item.screenY - sprite.offsetY);
-      context.drawImage(sprite.canvas, x, y, sprite.cssWidth, sprite.cssHeight);
+      const spriteScale = item.renderSize / badgeSize;
+      const cssWidth = sprite.cssWidth * spriteScale;
+      const cssHeight = sprite.cssHeight * spriteScale;
+      const x = Math.round(item.screenX - sprite.offsetX * spriteScale);
+      const y = Math.round(item.screenY - sprite.offsetY * spriteScale);
+      context.drawImage(sprite.canvas, x, y, cssWidth, cssHeight);
     }
 
     context.restore();
@@ -204,14 +220,14 @@ export function createCanvasMapFlagLayer({
       if (!item.visible) continue;
 
       const distance = Math.hypot(clientX - item.clientX, clientY - item.clientY);
-      if (distance <= hitRadius) {
+      if (distance <= item.renderHitRadius) {
         return {
           id: item.id,
           name: item.name,
           src: item.src,
           clientX: item.clientX,
           clientY: item.clientY,
-          size: badgeSize,
+          size: item.renderSize,
         };
       }
     }
@@ -294,6 +310,13 @@ export function createCanvasMapFlagLayer({
     screenY <= viewport.height + viewportBuffer
   );
 
+  const flagDisplayScaleForTransform = (transform: TransformLike): number => {
+    const zoomScale = typeof transform.k === "number" && Number.isFinite(transform.k)
+      ? transform.k
+      : 1;
+    return Math.max(0.1, sizeScaleForZoom(zoomScale));
+  };
+
   const syncMetadata = (): void => {
     const visibleFlags = items.filter((item) => item.visible);
     layer.dataset.flagTotalCount = String(items.length);
@@ -310,7 +333,7 @@ export function createCanvasMapFlagLayer({
           clientY: Number(item.clientY.toFixed(2)),
           screenX: Number(item.screenX.toFixed(2)),
           screenY: Number(item.screenY.toFixed(2)),
-          size: badgeSize,
+          size: Number(item.renderSize.toFixed(2)),
           inTierList: item.inTierList,
           isFocused: item.isFocused,
           isInFocusScope: item.isInFocusScope,

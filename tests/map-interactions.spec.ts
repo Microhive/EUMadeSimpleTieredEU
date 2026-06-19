@@ -568,6 +568,29 @@ test.describe("benefit modal — desktop click", () => {
   });
 });
 
+test.describe("benefit modal — mobile tap", () => {
+  test.use(mobile);
+
+  test("places the close button halfway outside the bottom center", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const modal = page.locator("#benefitModal");
+    const closeButton = modal.locator(".modal-close");
+
+    await page.locator('.benefit-pill[data-pill="shared-standards"]').tap();
+    await expect(modal).toBeVisible();
+    await expect(closeButton).toHaveCSS("position", "absolute");
+
+    const modalBox = await modal.boundingBox();
+    const closeBox = await closeButton.boundingBox();
+    if (!modalBox || !closeBox) throw new Error("Expected modal and close button to be visible.");
+
+    expect(Math.abs(closeBox.x + closeBox.width / 2 - (modalBox.x + modalBox.width / 2))).toBeLessThan(2);
+    expect(Math.abs(closeBox.y + closeBox.height / 2 - (modalBox.y + modalBox.height))).toBeLessThan(2);
+  });
+});
+
 test.describe("map rendering — desktop", () => {
   test.use(desktop);
 
@@ -1065,6 +1088,26 @@ test.describe("map country path — desktop click", () => {
     expect(afterBox.height).toBeGreaterThan(beforeBox.height * 1.04);
   });
 
+  test("map flags shrink in the world view and grow while zooming in", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator('[data-scene="friends"]').click();
+    await page.waitForTimeout(950);
+    await page.locator("#mapFlagsButton").click();
+
+    const before = await getCanvasFlagHitbox(page, "276");
+    expect(before.size).toBeLessThan(30);
+
+    await page.mouse.move(before.clientX, before.clientY);
+    await page.mouse.wheel(0, -1800);
+    await page.waitForTimeout(450);
+
+    const after = await getCanvasFlagHitbox(page, "276");
+    expect(after.size).toBeGreaterThan(before.size + 1);
+    expect(after.size).toBeLessThanOrEqual(30);
+  });
+
   test("map flags reflect tier presence and hover focus", async ({ page }) => {
     await page.goto("/");
     await waitForMap(page);
@@ -1366,7 +1409,8 @@ test.describe("map touch pan/zoom policy", () => {
     ]);
     await page.waitForTimeout(300);
 
-    expect(await getZoomScale(page)).toBeGreaterThan(12);
+    expect(await getZoomScale(page)).toBeGreaterThan(14);
+    expect(await getZoomScale(page)).toBeLessThanOrEqual(22);
   });
 });
 

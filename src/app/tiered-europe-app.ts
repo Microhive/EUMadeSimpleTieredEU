@@ -101,9 +101,9 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   // ─── constants ────────────────────────────────────────────────────────────────
 
   const ZOOM_WHEEL_DELTA_MULTIPLIER = 0.86;
-  const DESKTOP_MAX_ZOOM_SCALE = 12;
-  const MOBILE_MAX_ZOOM_SCALE = 16;
-  const FIT_MAX_ZOOM_SCALE = 10;
+  const DESKTOP_MAX_ZOOM_SCALE = 14;
+  const MOBILE_MAX_ZOOM_SCALE = 22;
+  const FIT_MAX_ZOOM_SCALE = 12;
   const LABEL_MIN_SCREEN_SCALE = 0.52;
 
   const CIRCLE_FLAG_SVGS: Record<string, string> = import.meta.glob(
@@ -226,6 +226,8 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   const MAP_FLAG_SIZE_PX = 30;
   const MAP_FLAG_IMAGE_SIZE_PX = 24;
   const MAP_FLAG_HIT_RADIUS_PX = 20;
+  const MAP_FLAG_MIN_SCALE = 0.68;
+  const MAP_FLAG_FULL_SIZE_ZOOM_SCALE = 4;
   const COUNTRY_LABEL_FLAG_GAP_PX = 8;
   const MAP_RESIZE_EPSILON_PX = 2;
   const MAP_FLAG_VIEWPORT_BUFFER_PX = 48;
@@ -247,6 +249,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     imageSize: MAP_FLAG_IMAGE_SIZE_PX,
     hitRadius: MAP_FLAG_HIT_RADIUS_PX,
     viewportBuffer: MAP_FLAG_VIEWPORT_BUFFER_PX,
+    sizeScaleForZoom: mapFlagScaleForZoom,
     onImageReady: () => queueMapFlagRender(),
   });
   const countryDrag = createCountryDragOrchestrator({
@@ -1629,7 +1632,15 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   }
 
   function labelRightOfFlagOffsetForScale(scale: number): number {
-    return (MAP_FLAG_SIZE_PX / 2 + COUNTRY_LABEL_FLAG_GAP_PX) / scale;
+    const flagRadius = (MAP_FLAG_SIZE_PX * mapFlagScaleForZoom(scale)) / 2;
+    return (flagRadius + COUNTRY_LABEL_FLAG_GAP_PX) / scale;
+  }
+
+  function mapFlagScaleForZoom(scale: number): number {
+    const zoomRange = Math.max(1, MAP_FLAG_FULL_SIZE_ZOOM_SCALE - 1);
+    const progress = Math.max(0, Math.min(1, (scale - 1) / zoomRange));
+    const easedProgress = Math.sqrt(progress);
+    return MAP_FLAG_MIN_SCALE + (1 - MAP_FLAG_MIN_SCALE) * easedProgress;
   }
 
   function flagCodeForCountry(countryId: string): string | null {
