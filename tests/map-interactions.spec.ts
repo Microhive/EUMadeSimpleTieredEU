@@ -59,9 +59,10 @@ async function getZoomX(page: Page): Promise<number> {
 }
 
 async function getCanvasPaintStats(
-  page: Page
+  page: Page,
+  selector = ".map-canvas"
 ): Promise<{ width: number; height: number; paintedSamples: number }> {
-  return page.locator(".map-canvas").evaluate((canvas: HTMLCanvasElement) => {
+  return page.locator(selector).evaluate((canvas: HTMLCanvasElement) => {
     const context = canvas.getContext("2d");
     if (!context) return { width: canvas.width, height: canvas.height, paintedSamples: 0 };
 
@@ -189,6 +190,67 @@ async function dragLocatorToLocator(
     targetBox.y + targetBox.height / 2,
     { steps: 24 }
   );
+  await page.mouse.up();
+}
+
+type CanvasFlagHitbox = {
+  id: string;
+  clientX: number;
+  clientY: number;
+  screenX: number;
+  screenY: number;
+  size: number;
+  inTierList: boolean;
+};
+
+async function getCanvasFlagHitbox(
+  page: Page,
+  countryId: string
+): Promise<CanvasFlagHitbox> {
+  await page.waitForFunction((id) => {
+    const layer = document.querySelector<HTMLElement>(".map-flag-layer");
+    const flags = JSON.parse(layer?.dataset.flagHitboxes ?? "[]") as CanvasFlagHitbox[];
+    return flags.some((flag) => flag.id === id);
+  }, countryId);
+
+  const flag = await page.locator(".map-flag-layer").evaluate(
+    (layer, id) => {
+      const flags = JSON.parse((layer as HTMLElement).dataset.flagHitboxes ?? "[]") as CanvasFlagHitbox[];
+      return flags.find((item) => item.id === id) ?? null;
+    },
+    countryId
+  );
+
+  if (!flag) throw new Error(`Canvas flag ${countryId} is not visible.`);
+  return flag;
+}
+
+async function hoverCanvasFlag(page: Page, countryId: string): Promise<CanvasFlagHitbox> {
+  const flag = await getCanvasFlagHitbox(page, countryId);
+  await page.mouse.move(flag.clientX, flag.clientY);
+  return flag;
+}
+
+async function dragCanvasFlagToLocator(
+  page: Page,
+  countryId: string,
+  target: Locator
+): Promise<void> {
+  const source = await getCanvasFlagHitbox(page, countryId);
+  const targetBox = await target.boundingBox();
+
+  if (!targetBox) {
+    throw new Error("Cannot drag: target is not visible.");
+  }
+
+  await page.mouse.move(source.clientX, source.clientY);
+  await page.mouse.down();
+  await page.mouse.move(
+    targetBox.x + targetBox.width / 2,
+    targetBox.y + targetBox.height / 2,
+    { steps: 24 }
+  );
+  await expect(page.locator(".map-flag-drag-ghost")).toBeVisible();
   await page.mouse.up();
 }
 
@@ -395,20 +457,21 @@ test.describe("tier editing drag — desktop", () => {
 
     const countryId = "112"; // Belarus
     const targetTier = "inner";
-    const mapFlag = page.locator(`.map-flag[data-country="${countryId}"]`);
     const countryPath = page.locator(`#mapSvg [data-country="${countryId}"]`);
     const targetCard = page.locator(`.tier-card[data-tier="${targetTier}"]`);
     const targetChip = page.locator(
       `.tier-card[data-tier="${targetTier}"] .country-chip[data-country="${countryId}"]`
     );
 
-    await expect(mapFlag).toBeVisible();
+    await expect(page.locator(".map-flag")).toHaveCount(0);
+    await expect(page.locator(".map-flag-layer")).toHaveAttribute("data-render-mode", "canvas");
+    await getCanvasFlagHitbox(page, countryId);
     await expect(countryPath).toHaveAttribute("data-quality", "standard");
     const standardGeometry = await countryPath.getAttribute("d");
     await expect(countryPath).toHaveCSS("opacity", "0");
     await expect(targetChip).toHaveCount(0);
 
-    await dragLocatorToLocator(page, mapFlag, targetCard);
+    await dragCanvasFlagToLocator(page, countryId, targetCard);
 
     await expect(targetChip).toHaveCount(1);
     await expect(countryPath).toHaveClass(/tier-inner/);
@@ -459,7 +522,6 @@ test.describe("tier editing drag — desktop", () => {
     const countryId = "276"; // Germany
     const sourceTier = "inner";
     const targetTier = "eu";
-    const mapFlag = page.locator(`.map-flag[data-country="${countryId}"]`);
     const sourceChip = page.locator(
       `.tier-card[data-tier="${sourceTier}"] .country-chip[data-country="${countryId}"]`
     );
@@ -468,12 +530,11 @@ test.describe("tier editing drag — desktop", () => {
       `.tier-card[data-tier="${targetTier}"] .country-chip[data-country="${countryId}"]`
     );
 
-    await mapFlag.hover();
-    await expect(mapFlag).toBeVisible();
+    await hoverCanvasFlag(page, countryId);
     await expect(sourceChip).toHaveCount(1);
     await expect(targetChip).toHaveCount(0);
 
-    await dragLocatorToLocator(page, mapFlag, targetCard);
+    await dragCanvasFlagToLocator(page, countryId, targetCard);
 
     await expect(targetChip).toHaveCount(1);
     await expect(sourceChip).toHaveCount(0);
@@ -587,32 +648,54 @@ test.describe("map country path — desktop click", () => {
 
     await page.locator("#mapFlagsButton").click();
 
-    const germanyFlag = page.locator('.map-flag[data-country="276"]');
-    const belarusFlag = page.locator('.map-flag[data-country="112"]');
     const germanyChip = page.locator('.country-chip[data-country="276"]');
 
-    await expect(germanyFlag).toHaveClass(/is-tiered/);
-    await expect(belarusFlag).not.toHaveClass(/is-tiered/);
+    await expect(page.locator(".map-flag")).toHaveCount(0);
+    await expect(page.locator(".map-flag-canvas")).toHaveCount(1);
+    await expect(page.locator(".map-flag-layer")).toHaveAttribute("data-render-mode", "canvas");
 
-    const flagVisibilityStats = await page.locator(".map-flag").evaluateAll((flags) => {
-      const hidden = flags.filter((flag) => getComputedStyle(flag).display === "none").length;
-      return { total: flags.length, hidden };
+    const germanyFlag = await getCanvasFlagHitbox(page, "276");
+    const belarusFlag = await getCanvasFlagHitbox(page, "112");
+    expect(germanyFlag.inTierList).toBe(true);
+    expect(belarusFlag.inTierList).toBe(false);
+
+    const flagVisibilityStats = await page.locator(".map-flag-layer").evaluate((layer) => {
+      const total = Number((layer as HTMLElement).dataset.flagTotalCount ?? 0);
+      const visible = Number((layer as HTMLElement).dataset.flagVisibleCount ?? 0);
+      return { total, hidden: total - visible };
     });
     expect(flagVisibilityStats.total).toBeGreaterThan(100);
     expect(flagVisibilityStats.hidden).toBeGreaterThan(0);
     expect(flagVisibilityStats.hidden).toBeLessThan(flagVisibilityStats.total);
 
-    await germanyFlag.hover();
+    const flagPaintStats = await getCanvasPaintStats(page, ".map-flag-canvas");
+    expect(flagPaintStats.paintedSamples).toBeGreaterThan(10);
 
-    await expect(germanyFlag).not.toHaveClass(/is-label-backed/);
-    await expect(germanyFlag).toBeVisible();
+    const hoveredGermanyFlag = await hoverCanvasFlag(page, "276");
+    await page.locator('#mapSvg [data-country="276"]').hover();
+
+    const stackOrder = await page.locator(".map-wrap").evaluate((wrap) => {
+      const zIndexFor = (selector: string): number => {
+        const element = wrap.querySelector<HTMLElement>(selector);
+        if (!element) throw new Error(`Missing ${selector}`);
+        return Number(getComputedStyle(element).zIndex);
+      };
+
+      return {
+        mapCanvas: zIndexFor(".map-canvas"),
+        mapSvg: zIndexFor("#mapSvg"),
+        flagCanvas: zIndexFor(".map-flag-canvas"),
+      };
+    });
+    expect(stackOrder.flagCanvas).toBeGreaterThan(stackOrder.mapSvg);
+    expect(stackOrder.flagCanvas).toBeGreaterThan(stackOrder.mapCanvas);
+
     await expect(germanyChip).toHaveClass(/is-map-hovered/);
 
-    const flagBox = await germanyFlag.boundingBox();
     const labelBox = await page.locator("#mapSvg .country-label").filter({ hasText: "Germany" }).boundingBox();
-    if (!flagBox || !labelBox) throw new Error("Expected Germany flag and label to be visible.");
-    expect(labelBox.x).toBeGreaterThan(flagBox.x + flagBox.width - 2);
-    expect(Math.abs(labelBox.y + labelBox.height / 2 - (flagBox.y + flagBox.height / 2))).toBeLessThan(18);
+    if (!labelBox) throw new Error("Expected Germany label to be visible.");
+    expect(labelBox.x).toBeGreaterThan(hoveredGermanyFlag.clientX + hoveredGermanyFlag.size / 2 - 2);
+    expect(Math.abs(labelBox.y + labelBox.height / 2 - hoveredGermanyFlag.clientY)).toBeLessThan(18);
   });
 
   test("clicking a country on the map shows its info card", async ({ page }) => {
