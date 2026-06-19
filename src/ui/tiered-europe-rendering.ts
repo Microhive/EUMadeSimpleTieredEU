@@ -41,9 +41,7 @@ export function renderTierDeck({
 }: RenderTierDeckOptions): string {
   return tiers
     .map((tier) => {
-      const chips = tier.directCountries
-        .map(([id, code, name]) => renderCountryChip(id, code, name, flagImageSrc))
-        .join("");
+      const chips = renderCountryGrid(tier, flagImageSrc);
       const capabilities = tier.capabilities
         .map((capability) => renderCapability(capability, capabilityInfoByLabel))
         .join("");
@@ -64,6 +62,15 @@ export function renderTierDeck({
         </article>
       `;
     })
+    .join("");
+}
+
+export function renderCountryGrid(
+  tier: Tier,
+  flagImageSrc: (code: string) => string,
+): string {
+  return tier.directCountries
+    .map(([id, code, name]) => renderCountryChip(id, code, name, flagImageSrc))
     .join("");
 }
 

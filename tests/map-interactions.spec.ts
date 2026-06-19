@@ -257,6 +257,84 @@ async function dragCanvasFlagToLocator(
   await page.mouse.up();
 }
 
+// ─── first paint content ─────────────────────────────────────────────────────
+
+test.describe("first paint content", () => {
+  test.use({ ...desktop, javaScriptEnabled: false });
+
+  test("renders the value pills before app JavaScript runs", async ({ page }) => {
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+
+    const benefitPills = page.locator("#benefitPills");
+
+    await expect(benefitPills).toContainText("Open doors");
+    await expect(benefitPills).toContainText("Progress before full membership");
+    await expect(benefitPills).toContainText("Shared standards");
+    await expect(benefitPills).toContainText("One foundation of values");
+    await expect(benefitPills).toContainText("Strategic weight");
+    await expect(benefitPills).toContainText("More reach with trusted partners");
+    await expect(benefitPills).toContainText("Forward motion");
+    await expect(benefitPills).toContainText("A path inward over time");
+  });
+
+  test("renders tier titles, capability pills, summaries, and flag skeletons before app JavaScript runs", async ({
+    page,
+  }) => {
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+
+    const tierDeck = page.locator("#tierDeck");
+
+    await expect(tierDeck.locator(".tier-card")).toHaveCount(4);
+    await expect(tierDeck).toContainText("Inner Union");
+    await expect(tierDeck).toContainText("Foreign policy");
+    await expect(tierDeck).toContainText("A frontrunner group for common defence");
+    await expect(tierDeck).toContainText("European Union");
+    await expect(tierDeck).toContainText("Single market");
+    await expect(tierDeck).toContainText("The shared rights and obligations of membership");
+    await expect(tierDeck).toContainText("Associate Membership");
+    await expect(tierDeck).toContainText("Customs alignment");
+    await expect(tierDeck).toContainText("A bridge tier for candidates");
+    await expect(tierDeck).toContainText("European Community + Friends");
+    await expect(tierDeck).toContainText("Crisis response");
+    await expect(tierDeck).toContainText("A wider democratic circle");
+    await expect(tierDeck.locator(".country-chip-skeleton")).toHaveCount(48);
+  });
+
+  test("renders the map legend and EU stars before app JavaScript runs", async ({
+    page,
+  }) => {
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+
+    const mapWrap = page.locator(".map-wrap");
+    const legend = page.locator("#legend");
+    const loadingStars = page.locator("#mapLoadingStars");
+
+    await expect(legend.locator(".legend-item")).toHaveCount(4);
+    await expect(legend).toContainText("Community + Friends");
+    await expect(legend).toContainText("Associate");
+    await expect(legend).toContainText("European Union");
+    await expect(legend).toContainText("Inner Union");
+
+    const [legendBox, mapBox] = await Promise.all([
+      legend.boundingBox(),
+      mapWrap.boundingBox(),
+    ]);
+    expect(legendBox).not.toBeNull();
+    expect(mapBox).not.toBeNull();
+    expect(legendBox!.x).toBeLessThan(mapBox!.x + 40);
+    expect(legendBox!.y + legendBox!.height).toBeGreaterThan(mapBox!.y + mapBox!.height - 40);
+
+    await expect(loadingStars).toBeVisible();
+    await expect(loadingStars).toHaveClass(/is-visible/);
+    await expect(loadingStars.locator(".map-loading-star")).toHaveCount(12);
+    await expect(loadingStars.locator(".map-loading-star").first()).toHaveCSS(
+      "background-color",
+      "rgb(255, 204, 0)"
+    );
+    await expect(page.locator("#countryCard")).toBeHidden();
+  });
+});
+
 // ─── scene tab — click vs tap ─────────────────────────────────────────────────
 
 test.describe("scene tab — desktop click", () => {
@@ -285,15 +363,17 @@ test.describe("scene tab — desktop click", () => {
     const communityTab = page.locator('[data-scene="friends"]');
     const austria = page.locator('#mapSvg [data-country="040"]');
     const canada = page.locator('#mapSvg [data-country="124"]');
+    const countryCard = page.locator("#countryCard");
 
     await expect(euTab).toHaveClass(/is-active/);
     await expect(austria).toHaveClass(/is-highlight/);
     await expect(canada).toHaveClass(/is-muted/);
+    await expect(countryCard).toBeHidden();
 
     await communityTab.hover();
 
     await expect(canada).toHaveClass(/is-highlight/);
-    await expect(page.locator("#countryCard h2")).toContainText("Community");
+    await expect(countryCard).toBeHidden();
 
     await page.mouse.move(1, 1);
     await page.waitForTimeout(80);
@@ -301,7 +381,7 @@ test.describe("scene tab — desktop click", () => {
     await expect(euTab).toHaveClass(/is-active/);
     await expect(austria).toHaveClass(/is-highlight/);
     await expect(canada).toHaveClass(/is-muted/);
-    await expect(page.locator("#countryCard h2")).toContainText("European Union");
+    await expect(countryCard).toBeHidden();
   });
 
   test("hovering scene tabs preserves an active raised country", async ({ page }) => {
@@ -402,6 +482,148 @@ test.describe("country chip — desktop click", () => {
 
 test.describe("map rendering — desktop", () => {
   test.use(desktop);
+
+  test("hydrates the static tier shell without replacing the tier deck", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const view = window as any;
+      view.__tierDeckInnerHTMLWrites = 0;
+      const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, "innerHTML");
+      if (!descriptor?.get || !descriptor.set) return;
+
+      Object.defineProperty(Element.prototype, "innerHTML", {
+        configurable: true,
+        enumerable: descriptor.enumerable,
+        get() {
+          return descriptor.get!.call(this);
+        },
+        set(value) {
+          if (this instanceof HTMLElement && this.id === "tierDeck") {
+            view.__tierDeckInnerHTMLWrites += 1;
+          }
+          return descriptor.set!.call(this, value);
+        },
+      });
+    });
+
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await waitForMap(page);
+
+    const tierDeckInnerHtmlWrites = await page.evaluate(() => (window as any).__tierDeckInnerHTMLWrites);
+    expect(tierDeckInnerHtmlWrites).toBe(0);
+  });
+
+  test("preloads map topology and shows a loading shell until the map is ready", async ({
+    page,
+  }) => {
+    let releaseTopology!: () => void;
+    const topologyDelay = new Promise<void>((resolve) => {
+      releaseTopology = resolve;
+    });
+
+    await page.route(/countries-50m\.json$/, async (route) => {
+      await topologyDelay;
+      await route.continue();
+    });
+
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+
+    await expect(page.locator('link[rel="preload"][href$="countries-110m.json"]')).toHaveCount(1);
+    await expect(page.locator('link[rel="preload"][href$="countries-50m.json"]')).toHaveCount(1);
+    await expect(page.locator("body")).toHaveClass(/is-loading/);
+    await expect(page.locator(".map-wrap")).toHaveAttribute("aria-busy", "true");
+
+    releaseTopology();
+    await waitForMap(page);
+
+    await expect(page.locator("body")).not.toHaveClass(/is-loading/);
+    await expect(page.locator(".map-wrap")).toHaveAttribute("aria-busy", "false");
+    await expect(page.locator(".map-wrap")).toHaveClass(/is-map-ready/);
+    await expect(page.locator("#countryCard")).toBeHidden();
+  });
+
+  test("shows the pulsing EU stars while topology is pending", async ({
+    page,
+  }) => {
+    let releaseTopology!: () => void;
+    const topologyDelay = new Promise<void>((resolve) => {
+      releaseTopology = resolve;
+    });
+
+    await page.route(/countries-50m\.json$/, async (route) => {
+      await topologyDelay;
+      await route.continue();
+    });
+
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+
+    const loader = page.locator("#mapLoadingStars");
+    const stars = loader.locator(".map-loading-star");
+    await expect(loader).toBeVisible();
+    await expect(loader).toHaveClass(/is-visible/);
+    await expect(stars).toHaveCount(12);
+    await expect(stars.first()).toHaveCSS("background-color", "rgb(255, 204, 0)");
+    await expect(loader).toHaveCSS("animation-name", "eu-star-ring-breathe");
+    await expect(stars.first()).toHaveCSS("animation-name", "eu-star-pulse");
+    await expect(stars.first()).toHaveCSS("animation-duration", "1.1s");
+
+    const mapBackdrop = await page.locator(".map-wrap").evaluate((element) => ({
+      backgroundImage: getComputedStyle(element).backgroundImage,
+      loadingOverlayImage: getComputedStyle(element, "::before").backgroundImage,
+    }));
+    expect(mapBackdrop.backgroundImage).not.toContain("radial-gradient");
+    expect(mapBackdrop.loadingOverlayImage).not.toContain("radial-gradient");
+
+    releaseTopology();
+    await waitForMap(page);
+
+    await expect(loader).not.toHaveClass(/is-visible/);
+    await expect(page.locator("#countryCard")).toBeHidden();
+  });
+
+  test("does not rerender tier cards when topology data arrives", async ({
+    page,
+  }) => {
+    let releaseTopology!: () => void;
+    const topologyDelay = new Promise<void>((resolve) => {
+      releaseTopology = resolve;
+    });
+
+    await page.route(/countries-50m\.json$/, async (route) => {
+      await topologyDelay;
+      await route.continue();
+    });
+
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('.tier-card[data-tier="inner"] .country-chip[data-country="276"]');
+
+    await page.evaluate(() => {
+      const view = window as any;
+      view.__tierCardNodes = [...document.querySelectorAll("#tierDeck .tier-card")];
+      view.__tierDeckChildListMutations = 0;
+      view.__tierDeckObserver = new MutationObserver((records) => {
+        view.__tierDeckChildListMutations += records.filter((record) => record.type === "childList").length;
+      });
+      view.__tierDeckObserver.observe(document.querySelector("#tierDeck")!, { childList: true });
+    });
+
+    releaseTopology();
+    await waitForMap(page);
+
+    const tierDeckWasStable = await page.evaluate(() => {
+      const view = window as any;
+      const currentTierCards = [...document.querySelectorAll("#tierDeck .tier-card")];
+      view.__tierDeckObserver.disconnect();
+      return (
+        view.__tierDeckChildListMutations === 0 &&
+        currentTierCards.length === view.__tierCardNodes.length &&
+        currentTierCards.every((node, index) => node === view.__tierCardNodes[index])
+      );
+    });
+
+    expect(tierDeckWasStable).toBe(true);
+  });
 
   test("paints the high-detail country layer on canvas", async ({ page }) => {
     await page.goto("/");
@@ -637,8 +859,10 @@ test.describe("map country path — desktop click", () => {
     const germany = page.locator('#mapSvg [data-country="276"]');
     const austria = page.locator('#mapSvg [data-country="040"]');
     const hoverLift = page.locator("#mapSvg .hover-layer .country-hover-lift");
+    const countryCard = page.locator("#countryCard");
 
     await expect(austria).toHaveClass(/is-highlight/);
+    await expect(countryCard).toBeHidden();
 
     await germany.hover();
 
@@ -648,7 +872,7 @@ test.describe("map country path — desktop click", () => {
     await expect(hoverLift).toHaveCount(1);
     await expect(austria).toHaveClass(/is-highlight/);
     await expect(austria).not.toHaveClass(/is-muted/);
-    await expect(page.locator("#countryCard h2")).toContainText("European Union");
+    await expect(countryCard).toBeHidden();
 
     await page.mouse.move(1, 1);
     await page.waitForTimeout(80);
@@ -657,7 +881,7 @@ test.describe("map country path — desktop click", () => {
     await expect(germany).not.toHaveClass(/is-lift-source/);
     await expect(hoverLift).toHaveCount(0);
     await expect(austria).toHaveClass(/is-highlight/);
-    await expect(page.locator("#countryCard h2")).toContainText("European Union");
+    await expect(countryCard).toBeHidden();
   });
 
   test("country hover does not update the card", async ({ page }) => {

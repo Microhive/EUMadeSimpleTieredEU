@@ -27,6 +27,7 @@ import {
   renderCountryCardForCountry as renderCountryCardForCountryMarkup,
   renderCountryCardForScene as renderCountryCardForSceneMarkup,
   renderCountryCardForTier as renderCountryCardForTierMarkup,
+  renderCountryGrid,
   renderLegend as renderLegendMarkup,
   renderTierDeck,
 } from "../ui/tiered-europe-rendering";
@@ -73,6 +74,10 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     bottomPad?: number;
     topPad?: number;
     europeOnly?: boolean;
+  }
+
+  interface CardRenderOptions {
+    reveal?: boolean;
   }
 
   interface AppState {
@@ -147,6 +152,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   const showPillTooltip = floatingTooltip.show;
   const hidePillTooltip = floatingTooltip.hide;
   const openInfoModal = createInfoModal(benefitModal).open;
+  const mapLoadingStars = document.querySelector<HTMLElement>("#mapLoadingStars")!;
   const mapCanvas = document.createElement("canvas");
   const mapFlagCanvas = document.createElement("canvas");
   const mapFlagLayer = document.createElement("div");
@@ -253,6 +259,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   let height = 0;
   let resizeTimer: ReturnType<typeof setTimeout> | null = null;
   let mapResizeObserver: ResizeObserver | null = null;
+  let tierDeckInteractionsBound = false;
 
   // ─── init ─────────────────────────────────────────────────────────────────────
   buildBenefitPills();
@@ -376,7 +383,9 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   function buildBenefitPills(): void {
     const container = document.querySelector<HTMLElement>("#benefitPills")!;
-    container.innerHTML = renderBenefitPillsMarkup(benefitPills, benefitIconSvgById);
+    if (!container.querySelector(".benefit-pill")) {
+      container.innerHTML = renderBenefitPillsMarkup(benefitPills, benefitIconSvgById);
+    }
 
     const canHover = window.matchMedia("(hover: hover)").matches;
 
@@ -683,41 +692,107 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   // ─── render functions ─────────────────────────────────────────────────────────
 
   function buildTierCards(): void {
-    tierDeck.innerHTML = renderTierDeck({ tiers, capabilityInfoByLabel, flagImageSrc });
+    if (!hasRenderableTierShell()) {
+      tierDeck.innerHTML = renderTierDeck({ tiers, capabilityInfoByLabel, flagImageSrc });
+    } else {
+      syncTierCountryGrids();
+    }
 
     tierCardElements = [...tierDeck.querySelectorAll<HTMLElement>(".tier-card")];
     countryChipElements = [...tierDeck.querySelectorAll<HTMLButtonElement>("[data-country]")];
+    syncCapabilityMetadata();
+    primeCountryFlagImageStates();
+    bindTierDeckInteractions();
+    syncEditModeControls();
+  }
 
-    tierCardElements.forEach((card) => {
-      card.addEventListener("mouseenter", () => previewTier(card.dataset.tier as TierId));
-      card.addEventListener("focusin", () => previewTier(card.dataset.tier as TierId));
-      card.addEventListener("mouseleave", clearSoftFocus);
+  function hasRenderableTierShell(): boolean {
+    return tiers.every((tier) => {
+      const card = tierDeck.querySelector<HTMLElement>(`.tier-card[data-tier="${tier.id}"]`);
+      return Boolean(card?.querySelector(".country-grid"));
     });
+  }
 
-    countryChipElements.forEach((button) => {
-      button.addEventListener("mouseenter", () => activateCountry(button.dataset.country!, false));
-      button.addEventListener("focus", () => activateCountry(button.dataset.country!, false));
-      button.addEventListener("click", () => {
-        if (countryDrag.consumeSuppressedClick(button.dataset.country!)) return;
-
-        activateCountry(button.dataset.country!, true);
-      });
-      button.addEventListener("pointerdown", (event) => countryDrag.startChipDrag(button, event));
-      button.addEventListener("dragstart", (event) => event.preventDefault());
+  function syncTierCountryGrids(): void {
+    tiers.forEach((tier) => {
+      const grid = tierDeck.querySelector<HTMLElement>(`.tier-card[data-tier="${tier.id}"] .country-grid`);
+      if (!grid) return;
+      grid.innerHTML = renderCountryGrid(tier, flagImageSrc);
+      grid.removeAttribute("aria-label");
     });
+  }
 
-    const canHoverCap = window.matchMedia("(hover: hover)").matches;
-    tierDeck.querySelectorAll<HTMLButtonElement>("[data-cap-key]").forEach((btn) => {
-      if (canHoverCap) {
-        btn.addEventListener("mouseenter", () => showPillTooltip(btn));
-        btn.addEventListener("mouseleave", () => hidePillTooltip());
-        btn.addEventListener("focus", () => showPillTooltip(btn));
-        btn.addEventListener("blur", () => hidePillTooltip());
+  function syncCapabilityMetadata(): void {
+    tierDeck.querySelectorAll<HTMLElement>("[data-cap-key]").forEach((button) => {
+      const info = capabilityInfoByLabel.get(button.dataset.capKey!);
+      if (info) button.dataset.tooltip = info.tooltip;
+    });
+  }
+
+  function bindTierDeckInteractions(): void {
+    if (tierDeckInteractionsBound) return;
+    tierDeckInteractionsBound = true;
+
+    tierDeck.addEventListener("mouseover", (event: MouseEvent) => {
+      const target = event.target as Element;
+      const chip = target.closest<HTMLButtonElement>("[data-country]");
+      if (chip?.dataset.country) {
+        activateCountry(chip.dataset.country, false);
+        return;
       }
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
+
+      const capability = target.closest<HTMLElement>("[data-cap-key]");
+      if (capability && window.matchMedia("(hover: hover)").matches) {
+        showPillTooltip(capability);
+      }
+
+      const card = target.closest<HTMLElement>(".tier-card");
+      if (card?.dataset.tier) previewTier(card.dataset.tier as TierId);
+    });
+
+    tierDeck.addEventListener("focusin", (event: FocusEvent) => {
+      const target = event.target as Element;
+      const chip = target.closest<HTMLButtonElement>("[data-country]");
+      if (chip?.dataset.country) {
+        activateCountry(chip.dataset.country, false);
+        return;
+      }
+
+      const capability = target.closest<HTMLElement>("[data-cap-key]");
+      if (capability && window.matchMedia("(hover: hover)").matches) {
+        showPillTooltip(capability);
+        return;
+      }
+
+      const card = target.closest<HTMLElement>(".tier-card");
+      if (card?.dataset.tier) previewTier(card.dataset.tier as TierId);
+    });
+
+    tierDeck.addEventListener("focusout", (event: FocusEvent) => {
+      const capability = (event.target as Element).closest<HTMLElement>("[data-cap-key]");
+      if (capability) hidePillTooltip();
+    });
+
+    tierDeck.addEventListener("mouseout", (event: MouseEvent) => {
+      const target = event.target as Element;
+      const capability = target.closest<HTMLElement>("[data-cap-key]");
+      if (capability && window.matchMedia("(hover: hover)").matches) {
         hidePillTooltip();
-        const info = capabilityInfoByLabel.get(btn.dataset.capKey!);
+      }
+
+      const card = target.closest<HTMLElement>(".tier-card");
+      if (card && !card.contains(event.relatedTarget as Node | null)) {
+        clearSoftFocus();
+      }
+    });
+
+    tierDeck.addEventListener("click", (event: MouseEvent) => {
+      const target = event.target as Element;
+      const capability = target.closest<HTMLElement>("[data-cap-key]");
+      if (capability) {
+        event.stopPropagation();
+        hidePillTooltip();
+        const info = capabilityInfoByLabel.get(capability.dataset.capKey!);
         if (info) openInfoModal({
           eyebrow: "Tier capability",
           title: info.label,
@@ -726,20 +801,86 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
           keyIdea: info.keyIdea,
           caveat: info.caveat,
         });
-      });
+        return;
+      }
+
+      const chip = target.closest<HTMLButtonElement>("[data-country]");
+      if (!chip?.dataset.country) return;
+      if (countryDrag.consumeSuppressedClick(chip.dataset.country)) return;
+
+      activateCountry(chip.dataset.country, true);
     });
 
-    syncEditModeControls();
+    tierDeck.addEventListener("pointerdown", (event: PointerEvent) => {
+      const button = (event.target as Element).closest<HTMLButtonElement>("[data-country]");
+      if (button) countryDrag.startChipDrag(button, event);
+    });
+
+    tierDeck.addEventListener("dragstart", (event: DragEvent) => {
+      if ((event.target as Element).closest("[data-country]")) event.preventDefault();
+    });
+  }
+
+  function primeCountryFlagImageStates(): void {
+    countryChipElements.forEach((chip) => {
+      const image = chip.querySelector<HTMLImageElement>(".chip-flag");
+      if (!image) return;
+
+      const markLoaded = (): void => {
+        chip.classList.add("is-loaded");
+      };
+
+      if (image.complete) {
+        markLoaded();
+        return;
+      }
+
+      image.addEventListener("load", markLoaded, { once: true });
+      image.addEventListener("error", markLoaded, { once: true });
+    });
+  }
+
+  function syncCountryChipMetadata(): void {
+    countryChipElements.forEach((chip) => {
+      const countryId = chip.dataset.country;
+      const meta = countryId ? metaForCountry(countryId) : undefined;
+      if (!meta) return;
+
+      chip.dataset.code = meta.code;
+      chip.setAttribute("aria-label", meta.name);
+      chip.title = meta.name;
+
+      const image = chip.querySelector<HTMLImageElement>(".chip-flag");
+      const nextSrc = flagImageSrc(meta.code);
+      if (image && nextSrc && image.getAttribute("src") !== nextSrc) {
+        chip.classList.remove("is-loaded");
+        image.src = nextSrc;
+      }
+    });
+
+    primeCountryFlagImageStates();
   }
 
   function buildLegend(): void {
+    if (legend.querySelector(".legend-item")) return;
     legend.innerHTML = renderLegendMarkup(tiers);
+  }
+
+  function showMapLoadingStars(): void {
+    mapLoadingStars.classList.add("is-visible");
+  }
+
+  function hideMapLoadingStars(): void {
+    mapLoadingStars.classList.remove("is-visible");
   }
 
   // ─── map loading ──────────────────────────────────────────────────────────────
 
   async function loadMap(): Promise<void> {
     document.body.classList.add("is-loading");
+    mapWrap.classList.remove("is-map-ready");
+    mapWrap.setAttribute("aria-busy", "true");
+    showMapLoadingStars();
 
     try {
       const featureSets = await loadScenarioMapFeatureSets({
@@ -753,20 +894,22 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       state.featureByKey = firstFeatureByKey(state.features);
       state.visualFeatureByKey = firstFeatureByKey(state.visualFeatures);
       hydrateCountryCatalogFromFeatures(state.visualFeatures);
-      if (applyTierAssignmentsFromQuery()) {
-        buildTierCards();
-      }
+      syncCountryChipMetadata();
       render();
       setupMapResizeHandling();
-      focusScene("eu");
+      focusScene("eu", { intro: true, revealCard: false });
+      mapWrap.classList.add("is-map-ready");
     } catch (error) {
+      showCountryCard();
       countryCard.innerHTML = `
         <p class="eyebrow">Map unavailable</p>
         <h2>The vector map could not load</h2>
         <p>${error instanceof Error ? error.message : String(error)}</p>
       `;
     } finally {
+      hideMapLoadingStars();
       document.body.classList.remove("is-loading");
+      mapWrap.setAttribute("aria-busy", "false");
     }
   }
 
@@ -970,19 +1113,19 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   // ─── interaction ──────────────────────────────────────────────────────────────
 
-  function activateTier(tierId: TierId): void {
+  function activateTier(tierId: TierId, { reveal = true }: CardRenderOptions = {}): void {
     state.activeTier = tierId;
     state.activeCountry = null;
     state.hoveredCountry = null;
     state.selectedIds = selectedCountrySet(cumulativeIdsFor(tierId));
     updateHighlights();
-    renderCountryCardForTier(tierId);
+    renderCountryCardForTier(tierId, { reveal });
     drawConnections();
   }
 
   function previewTier(tierId: TierId): void {
     if (state.activeCountry) return;
-    activateTier(tierId);
+    activateTier(tierId, { reveal: isCountryCardVisible() });
   }
 
   function activateCountry(countryId: string, shouldZoom: boolean): void {
@@ -1042,7 +1185,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     state.activeTier = activeTierForScene();
     state.selectedIds = selectedIdsForScene();
     updateHighlights();
-    renderCountryCardForScene();
+    renderCountryCardForScene(undefined, { reveal: isCountryCardVisible() });
     drawConnections();
   }
 
@@ -1053,7 +1196,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     state.activeTier = activeTierForScene(scene);
     state.selectedIds = selectedIdsForScene(scene);
     updateHighlights();
-    renderCountryCardForScene(scene);
+    renderCountryCardForScene(scene, { reveal: isCountryCardVisible() });
     drawConnections();
   }
 
@@ -1194,22 +1337,36 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   // ─── card rendering ───────────────────────────────────────────────────────────
 
-  function renderCountryCardForTier(tierId: TierId): void {
+  function isCountryCardVisible(): boolean {
+    return !countryCard.hidden;
+  }
+
+  function showCountryCard(): void {
+    countryCard.hidden = false;
+  }
+
+  function renderCountryCardForTier(tierId: TierId, { reveal = true }: CardRenderOptions = {}): void {
+    if (reveal) showCountryCard();
     const tier = tierArrangement.tier(tierId);
     countryCard.innerHTML = renderCountryCardForTierMarkup(tier);
   }
 
-  function renderCountryCardForScene(scene: SceneKey = state.scene): void {
+  function renderCountryCardForScene(
+    scene: SceneKey = state.scene,
+    { reveal = true }: CardRenderOptions = {},
+  ): void {
     const tierId = activeTierForScene(scene);
     if (tierId) {
-      renderCountryCardForTier(tierId);
+      renderCountryCardForTier(tierId, { reveal });
       return;
     }
 
+    if (reveal) showCountryCard();
     countryCard.innerHTML = renderCountryCardForSceneMarkup(scene);
   }
 
   function renderCountryCardForCountry(meta: CountryMeta): void {
+    showCountryCard();
     const tier = tierArrangement.tier(meta.tier);
     countryCard.innerHTML = renderCountryCardForCountryMarkup(meta, tier);
   }
@@ -1318,8 +1475,12 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   // ─── scene management ─────────────────────────────────────────────────────────
 
-  function focusScene(scene: SceneKey, options: { intro?: boolean } = {}): void {
+  function focusScene(
+    scene: SceneKey,
+    options: { intro?: boolean; revealCard?: boolean } = {},
+  ): void {
     if (options.intro && state.userTouched) return;
+    const revealCard = options.revealCard ?? true;
 
     state.scene = scene;
     sceneTabs.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
@@ -1333,7 +1494,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       state.selectedIds = selectedCountrySet(cumulativeIdsFor("friends"));
       updateHighlights();
       drawConnections();
-      renderCountryCardForScene(scene);
+      renderCountryCardForScene(scene, { reveal: revealCard });
       applyZoomTransform(d3.zoomIdentity, 900);
       return;
     }
@@ -1346,10 +1507,10 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     updateHighlights();
 
     if (state.activeTier) {
-      renderCountryCardForTier(state.activeTier);
+      renderCountryCardForTier(state.activeTier, { reveal: revealCard });
       drawConnections();
     } else {
-      renderCountryCardForScene(scene);
+      renderCountryCardForScene(scene, { reveal: revealCard });
       drawConnections();
     }
 

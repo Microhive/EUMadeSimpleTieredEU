@@ -8,9 +8,11 @@
       content="An interactive EU Made Simple infographic exploring how a tiered European Union could work."
     >
     <title>Tiered EU - EU Made Simple</title>
+    <link rel="preload" href="countries-110m.json" as="fetch" crossorigin="anonymous">
+    <link rel="preload" href="countries-50m.json" as="fetch" crossorigin="anonymous">
     <link rel="stylesheet" href="/src/styles.css">
   </head>
-  <body>
+  <body class="is-loading">
     <div class="site-shell">
       <header class="masthead" aria-label="EU Made Simple">
         <a class="brand" href="#main">
@@ -116,14 +118,207 @@
               keeping a clear path for candidates, neighbours, and democratic
               friends to move closer to the European project.
             </p>
-            <div class="benefit-pills" id="benefitPills"></div>
+            <div class="benefit-pills" id="benefitPills">
+              <button
+                type="button"
+                class="benefit-pill"
+                data-pill="open-doors"
+                data-tooltip="Not yet a member should not mean standing still. Associate membership could give candidate countries and close partners a visible way to move closer before full accession is complete."
+              >
+                <span class="pill-icon" aria-hidden="true">
+                  <svg class="pill-icon-svg" viewBox="0 0 24 24" focusable="false">
+                    <path d="M7 21h10V5.2L9 3.4v17.6" />
+                    <path d="M17 21h2" />
+                    <path d="M11.7 12.2h.1" />
+                  </svg>
+                </span>
+                <strong class="pill-title">Open doors</strong>
+                <span class="pill-short">Progress before full membership</span>
+              </button>
+              <button
+                type="button"
+                class="benefit-pill"
+                data-pill="shared-standards"
+                data-tooltip="Different tiers should not mean different values. Every closer circle should remain anchored in democracy, rule of law, human rights, and legal reliability."
+              >
+                <span class="pill-icon" aria-hidden="true">
+                  <svg class="pill-icon-svg" viewBox="0 0 24 24" focusable="false">
+                    <path d="M12 3.3 5.7 5.8v5.4c0 4.1 2.4 7.4 6.3 9.2 3.9-1.8 6.3-5.1 6.3-9.2V5.8L12 3.3Z" />
+                    <path d="m8.4 12.3 2.2 2.2 5-5.2" />
+                  </svg>
+                </span>
+                <strong class="pill-title">Shared standards</strong>
+                <span class="pill-short">One foundation of values</span>
+              </button>
+              <button
+                type="button"
+                class="benefit-pill"
+                data-pill="strategic-weight"
+                data-tooltip="Europe can act with more weight when it cooperates beyond its borders. Security, energy, climate, supply chains, and crisis response often need partners outside the EU itself."
+              >
+                <span class="pill-icon" aria-hidden="true">
+                  <svg class="pill-icon-svg" viewBox="0 0 24 24" focusable="false">
+                    <circle cx="12" cy="12" r="8.4" />
+                    <path d="m15.8 8.2-2.2 5.4-5.4 2.2 2.2-5.4 5.4-2.2Z" />
+                    <path d="M12 3.6v2" />
+                    <path d="M12 18.4v2" />
+                  </svg>
+                </span>
+                <strong class="pill-title">Strategic weight</strong>
+                <span class="pill-short">More reach with trusted partners</span>
+              </button>
+              <button
+                type="button"
+                class="benefit-pill"
+                data-pill="forward-motion"
+                data-tooltip="Tiers should be paths, not permanent labels. Countries should be able to move inward as reforms, capacity, trust, and public support grow."
+              >
+                <span class="pill-icon" aria-hidden="true">
+                  <svg class="pill-icon-svg" viewBox="0 0 24 24" focusable="false">
+                    <path d="M4.2 16.8h4.4c4.5 0 7.5-2.6 8.9-7.1" />
+                    <path d="M14.1 8.9h4.6v4.6" />
+                    <path d="M5.1 8.3h5.4" />
+                  </svg>
+                </span>
+                <strong class="pill-title">Forward motion</strong>
+                <span class="pill-short">A path inward over time</span>
+              </button>
+            </div>
           </article>
 
-          <div class="tier-deck" id="tierDeck" aria-label="Tier cards"></div>
+          <div class="tier-deck" id="tierDeck" aria-label="Tier cards">
+            <article class="tier-card" data-tier="inner" tabindex="0">
+              <div class="tier-head">
+                <span class="tier-number">1</span>
+                <div>
+                  <h2 class="tier-title">Inner Union</h2>
+                  <div class="tier-meta-row">
+                    <div class="capabilities">
+                      <button type="button" class="capability" data-cap-key="Foreign policy">Foreign policy</button>
+                      <button type="button" class="capability" data-cap-key="Common defence">Common defence</button>
+                      <button type="button" class="capability" data-cap-key="Eurozone">Eurozone</button>
+                      <button type="button" class="capability" data-cap-key="Schengen">Schengen</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p class="tier-summary">A frontrunner group for common defence, eurozone depth, Schengen, and unified foreign policy.</p>
+              <div class="country-grid" aria-label="Country flags loading">
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+              </div>
+            </article>
+
+            <article class="tier-card" data-tier="eu" tabindex="0">
+              <div class="tier-head">
+                <span class="tier-number">2</span>
+                <div>
+                  <h2 class="tier-title">European Union</h2>
+                  <div class="tier-meta-row">
+                    <div class="capabilities">
+                      <button type="button" class="capability" data-cap-key="Single market">Single market</button>
+                      <button type="button" class="capability" data-cap-key="EU budget">EU budget</button>
+                      <button type="button" class="capability" data-cap-key="EU law">EU law</button>
+                      <button type="button" class="capability" data-cap-key="Representation">Representation</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p class="tier-summary">The shared rights and obligations of membership: institutions, budget, law, and the single market.</p>
+              <div class="country-grid" aria-label="Country flags loading">
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+              </div>
+            </article>
+
+            <article class="tier-card" data-tier="associate" tabindex="0">
+              <div class="tier-head">
+                <span class="tier-number">3</span>
+                <div>
+                  <h2 class="tier-title">Associate Membership</h2>
+                  <div class="tier-meta-row">
+                    <div class="capabilities">
+                      <button type="button" class="capability" data-cap-key="Single market access">Single market access</button>
+                      <button type="button" class="capability" data-cap-key="Customs alignment">Customs alignment</button>
+                      <button type="button" class="capability" data-cap-key="Budget path">Budget path</button>
+                      <button type="button" class="capability" data-cap-key="Rule of law">Rule of law</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p class="tier-summary">A bridge tier for candidates, close neighbours, and partners aligned with the single market path.</p>
+              <div class="country-grid" aria-label="Country flags loading">
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+              </div>
+            </article>
+
+            <article class="tier-card" data-tier="friends" tabindex="0">
+              <div class="tier-head">
+                <span class="tier-number">4</span>
+                <div>
+                  <h2 class="tier-title">European Community + Friends</h2>
+                  <div class="tier-meta-row">
+                    <div class="capabilities">
+                      <button type="button" class="capability" data-cap-key="Security">Security</button>
+                      <button type="button" class="capability" data-cap-key="Climate policy">Climate policy</button>
+                      <button type="button" class="capability" data-cap-key="Energy">Energy</button>
+                      <button type="button" class="capability" data-cap-key="Crisis response">Crisis response</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p class="tier-summary">A wider democratic circle for security, climate, energy, crises, and supply chains.</p>
+              <div class="country-grid" aria-label="Country flags loading">
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+                <span class="country-chip country-chip-skeleton" aria-hidden="true"></span>
+              </div>
+            </article>
+          </div>
         </section>
 
         <section class="map-stage" aria-label="Interactive map">
-          <div class="map-wrap">
+          <div class="map-wrap" aria-busy="true">
             <div class="map-toolbar">
               <div class="scene-tabs" id="sceneTabs" aria-label="Map focus">
                 <button type="button" data-scene="inner">Inner</button>
@@ -146,6 +341,20 @@
                 </button>
               </div>
             </div>
+            <div class="map-loading-stars is-visible" id="mapLoadingStars" aria-hidden="true">
+              <span class="map-loading-star-position" style="--angle: 0deg; --upright: 0deg; --delay: 0ms"><span class="map-loading-star"></span></span>
+              <span class="map-loading-star-position" style="--angle: 30deg; --upright: -30deg; --delay: 70ms"><span class="map-loading-star"></span></span>
+              <span class="map-loading-star-position" style="--angle: 60deg; --upright: -60deg; --delay: 140ms"><span class="map-loading-star"></span></span>
+              <span class="map-loading-star-position" style="--angle: 90deg; --upright: -90deg; --delay: 210ms"><span class="map-loading-star"></span></span>
+              <span class="map-loading-star-position" style="--angle: 120deg; --upright: -120deg; --delay: 280ms"><span class="map-loading-star"></span></span>
+              <span class="map-loading-star-position" style="--angle: 150deg; --upright: -150deg; --delay: 350ms"><span class="map-loading-star"></span></span>
+              <span class="map-loading-star-position" style="--angle: 180deg; --upright: -180deg; --delay: 420ms"><span class="map-loading-star"></span></span>
+              <span class="map-loading-star-position" style="--angle: 210deg; --upright: -210deg; --delay: 490ms"><span class="map-loading-star"></span></span>
+              <span class="map-loading-star-position" style="--angle: 240deg; --upright: -240deg; --delay: 560ms"><span class="map-loading-star"></span></span>
+              <span class="map-loading-star-position" style="--angle: 270deg; --upright: -270deg; --delay: 630ms"><span class="map-loading-star"></span></span>
+              <span class="map-loading-star-position" style="--angle: 300deg; --upright: -300deg; --delay: 700ms"><span class="map-loading-star"></span></span>
+              <span class="map-loading-star-position" style="--angle: 330deg; --upright: -330deg; --delay: 770ms"><span class="map-loading-star"></span></span>
+            </div>
             <svg id="mapSvg" role="img" aria-labelledby="mapTitle mapDesc">
               <title id="mapTitle">World map showing a tiered EU scenario</title>
               <desc id="mapDesc">
@@ -153,16 +362,29 @@
                 can be panned, zoomed, and explored by country or tier.
               </desc>
             </svg>
-            <aside class="country-card" id="countryCard" aria-live="polite">
-              <p class="eyebrow">Scenario lens</p>
-              <h2>Integration as a ladder, not a wall</h2>
-              <p>
-                The outer tier keeps the democratic community visible; the inner
-                tier shows where deeper defence, eurozone, Schengen, and foreign
-                policy integration could move first.
-              </p>
-            </aside>
-            <div class="legend" id="legend" aria-label="Map legend"></div>
+            <aside class="country-card" id="countryCard" aria-live="polite" hidden></aside>
+            <div class="legend" id="legend" aria-label="Map legend">
+              <div class="legend-item">
+                <span class="legend-swatch" style="background:#fff8ee"></span>
+                <span class="label-full">Community + Friends</span>
+                <span class="label-short">Community</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-swatch" style="background:#f8e6a7"></span>
+                <span class="label-full">Associate</span>
+                <span class="label-short">Associate</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-swatch" style="background:#72bfd0"></span>
+                <span class="label-full">European Union</span>
+                <span class="label-short">EU</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-swatch" style="background:#053f70"></span>
+                <span class="label-full">Inner Union</span>
+                <span class="label-short">Inner Union</span>
+              </div>
+            </div>
           </div>
         </section>
       </main>

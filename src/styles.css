@@ -15,6 +15,10 @@
   --white: #ffffff;
   --shadow: 10px 10px 0 rgba(0, 0, 0, 0.72);
   --border: 3px solid var(--ink);
+  --ease-out: cubic-bezier(0.18, 0.84, 0.22, 1);
+  --skeleton-base: rgba(255, 248, 238, 0.13);
+  --skeleton-mid: rgba(255, 248, 238, 0.26);
+  --skeleton-ink: rgba(2, 52, 95, 0.18);
 }
 
 * {
@@ -60,6 +64,104 @@ button {
   cursor: pointer;
 }
 
+@keyframes skeleton-shimmer {
+  from {
+    background-position:
+      -180% 0,
+      0 0,
+      0 0;
+  }
+
+  to {
+    background-position:
+      180% 0,
+      0 0,
+      0 0;
+  }
+}
+
+@keyframes eu-star-pulse {
+  0%,
+  100% {
+    opacity: 0.52;
+    filter:
+      brightness(0.82)
+      drop-shadow(0 0 1px rgba(255, 204, 0, 0.28))
+      drop-shadow(0 0 0 rgba(255, 204, 0, 0));
+    transform: translateY(-50%) rotate(var(--upright)) scale(0.72);
+  }
+
+  38% {
+    opacity: 1;
+    filter:
+      brightness(1.2)
+      drop-shadow(0 0 4px rgba(255, 248, 238, 0.72))
+      drop-shadow(0 0 16px rgba(255, 204, 0, 0.82));
+    transform: translateY(-50%) rotate(var(--upright)) scale(1.48);
+  }
+
+  58% {
+    opacity: 0.9;
+    filter:
+      brightness(1.05)
+      drop-shadow(0 0 2px rgba(255, 248, 238, 0.4))
+      drop-shadow(0 0 9px rgba(255, 204, 0, 0.54));
+    transform: translateY(-50%) rotate(var(--upright)) scale(1.08);
+  }
+}
+
+@keyframes eu-star-ring-breathe {
+  0%,
+  100% {
+    transform: scale(0.94);
+  }
+
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+@keyframes site-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes soft-pop-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.94);
+  }
+
+  70% {
+    opacity: 1;
+    transform: translateY(-1px) scale(1.015);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes map-reveal {
+  from {
+    opacity: 0;
+    filter: saturate(0.8) blur(2px);
+  }
+
+  to {
+    opacity: 1;
+    filter: saturate(1) blur(0);
+  }
+}
+
 .site-shell {
   width: 100%;
   min-height: 100%;
@@ -75,6 +177,7 @@ button {
   justify-content: space-between;
   gap: 18px;
   color: var(--cream);
+  animation: site-rise-in 460ms var(--ease-out) both;
 }
 
 .masthead-actions {
@@ -265,6 +368,7 @@ button {
 .mission-card {
   position: relative;
   padding: 24px;
+  animation: site-rise-in 520ms var(--ease-out) 70ms both;
 }
 
 .mission-card::before {
@@ -411,6 +515,30 @@ h1 {
   border-top: 3px solid var(--ink);
 }
 
+.benefit-pills:empty {
+  min-height: 128px;
+}
+
+.benefit-pills:empty::before {
+  grid-column: 1 / -1;
+  min-height: 112px;
+  content: "";
+  background:
+    linear-gradient(105deg, transparent 0 36%, var(--skeleton-mid) 46%, transparent 58%),
+    linear-gradient(var(--skeleton-base), var(--skeleton-base)) 0 0 / calc(50% - 9px) 48px no-repeat,
+    linear-gradient(var(--skeleton-base), var(--skeleton-base)) 100% 0 / calc(50% - 9px) 48px no-repeat,
+    linear-gradient(var(--skeleton-base), var(--skeleton-base)) 0 64px / calc(50% - 9px) 48px no-repeat,
+    linear-gradient(var(--skeleton-base), var(--skeleton-base)) 100% 64px / calc(50% - 9px) 48px no-repeat;
+  background-size:
+    220% 100%,
+    calc(50% - 9px) 48px,
+    calc(50% - 9px) 48px,
+    calc(50% - 9px) 48px,
+    calc(50% - 9px) 48px;
+  border-radius: 6px;
+  animation: skeleton-shimmer 1.15s linear infinite;
+}
+
 .benefit-pill {
   position: relative;
   display: grid;
@@ -434,7 +562,12 @@ h1 {
     color 160ms ease,
     transform 160ms ease;
   cursor: pointer;
+  animation: soft-pop-in 360ms var(--ease-out) both;
 }
+
+.benefit-pill:nth-child(2) { animation-delay: 40ms; }
+.benefit-pill:nth-child(3) { animation-delay: 80ms; }
+.benefit-pill:nth-child(4) { animation-delay: 120ms; }
 
 .pill-icon {
   display: grid;
@@ -685,6 +818,29 @@ h1 {
   gap: 14px;
 }
 
+.tier-deck:empty {
+  min-height: 608px;
+}
+
+.tier-deck:empty::before {
+  min-height: 608px;
+  content: "";
+  background:
+    linear-gradient(105deg, transparent 0 38%, var(--skeleton-mid) 48%, transparent 60%),
+    linear-gradient(var(--skeleton-base), var(--skeleton-base)) 0 0 / 100% 136px no-repeat,
+    linear-gradient(var(--skeleton-base), var(--skeleton-base)) 0 154px / 100% 136px no-repeat,
+    linear-gradient(var(--skeleton-base), var(--skeleton-base)) 0 308px / 100% 136px no-repeat,
+    linear-gradient(var(--skeleton-base), var(--skeleton-base)) 0 462px / 100% 136px no-repeat;
+  background-size:
+    220% 100%,
+    100% 136px,
+    100% 136px,
+    100% 136px,
+    100% 136px;
+  border-radius: 8px;
+  animation: skeleton-shimmer 1.2s linear infinite;
+}
+
 .tier-card {
   position: relative;
   display: grid;
@@ -694,7 +850,12 @@ h1 {
     transform 220ms ease,
     box-shadow 220ms ease,
     background 220ms ease;
+  animation: site-rise-in 440ms var(--ease-out) both;
 }
+
+.tier-card:nth-child(2) { animation-delay: 60ms; }
+.tier-card:nth-child(3) { animation-delay: 120ms; }
+.tier-card:nth-child(4) { animation-delay: 180ms; }
 
 .tier-card::before {
   display: none;
@@ -848,6 +1009,8 @@ button.capability:focus-visible {
 
 .country-chip {
   display: inline-flex;
+  position: relative;
+  overflow: hidden;
   width: 36px;
   height: 36px;
   min-height: 0;
@@ -868,6 +1031,36 @@ button.capability:focus-visible {
   user-select: none;
   -webkit-user-drag: none;
   will-change: transform;
+  animation: soft-pop-in 260ms var(--ease-out) both;
+}
+
+.country-chip:not(.is-loaded),
+.country-chip-skeleton {
+  background:
+    linear-gradient(105deg, transparent 0 34%, rgba(255, 248, 238, 0.6) 48%, transparent 62%),
+    rgba(255, 248, 238, 0.24);
+  background-size:
+    220% 100%,
+    100% 100%;
+  animation: skeleton-shimmer 1.05s linear infinite;
+}
+
+.tier-card:not([data-tier="inner"]) .country-chip:not(.is-loaded),
+.tier-card:not([data-tier="inner"]) .country-chip-skeleton {
+  background:
+    linear-gradient(105deg, transparent 0 34%, rgba(255, 255, 255, 0.88) 48%, transparent 62%),
+    var(--skeleton-ink);
+  background-size:
+    220% 100%,
+    100% 100%;
+}
+
+.country-chip.is-loaded {
+  background: transparent;
+}
+
+.country-chip-skeleton {
+  pointer-events: none;
 }
 
 button.country-chip {
@@ -928,9 +1121,15 @@ button.country-chip {
   height: 100%;
   border-radius: 50%;
   object-fit: cover;
+  opacity: 0;
   pointer-events: none;
+  transition: opacity 160ms ease;
   user-select: none;
   -webkit-user-drag: none;
+}
+
+.country-chip.is-loaded .chip-flag {
+  opacity: 1;
 }
 
 .tier-card[data-tier="inner"] .country-chip {
@@ -945,6 +1144,7 @@ button.country-chip {
   align-self: start;
   height: calc(100vh - 28px);
   min-height: 760px;
+  animation: site-rise-in 560ms var(--ease-out) 120ms both;
 }
 
 .map-toolbar {
@@ -1056,13 +1256,21 @@ button.country-chip {
   flex: 1;
   min-height: 700px;
   overflow: hidden;
-  background:
-    radial-gradient(ellipse at 52% 48%, rgba(255, 255, 255, 0.12), transparent 58%),
-    linear-gradient(160deg, #0e5a90, var(--navy-deep));
+  background: linear-gradient(160deg, #0e5a90, var(--navy-deep));
   border: var(--border);
   border-radius: 8px;
   box-shadow: var(--shadow);
   isolation: isolate;
+}
+
+.map-wrap.is-map-ready #mapSvg,
+.map-wrap.is-map-ready .map-canvas {
+  animation: map-reveal 420ms var(--ease-out) both;
+}
+
+.map-wrap.is-map-ready .map-loading-stars {
+  opacity: 0;
+  visibility: hidden;
 }
 
 .map-wrap.is-map-drop-target::after {
@@ -1103,6 +1311,66 @@ button.country-chip {
 
 .map-flag-canvas {
   z-index: 2;
+}
+
+.map-loading-stars {
+  --star-ring-radius: clamp(48px, 10vmin, 92px);
+  --star-size: clamp(13px, 2.5vmin, 22px);
+
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 240ms ease,
+    visibility 240ms ease;
+  visibility: hidden;
+}
+
+.map-loading-stars.is-visible {
+  animation: eu-star-ring-breathe 1.65s ease-in-out infinite;
+  opacity: 1;
+  transform-origin: 50% 50%;
+  visibility: visible;
+}
+
+.map-loading-star-position {
+  position: absolute;
+  bottom: 50%;
+  left: 50%;
+  width: var(--star-size);
+  height: var(--star-ring-radius);
+  margin-left: calc(var(--star-size) / -2);
+  transform: rotate(var(--angle));
+  transform-origin: 50% 100%;
+}
+
+.map-loading-star {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  width: var(--star-size);
+  aspect-ratio: 1;
+  background: #ffcc00;
+  clip-path: polygon(
+    50% 0,
+    61% 35%,
+    98% 35%,
+    68% 57%,
+    79% 91%,
+    50% 70%,
+    21% 91%,
+    32% 57%,
+    2% 35%,
+    39% 35%
+  );
+  transform: translateY(-50%) rotate(var(--upright)) scale(0.72);
+  transform-origin: 50% 50%;
+  animation: eu-star-pulse 1.1s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+  animation-delay: var(--delay);
+  will-change: filter, opacity, transform;
 }
 
 .map-flag-layer {
@@ -1346,6 +1614,10 @@ button.country-chip {
   overflow: visible;
   padding: 18px 16px 16px;
   background: rgba(255, 248, 238, 0.94);
+}
+
+.country-card[hidden] {
+  display: none;
 }
 
 .country-card .eyebrow {
