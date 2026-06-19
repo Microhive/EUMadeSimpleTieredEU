@@ -2327,9 +2327,13 @@ img.chip-flag {
     --modal-close-inset: 12px;
     --modal-mobile-max-height: calc(100svh - var(--modal-close-size) - 32px);
 
-    position: relative;
+    position: fixed;
+    top: 50%;
+    left: 50%;
     max-height: var(--modal-mobile-max-height);
     overflow: visible;
+    margin: 0;
+    transform: translate(-50%, -50%);
   }
 
   .modal-inner {

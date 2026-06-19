@@ -565,6 +565,10 @@ test.describe("benefit modal — desktop click", () => {
 
     await closeButton.click();
     await expect(modal).not.toBeVisible();
+
+    await page.locator('.benefit-pill[data-pill="shared-standards"]').click();
+    await expect(modal).toBeVisible();
+    await expect.poll(() => modal.evaluate((element: HTMLDialogElement) => element.scrollTop)).toBe(0);
   });
 });
 
@@ -636,6 +640,38 @@ test.describe("benefit modal — mobile tap", () => {
     expect(clipping.keyIdeaTop).toBeLessThan(clipping.viewportBottom);
     expect(clipping.keyIdeaBottom).toBeGreaterThan(clipping.viewportTop);
     expect(clipping.outsideProbeHitsKeyIdea).toBe(false);
+
+    await closeButton.tap();
+    await expect(modal).not.toBeVisible();
+
+    await page.locator('.benefit-pill[data-pill="open-doors"]').tap();
+    await expect(modal).toBeVisible();
+    await expect.poll(() => modal.evaluate((element: HTMLDialogElement) => element.scrollTop)).toBe(0);
+    await expect.poll(() => modalInner.evaluate((element) => element.scrollTop)).toBe(0);
+  });
+
+  test("opens centered in the viewport after the page has scrolled", async ({ page }) => {
+    await page.setViewportSize({ width: 449, height: 640 });
+    await page.goto("/");
+    await waitForMap(page);
+
+    const capability = page.locator('.tier-card[data-tier="inner"] [data-cap-key="Common defence"]');
+    await capability.scrollIntoViewIfNeeded();
+
+    const scrollY = await page.evaluate(() => window.scrollY);
+    expect(scrollY).toBeGreaterThan(100);
+
+    await capability.tap();
+
+    const modal = page.locator("#benefitModal");
+    await expect(modal).toBeVisible();
+
+    const modalBox = await modal.boundingBox();
+    const viewport = page.viewportSize();
+    if (!modalBox || !viewport) throw new Error("Expected modal and viewport dimensions.");
+
+    expect(Math.abs(modalBox.x + modalBox.width / 2 - viewport.width / 2)).toBeLessThan(2);
+    expect(Math.abs(modalBox.y + modalBox.height / 2 - viewport.height / 2)).toBeLessThan(2);
   });
 });
 
