@@ -80,8 +80,11 @@ async function getCanvasPaintStats(
   });
 }
 
-async function getCanvasRenderRevision(page: Page): Promise<number> {
-  return page.locator(".map-canvas").evaluate((canvas: HTMLCanvasElement) => {
+async function getCanvasRenderRevision(
+  page: Page,
+  selector = ".map-canvas"
+): Promise<number> {
+  return page.locator(selector).evaluate((canvas: HTMLCanvasElement) => {
     return Number(canvas.dataset.renderRevision ?? 0);
   });
 }
@@ -531,10 +534,36 @@ test.describe("tier editing drag — desktop", () => {
     );
 
     await hoverCanvasFlag(page, countryId);
+    await page.waitForTimeout(120);
     await expect(sourceChip).toHaveCount(1);
     await expect(targetChip).toHaveCount(0);
 
-    await dragCanvasFlagToLocator(page, countryId, targetCard);
+    const flagRevisionBeforeDrag = await getCanvasRenderRevision(page, ".map-flag-canvas");
+    const zoomBeforeDrag = await getZoomTransform(page);
+    const source = await getCanvasFlagHitbox(page, countryId);
+    const targetBox = await targetCard.boundingBox();
+    if (!targetBox) {
+      throw new Error("Cannot drag: target is not visible.");
+    }
+
+    await page.mouse.move(source.clientX, source.clientY);
+    await page.mouse.down();
+    await page.mouse.move(source.clientX + 8, source.clientY + 8, { steps: 4 });
+    await expect(page.locator(".map-flag-drag-ghost")).toBeVisible();
+    await expect
+      .poll(() => getCanvasRenderRevision(page, ".map-flag-canvas"))
+      .toBeGreaterThan(flagRevisionBeforeDrag);
+    const zoomDuringDrag = await getZoomTransform(page);
+    expect(zoomDuringDrag.k).toBeCloseTo(zoomBeforeDrag.k, 4);
+    expect(zoomDuringDrag.x).toBeCloseTo(zoomBeforeDrag.x, 1);
+    expect(zoomDuringDrag.y).toBeCloseTo(zoomBeforeDrag.y, 1);
+
+    await page.mouse.move(
+      targetBox.x + targetBox.width / 2,
+      targetBox.y + targetBox.height / 2,
+      { steps: 24 }
+    );
+    await page.mouse.up();
 
     await expect(targetChip).toHaveCount(1);
     await expect(sourceChip).toHaveCount(0);
