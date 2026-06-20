@@ -11,6 +11,7 @@
  *    zoom the map, and the mouse wheel MUST zoom the map on desktop.
  */
 import { test, expect, devices, type Locator, type Page } from "@playwright/test";
+import { CRIMEA_ID } from "../src/domain/country-identity";
 
 // `defaultBrowserType` can't be overridden inside a describe block, so strip it.
 const { defaultBrowserType: _d, ...desktop } = devices["Desktop Chrome"];
@@ -1015,6 +1016,49 @@ test.describe("map rendering — desktop", () => {
     expect(communityLayout.k).toBeCloseTo(1, 4);
     expect(communityLayout.outOfBounds).toEqual([]);
     await expect(page.locator("#countryCard")).toBeHidden();
+  });
+
+  test("keeps Crimea out of Russia's rendered geometry", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const coverage = await page.locator("#mapSvg").evaluate((svg: SVGSVGElement, crimeaId) => {
+      const russia = svg.querySelector<SVGGeometryElement>('.country-layer [data-country="643"]');
+      const crimea = svg.querySelector<SVGGeometryElement>(
+        `.country-layer [data-country="${crimeaId}"]`,
+      );
+
+      if (!russia || !crimea) throw new Error("Expected Russia and Crimea paths to render.");
+
+      const box = crimea.getBBox();
+      const samplePoints: Array<{ x: number; y: number }> = [];
+
+      for (const yRatio of [0.25, 0.4, 0.55, 0.7]) {
+        for (const xRatio of [0.25, 0.4, 0.55, 0.7]) {
+          const point = new DOMPoint(
+            box.x + box.width * xRatio,
+            box.y + box.height * yRatio,
+          );
+          if (crimea.isPointInFill(point)) samplePoints.push({ x: point.x, y: point.y });
+        }
+      }
+
+      const russiaHits = samplePoints.filter((point) => {
+        return russia.isPointInFill(new DOMPoint(point.x, point.y));
+      });
+
+      return {
+        sampleCount: samplePoints.length,
+        russiaHits: russiaHits.length,
+        crimeaWidth: box.width,
+        crimeaHeight: box.height,
+      };
+    }, CRIMEA_ID);
+
+    expect(coverage.crimeaWidth).toBeGreaterThan(0);
+    expect(coverage.crimeaHeight).toBeGreaterThan(0);
+    expect(coverage.sampleCount).toBeGreaterThan(0);
+    expect(coverage.russiaHits).toBe(0);
   });
 
   test("places Belgium in the European Union tier by default", async ({ page }) => {

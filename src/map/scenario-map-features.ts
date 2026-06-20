@@ -20,6 +20,15 @@ const EUROPE_BOUNDS: EuropeBounds = {
   maxLat: 72,
 };
 
+const RUSSIA_ID = "643";
+
+const CRIMEA_BOUNDS: EuropeBounds = {
+  minLon: 32,
+  maxLon: 37,
+  minLat: 44,
+  maxLat: 47,
+};
+
 const SCENARIO_EXTRA_FEATURES: any[] = [
   {
     type: "Feature",
@@ -121,8 +130,10 @@ export function clipFeatureToEurope(feature: any): any | null {
 }
 
 function featureWithScenarioAdjustments(feature: any): any {
-  if (keyForFeature(feature) !== FRANCE_ID) return feature;
-  return featureWithEuropeanPolygons(feature);
+  const key = keyForFeature(feature);
+  if (key === FRANCE_ID) return featureWithEuropeanPolygons(feature);
+  if (key === RUSSIA_ID) return featureWithoutCrimea(feature);
+  return feature;
 }
 
 function featureWithEuropeanPolygons(feature: any): any {
@@ -145,5 +156,31 @@ function polygonIntersectsBounds(polygon: number[][][], bounds: EuropeBounds): b
     Math.min(...longitudes) <= bounds.maxLon &&
     Math.max(...latitudes) >= bounds.minLat &&
     Math.min(...latitudes) <= bounds.maxLat
+  );
+}
+
+function featureWithoutCrimea(feature: any): any {
+  if (feature.geometry?.type !== "MultiPolygon") return feature;
+
+  const coordinates = feature.geometry.coordinates.filter(
+    (polygon: number[][][]) => !polygonCenterWithinBounds(polygon, CRIMEA_BOUNDS),
+  );
+  if (coordinates.length === feature.geometry.coordinates.length) return feature;
+
+  return { ...feature, geometry: { ...feature.geometry, coordinates } };
+}
+
+function polygonCenterWithinBounds(polygon: number[][][], bounds: EuropeBounds): boolean {
+  const points = polygon.flat();
+  const longitudes = points.map(([lon]) => lon);
+  const latitudes = points.map(([, lat]) => lat);
+  const centerLon = (Math.min(...longitudes) + Math.max(...longitudes)) / 2;
+  const centerLat = (Math.min(...latitudes) + Math.max(...latitudes)) / 2;
+
+  return (
+    centerLon >= bounds.minLon &&
+    centerLon <= bounds.maxLon &&
+    centerLat >= bounds.minLat &&
+    centerLat <= bounds.maxLat
   );
 }
