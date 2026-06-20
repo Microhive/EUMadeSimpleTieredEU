@@ -578,7 +578,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   }
 
   function visualFeatureForCountry(countryId: string): any | undefined {
-    return state.visualFeatureByKey.get(canonicalCountryId(countryId));
+    return state.visualFeatureByKey.get(countryId) ?? state.visualFeatureByKey.get(canonicalCountryId(countryId));
   }
 
   function metaForCountry(countryId: string): CountryMeta | undefined {

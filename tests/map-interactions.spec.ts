@@ -1354,6 +1354,18 @@ test.describe("map country path — desktop click", () => {
     await expect(countryCard).toBeHidden();
   });
 
+  test("hovering Ukraine also outlines Crimea", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator('#mapSvg [data-country="804"]').dispatchEvent("mouseenter");
+
+    await expect(page.locator('#mapSvg .hover-layer .country-outline[data-country-outline="804"]'))
+      .toHaveCount(1);
+    await expect(page.locator(`#mapSvg .hover-layer .country-outline[data-country-outline="${CRIMEA_ID}"]`))
+      .toHaveCount(1);
+  });
+
   test("country hover does not update the card", async ({ page }) => {
     await page.goto("/");
     await waitForMap(page);
