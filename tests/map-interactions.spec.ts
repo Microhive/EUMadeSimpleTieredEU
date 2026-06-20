@@ -1361,6 +1361,22 @@ test.describe("map country path — desktop click", () => {
     expect(after.size).toBeLessThanOrEqual(30);
   });
 
+  test("places map flags on the main landmass for countries with remote territories", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator('[data-scene="friends"]').click();
+    await page.waitForTimeout(950);
+    await page.locator("#mapFlagsButton").click();
+
+    for (const countryId of ["578", "840"]) {
+      const flag = await getCanvasFlagHitbox(page, countryId);
+      await expect
+        .poll(() => countryAtViewportPoint(page, flag.clientX, flag.clientY))
+        .toBe(countryId);
+    }
+  });
+
   test("map flags reflect tier presence and hover focus", async ({ page }) => {
     await page.goto("/");
     await waitForMap(page);
@@ -1369,8 +1385,6 @@ test.describe("map country path — desktop click", () => {
 
     const germanyChip = page.locator('.country-chip[data-country="276"]');
     const austriaChip = page.locator('.country-chip[data-country="040"]');
-    const germanyOutline = page.locator('#mapSvg .hover-layer .country-outline[data-country-outline="276"]');
-    const austriaOutline = page.locator('#mapSvg .hover-layer .country-outline[data-country-outline="040"]');
 
     await expect(page.locator(".map-flag")).toHaveCount(0);
     await expect(page.locator(".map-flag-canvas")).toHaveCount(1);
@@ -1413,12 +1427,8 @@ test.describe("map country path — desktop click", () => {
     await expect(austriaChip).not.toHaveClass(/is-flag-focused/);
     await expect(austriaChip).toHaveClass(/is-flag-out-of-focus/);
     await waitForCanvasFlagVariant(page, "276", "selected");
-    await waitForCanvasFlagVariant(page, "040", "dimmed");
-    await expect(germanyOutline).toHaveCount(1);
-    await expect
-      .poll(() => germanyOutline.evaluate((element) => getComputedStyle(element).strokeWidth))
-      .toBe("4.8px");
-    await expect(austriaOutline).toHaveCount(0);
+    await waitForCanvasFlagVariant(page, "040", "muted");
+    await expect(page.locator(".map-canvas")).toHaveAttribute("data-has-active-focus-ids", "true");
 
     await page.locator('[data-scene="eu"]').hover();
     await expect(germanyChip).toHaveClass(/is-flag-focused/);
@@ -1427,14 +1437,11 @@ test.describe("map country path — desktop click", () => {
     await expect(austriaChip).not.toHaveClass(/is-flag-out-of-focus/);
     await waitForCanvasFlagVariant(page, "276", "selected");
     await waitForCanvasFlagVariant(page, "040", "selected");
-    await expect(germanyOutline).toHaveCount(1);
-    await expect(austriaOutline).toHaveCount(1);
 
     await page.mouse.move(1, 1);
     await waitForCanvasFlagVariant(page, "276", "normal");
     await waitForCanvasFlagVariant(page, "040", "normal");
-    await expect(germanyOutline).toHaveCount(0);
-    await expect(austriaOutline).toHaveCount(0);
+    await expect(page.locator(".map-canvas")).toHaveAttribute("data-has-active-focus-ids", "false");
     await expect(germanyChip).not.toHaveClass(/is-flag-focused/);
     await expect(austriaChip).not.toHaveClass(/is-flag-focused/);
     await expect(germanyChip).not.toHaveClass(/is-flag-out-of-focus/);
@@ -1446,17 +1453,17 @@ test.describe("map country path — desktop click", () => {
     await expect(austriaChip).not.toHaveClass(/is-flag-focused/);
     await expect(austriaChip).toHaveClass(/is-flag-out-of-focus/);
     await waitForCanvasFlagVariant(page, "276", "selected");
-    await waitForCanvasFlagVariant(page, "040", "dimmed");
+    await waitForCanvasFlagVariant(page, "040", "muted");
 
     await page.locator('.tier-card[data-tier="eu"]').hover();
     await waitForCanvasFlagVariant(page, "276", "selected");
     await waitForCanvasFlagVariant(page, "040", "selected");
 
     await austriaChip.hover();
-    await waitForCanvasFlagVariant(page, "276", "normal");
+    await waitForCanvasFlagVariant(page, "276", "muted");
     await waitForCanvasFlagVariant(page, "040", "selected");
     await expect(germanyChip).not.toHaveClass(/is-flag-focused/);
-    await expect(germanyChip).not.toHaveClass(/is-flag-out-of-focus/);
+    await expect(germanyChip).toHaveClass(/is-flag-out-of-focus/);
     await expect(austriaChip).toHaveClass(/is-flag-focused/);
     await expect(austriaChip).not.toHaveClass(/is-flag-out-of-focus/);
 
@@ -1544,6 +1551,23 @@ test.describe("map country path — desktop click", () => {
     await expect(
       page.locator("#mapSvg .country-label").filter({ hasText: "Liechtenstein" }).first(),
     ).toBeVisible();
+  });
+
+  test("clicking a country also highlights its map flag", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator("#mapFlagsButton").click();
+    await page.locator('#mapSvg [data-country="250"]').click();
+
+    await expect
+      .poll(async () => (await getCanvasFlagHitbox(page, "250")).isFocused)
+      .toBe(true);
+    await page.mouse.move(1, 1);
+    const franceFlag = await waitForCanvasFlagVariant(page, "250", "selected");
+    expect(franceFlag.isFocused).toBe(true);
+    expect(franceFlag.isInFocusScope).toBe(false);
+    await expect(page.locator('.country-chip[data-country="250"]')).toHaveClass(/is-flag-focused/);
   });
 
   test("clicking a country on the map shows its info card", async ({ page }) => {

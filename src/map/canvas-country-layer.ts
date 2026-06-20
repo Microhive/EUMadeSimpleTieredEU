@@ -19,6 +19,8 @@ interface CanvasCountryLayerDrawOptions extends CanvasCountryLayerSize {
   features: any[];
   transform: any;
   selectedIds: ReadonlySet<string>;
+  focusScopeIds: ReadonlySet<string>;
+  hasActiveFocusIds: boolean;
 }
 
 const BASE_FILL = "#bfd0df";
@@ -67,6 +69,8 @@ export function createCanvasCountryLayer({
     features,
     transform,
     selectedIds,
+    focusScopeIds,
+    hasActiveFocusIds,
     width,
     height,
   }: CanvasCountryLayerDrawOptions): void => {
@@ -80,29 +84,39 @@ export function createCanvasCountryLayer({
     context.scale(dpr, dpr);
     context.translate(transform.x, transform.y);
     context.scale(transform.k, transform.k);
-    drawCountries(features, selectedIds, transform.k);
+    drawCountries(features, selectedIds, focusScopeIds, hasActiveFocusIds, transform.k);
     context.restore();
 
     canvas.dataset.renderRevision = String(++renderRevision);
     canvas.dataset.renderTransform = `${transform.x}|${transform.y}|${transform.k}`;
+    canvas.dataset.focusScopeCount = String(focusScopeIds.size);
+    canvas.dataset.hasActiveFocusIds = String(hasActiveFocusIds);
   };
 
   const drawCountries = (
     features: any[],
     selectedIds: ReadonlySet<string>,
+    focusScopeIds: ReadonlySet<string>,
+    hasActiveFocusIds: boolean,
     scale: number,
   ): void => {
     if (!context || !canvasPath) return;
 
     const hasSelection = selectedIds.size > 0;
+    const hasActiveFocusScope = hasActiveFocusIds && focusScopeIds.size > 0;
     const strokeScale = Math.max(scale, 0.001);
     context.lineJoin = "round";
 
     for (const feature of features) {
       const key = keyForFeature(feature);
-      const isSelected = selectedIds.has(key);
-      context.globalAlpha = hasSelection && !isSelected ? MUTED_ALPHA : 1;
-      context.fillStyle = fillForFeature(feature);
+      const isInActiveFocusScope = hasActiveFocusScope && focusScopeIds.has(key);
+      const isOutOfActiveFocusScope = hasActiveFocusScope && !focusScopeIds.has(key);
+      const isSelected = selectedIds.has(key) && !isOutOfActiveFocusScope;
+      const isMuted =
+        isOutOfActiveFocusScope ||
+        (hasSelection && !isSelected && !isInActiveFocusScope);
+      context.globalAlpha = isMuted ? MUTED_ALPHA : 1;
+      context.fillStyle = isOutOfActiveFocusScope ? BASE_FILL : fillForFeature(feature);
       context.strokeStyle = isSelected ? HIGHLIGHT_STROKE : BASE_STROKE;
       context.lineWidth =
         (isSelected ? HIGHLIGHT_STROKE_WIDTH : BASE_STROKE_WIDTH) / strokeScale;

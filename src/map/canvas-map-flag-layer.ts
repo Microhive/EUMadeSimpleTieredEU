@@ -82,6 +82,7 @@ export function createCanvasMapFlagLayer({
   let hoveredId: string | null = null;
   let draggingId: string | null = null;
   let hasActiveFocusScope = false;
+  let hasActiveFocusIds = false;
   let clearTimer: ReturnType<typeof window.setTimeout> | null = null;
 
   const setEnabled = (nextEnabled: boolean): void => {
@@ -99,6 +100,8 @@ export function createCanvasMapFlagLayer({
     if (!enabled) {
       hoveredId = null;
       draggingId = null;
+      hasActiveFocusIds = false;
+      hasActiveFocusScope = false;
       mapWrap.classList.remove("has-map-flag-hover");
       scheduleCanvasClear();
     }
@@ -143,6 +146,7 @@ export function createCanvasMapFlagLayer({
   };
 
   const syncFocus = (focusedIds: ReadonlySet<string>, focusScopeIds: ReadonlySet<string>): void => {
+    hasActiveFocusIds = focusedIds.size > 0;
     hasActiveFocusScope = focusScopeIds.size > 0;
     items.forEach((item) => {
       item.isFocused = focusedIds.has(item.id);
@@ -300,6 +304,7 @@ export function createCanvasMapFlagLayer({
     if (draggingId === item.id) return "muted";
     if (item.isFocused) return "selected";
     if (hasActiveFocusScope && !item.isInFocusScope) {
+      if (hasActiveFocusIds) return "muted";
       return item.inTierList ? "dimmed" : "muted";
     }
     return item.inTierList ? "normal" : "muted";

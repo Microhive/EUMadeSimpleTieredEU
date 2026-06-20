@@ -645,13 +645,43 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     const cached = geometryCache.get(key);
     if (cached) return cached;
 
-    const centroid: [number, number] = path.centroid(feature);
+    const centroid: [number, number] = anchorFeatureCentroid(feature);
     if (!centroid || centroid.some(Number.isNaN)) return null;
 
     const bounds = path.bounds(feature);
     const layout: GeometryLayout = { bounds, centroid };
     geometryCache.set(key, layout);
     return layout;
+  }
+
+  function anchorFeatureCentroid(feature: any): [number, number] {
+    return path.centroid(largestPolygonFeature(feature) ?? feature);
+  }
+
+  function largestPolygonFeature(feature: any): any | null {
+    const geometry = feature?.geometry;
+    if (!geometry || geometry.type !== "MultiPolygon") return null;
+
+    let largestFeature: any | null = null;
+    let largestArea = -Infinity;
+
+    geometry.coordinates.forEach((coordinates: number[][][]) => {
+      const polygonFeature = {
+        ...feature,
+        geometry: {
+          ...geometry,
+          type: "Polygon",
+          coordinates,
+        },
+      };
+      const area = path.area(polygonFeature);
+      if (Number.isFinite(area) && area > largestArea) {
+        largestArea = area;
+        largestFeature = polygonFeature;
+      }
+    });
+
+    return largestFeature;
   }
 
   function setEditMode(nextEditMode: boolean): void {
@@ -1237,6 +1267,8 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       features: state.visualFeatures,
       transform,
       selectedIds: state.selectedIds,
+      focusScopeIds: state.flagFocusScopeIds,
+      hasActiveFocusIds: state.flagFocusIds.size > 0,
       width,
       height,
     });
@@ -1319,6 +1351,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     state.activeTier = activeTierForScene() ?? tierArrangement.directTierForCountry(canonicalId) ?? null;
     state.selectedIds = selectedCountrySet(countryIdsFor(canonicalId));
     state.userTouched = true;
+    setActiveCountryFlagFocus(canonicalId);
     updateHighlights();
     renderCountryCardForCountry(meta);
     drawConnections();
@@ -1398,18 +1431,23 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     setFlagFocusIds(selectedCountrySet(countryIdsFor(countryId)), scopeIds);
   }
 
+  function setActiveCountryFlagFocus(countryId: string): void {
+    setFlagFocusIds(selectedCountrySet(countryIdsFor(countryId)), new Set());
+  }
+
   function clearFlagFocus(): void {
     if (state.flagFocusIds.size === 0 && state.flagFocusScopeIds.size === 0) return;
     setFlagFocusIds(new Set());
   }
 
   function flagFocusScopeForElement(element: Element): Set<string> {
+    const countryId = (element as HTMLElement).dataset.country;
+    if (countryId) return selectedCountrySet(countryIdsFor(countryId));
     const card = element.closest<HTMLElement>(".tier-card");
     if (card?.dataset.tier) return flagFocusIdsForTier(card.dataset.tier as TierId);
     const sceneButton = element.closest<HTMLButtonElement>("[data-scene]");
     if (sceneButton?.dataset.scene) return flagFocusIdsForScene(sceneButton.dataset.scene as SceneKey);
-    const countryId = (element as HTMLElement).dataset.country;
-    return countryId ? selectedCountrySet(countryIdsFor(countryId)) : new Set();
+    return new Set();
   }
 
   function restoreFlagFocusFromElement(element: Element | null): void {
@@ -1430,7 +1468,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   function restoreSelectedTierFlagScope(): void {
     if (state.activeCountry) {
-      clearFlagFocus();
+      setActiveCountryFlagFocus(state.activeCountry);
       return;
     }
 
@@ -1512,19 +1550,14 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       );
     });
     mapFlags.syncFocus(state.flagFocusIds, state.flagFocusScopeIds);
-    drawCountryOutlines();
-    queueMapFlagRender();
+    queueMapVisualRender(currentZoomTransform(), { updateLabels: false });
   }
 
   function drawCountryOutlines(): void {
     if (!hoverLayer) return;
 
     const featuresByKey = new Map<string, any>();
-    [
-      state.activeCountry,
-      state.hoveredCountry,
-      ...(state.activeCountry ? [] : state.flagFocusIds),
-    ].forEach((countryId) => {
+    [state.activeCountry, state.hoveredCountry].forEach((countryId) => {
       if (!countryId) return;
       countryIdsFor(countryId)
         .map((id) => visualFeatureForCountry(id) ?? state.featureByKey.get(id))

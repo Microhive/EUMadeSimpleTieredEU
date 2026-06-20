@@ -1102,7 +1102,8 @@ button.country-chip {
 
 .country-chip.is-flag-out-of-focus:not(.is-dragging) {
   opacity: 0.38;
-  filter: saturate(0.62) contrast(0.88);
+  box-shadow: none;
+  filter: grayscale(1) saturate(0) contrast(0.84) brightness(0.94);
 }
 
 .country-chip:hover:not(.is-dragging),
