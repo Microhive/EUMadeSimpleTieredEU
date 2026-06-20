@@ -1166,6 +1166,44 @@ test.describe("map rendering — desktop", () => {
   });
 });
 
+test.describe("map rendering — tablet", () => {
+  test.use({ ...desktop, viewport: { width: 868, height: 650 } });
+
+  test("keeps the SVG and canvas layers aligned with the tablet map frame", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const layout = await page.locator(".map-wrap").evaluate((wrap: HTMLElement) => {
+      const boxFor = (selector: string) => {
+        const element = wrap.querySelector<HTMLElement>(selector);
+        if (!element) throw new Error(`Missing ${selector}`);
+        const box = element.getBoundingClientRect();
+        return { width: box.width, height: box.height };
+      };
+
+      const mapBox = wrap.getBoundingClientRect();
+      return {
+        map: {
+          width: mapBox.width,
+          height: mapBox.height,
+          clientWidth: wrap.clientWidth,
+          clientHeight: wrap.clientHeight,
+        },
+        svg: boxFor("#mapSvg"),
+        canvas: boxFor(".map-canvas"),
+        flagCanvas: boxFor(".map-flag-canvas"),
+      };
+    });
+
+    expect(layout.map.height).toBeLessThan(700);
+    expect(Math.abs(layout.svg.height - layout.map.clientHeight)).toBeLessThan(2);
+    expect(Math.abs(layout.canvas.height - layout.map.clientHeight)).toBeLessThan(2);
+    expect(Math.abs(layout.flagCanvas.height - layout.map.clientHeight)).toBeLessThan(2);
+  });
+});
+
 test.describe("tier editing drag — desktop", () => {
   test.use({ ...desktop, viewport: { width: 1280, height: 900 } });
 

@@ -2269,6 +2269,12 @@ img.chip-flag {
     max-height: 75vh;
   }
 
+  #mapSvg,
+  .map-canvas,
+  .map-flag-canvas {
+    min-height: 0;
+  }
+
   .country-card {
     position: relative;
     right: auto;
