@@ -566,12 +566,25 @@ test.describe("country chip — desktop click", () => {
     await waitForMap(page);
 
     const chip = page.locator('.country-chip[data-country="276"]');
+    const germany = page.locator('#mapSvg [data-country="276"]');
+    const austria = page.locator('#mapSvg [data-country="040"]');
     await chip.hover();
 
     await expect(chip).toHaveClass(/is-flag-focused/);
     await expect
       .poll(() => chip.evaluate((element) => getComputedStyle(element).boxShadow))
       .toContain("rgb(240, 184, 0)");
+    await expect(germany).not.toHaveClass(/is-selected/);
+    await expect(austria).toHaveClass(/is-highlight/);
+    await expect(page.locator("#countryCard")).toBeHidden();
+
+    await page.locator("#mapSvg").hover({ position: { x: 320, y: 240 } });
+    await page.waitForTimeout(80);
+
+    await expect(chip).not.toHaveClass(/is-flag-focused/);
+    await expect(germany).not.toHaveClass(/is-selected/);
+    await expect(austria).toHaveClass(/is-highlight/);
+    await expect(page.locator("#countryCard")).toBeHidden();
   });
 
   test("microstate chips appear in tier 3 with relationship context", async ({ page }) => {
@@ -1530,6 +1543,27 @@ test.describe("map country path — desktop click", () => {
     await expect(page.locator("#countryCard h2")).toContainText("Germany", {
       ignoreCase: true,
     });
+    await expect(page.locator("#countryCard")).toContainText("Current EU status");
+    await expect(page.locator("#countryCard")).toContainText(
+      "Current EU status and the proposed scenario tier are presented separately."
+    );
+    await expect(page.locator("#countryCard .country-context-primary-link")).toHaveText(
+      "View Germany's official EU profile"
+    );
+    await expect(page.locator("#countryCard .country-context-primary-link")).toHaveAttribute(
+      "href",
+      "https://european-union.europa.eu/principles-countries-history/eu-countries/germany_en"
+    );
+    await expect(page.locator("#countryCard .country-context-more summary")).toContainText(
+      "More official sources"
+    );
+    await expect(page.locator("#countryCard .country-context-links-secondary a").first())
+      .toHaveAttribute("href", "https://single-market-scoreboard.ec.europa.eu/countries/germany_en");
+    await expect(page.locator("#countryCard .country-context-links-secondary a").nth(1))
+      .toHaveAttribute(
+        "href",
+        "https://reforms-investments.ec.europa.eu/european-semester-your-country/european-semester-documents-germany_en"
+      );
     await expect(germany).toHaveClass(/is-selected/);
     await expect(outlinedCountries).toHaveCount(1);
     await expect(outlinedCountries.first()).toHaveAttribute("data-country-outline", "276");

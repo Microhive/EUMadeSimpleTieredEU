@@ -884,7 +884,6 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       const chip = target.closest<HTMLButtonElement>("[data-country]");
       if (chip?.dataset.country) {
         focusFlagForCountry(chip.dataset.country, flagFocusScopeForElement(chip));
-        activateCountry(chip.dataset.country, false);
         return;
       }
 
@@ -905,7 +904,6 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       const chip = target.closest<HTMLButtonElement>("[data-country]");
       if (chip?.dataset.country) {
         focusFlagForCountry(chip.dataset.country, flagFocusScopeForElement(chip));
-        activateCountry(chip.dataset.country, false);
         return;
       }
 

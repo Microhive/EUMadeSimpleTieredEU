@@ -17,6 +17,12 @@ const TRADE_INDEX_URL =
   "https://policy.trade.ec.europa.eu/eu-trade-relationships-country-and-region/countries-and-regions_en";
 const TRADE_COUNTRIES_BASE_URL =
   "https://policy.trade.ec.europa.eu/eu-trade-relationships-country-and-region/countries-and-regions";
+const EU_COUNTRIES_BASE_URL =
+  "https://european-union.europa.eu/principles-countries-history/eu-countries";
+const SINGLE_MARKET_SCOREBOARD_BASE_URL =
+  "https://single-market-scoreboard.ec.europa.eu/countries";
+const EUROPEAN_SEMESTER_BASE_URL =
+  "https://reforms-investments.ec.europa.eu/european-semester-your-country";
 const GREENLAND_PARTNERSHIP_URL =
   "https://international-partnerships.ec.europa.eu/countries/greenland_en";
 
@@ -106,6 +112,30 @@ const GREENLAND_LINK: CountryContextLink = {
   label: "Read European Commission Greenland partnership page",
   href: GREENLAND_PARTNERSHIP_URL,
 };
+
+const countrySlug = (countryName: string): string =>
+  countryName
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+const euCountryProfile = (countryName: string): CountryContextLink => ({
+  label: `View ${countryName}'s official EU profile`,
+  href: `${EU_COUNTRIES_BASE_URL}/${countrySlug(countryName)}_en`,
+});
+
+const singleMarketProfile = (countryName: string): CountryContextLink => ({
+  label: "See Single Market performance",
+  href: `${SINGLE_MARKET_SCOREBOARD_BASE_URL}/${countrySlug(countryName)}_en`,
+});
+
+const semesterProfile = (countryName: string): CountryContextLink => ({
+  label: "Read the latest European Semester assessment",
+  href: `${EUROPEAN_SEMESTER_BASE_URL}/european-semester-documents-${countrySlug(countryName)}_en`,
+});
 
 const MICROSTATE_CONTEXT_BY_ID: Record<string, Omit<CountryContextInfo, "links">> = {
   "020": {
@@ -215,14 +245,18 @@ export function countryContextFor(
 
   if (tier?.id === "inner" || tier?.id === "eu") {
     return {
-      label: "Full EU member state",
+      label: "Current EU status",
       summary:
-        `${meta.name} is inside the EU layer, so its trade policy is handled through the EU's common commercial policy rather than through a separate external-trade relationship.`,
+        `${meta.name} is a full member of the European Union. Its official EU profile covers accession, euro and Schengen status, political system, economy, representation in EU institutions, and EU funding.`,
       detail:
-        "The Commission country/region trade index focuses on external partners, candidate regions, and non-EU relationships. EU member states are best understood here through the tier's institutional rights and obligations.",
-      links: [TRADE_INDEX_LINK],
+        `The information above describes ${meta.name}'s position today. Its placement in the ${tier.title} tier is part of this site's proposed tiered-Europe scenario.`,
+      links: [
+        euCountryProfile(meta.name),
+        singleMarketProfile(meta.name),
+        semesterProfile(meta.name),
+      ],
       sourceNote:
-        "No standalone DG Trade country article is listed for EU member states on the external trade country/region index.",
+        "Current EU status and the proposed scenario tier are presented separately.",
     };
   }
 

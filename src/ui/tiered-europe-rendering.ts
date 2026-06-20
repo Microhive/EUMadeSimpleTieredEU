@@ -161,12 +161,20 @@ function renderCountryTierPill(tier: Tier | null): string {
 }
 
 function renderCountryContext(context: CountryContextInfo): string {
-  const links = context.links
-    .map(
-      (link) =>
-        `<a href="${escapeAttribute(link.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label)}</a>`,
-    )
-    .join("");
+  const [primaryLink, ...secondaryLinks] = context.links;
+  const primaryLinkMarkup = primaryLink
+    ? `<div class="country-context-links country-context-links-primary">
+        ${renderCountryContextLink(primaryLink, "country-context-primary-link")}
+      </div>`
+    : "";
+  const secondaryLinksMarkup = secondaryLinks.length
+    ? `<details class="country-context-more">
+        <summary>More official sources</summary>
+        <div class="country-context-links country-context-links-secondary">
+          ${secondaryLinks.map((link) => renderCountryContextLink(link)).join("")}
+        </div>
+      </details>`
+    : "";
 
   return `
     <details class="country-context">
@@ -176,10 +184,16 @@ function renderCountryContext(context: CountryContextInfo): string {
         <p>${escapeHtml(context.summary)}</p>
         <p>${escapeHtml(context.detail)}</p>
         ${context.sourceNote ? `<p class="country-context-note">${escapeHtml(context.sourceNote)}</p>` : ""}
-        <div class="country-context-links">${links}</div>
+        ${primaryLinkMarkup}
+        ${secondaryLinksMarkup}
       </div>
     </details>
   `;
+}
+
+function renderCountryContextLink(link: { label: string; href: string }, className = ""): string {
+  const classAttribute = className ? ` class="${escapeAttribute(className)}"` : "";
+  return `<a${classAttribute} href="${escapeAttribute(link.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label)}</a>`;
 }
 
 function scenarioLine(meta: CountryCardMeta, tier: Tier | null): string {

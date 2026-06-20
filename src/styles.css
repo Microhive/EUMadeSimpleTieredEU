@@ -1736,6 +1736,10 @@ img.chip-flag {
   gap: 7px;
 }
 
+.country-context-links-primary {
+  margin-top: 2px;
+}
+
 .country-context-links a {
   display: inline-flex;
   align-items: center;
@@ -1749,6 +1753,29 @@ img.chip-flag {
   border: 2px solid rgba(8, 11, 15, 0.8);
   border-radius: 999px;
   box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.58);
+}
+
+.country-context-links a.country-context-primary-link {
+  background: var(--gold);
+}
+
+.country-context-more {
+  display: grid;
+  gap: 6px;
+  padding-top: 2px;
+}
+
+.country-context-more summary {
+  width: fit-content;
+  padding: 4px 0 1px;
+  color: rgba(8, 11, 15, 0.72);
+  font-size: 0.68rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.country-context-links-secondary a {
+  background: rgba(255, 248, 238, 0.92);
 }
 
 .country-context-links a:hover,
