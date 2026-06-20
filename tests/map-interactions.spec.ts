@@ -206,7 +206,7 @@ type CanvasFlagHitbox = {
   inTierList: boolean;
   isFocused: boolean;
   isInFocusScope: boolean;
-  variant: "normal" | "muted" | "selected" | "hovered";
+  variant: "normal" | "dimmed" | "muted" | "selected" | "hovered";
 };
 
 async function getCanvasFlagHitbox(
@@ -422,17 +422,17 @@ test.describe("first paint content", () => {
 test.describe("scene tab — desktop click", () => {
   test.use(desktop);
 
-  test("clicking the EU tab marks it active and updates the country card", async ({
+  test("clicking a desktop tier tab marks it active without covering the map", async ({
     page,
   }) => {
     await page.goto("/");
     await waitForMap(page);
 
-    const tab = page.locator('[data-scene="eu"]');
+    const tab = page.locator('[data-scene="friends"]');
     await tab.click();
 
     await expect(tab).toHaveClass(/is-active/);
-    await expect(page.locator("#countryCard")).toContainText("European Union");
+    await expect(page.locator("#countryCard")).toBeHidden();
   });
 
   test("hovering another scene tab previews it without changing the selected tab", async ({
@@ -466,13 +466,13 @@ test.describe("scene tab — desktop click", () => {
     await expect(countryCard).toBeHidden();
   });
 
-  test("hovering scene tabs preserves an active raised country", async ({ page }) => {
+  test("hovering scene tabs preserves an active outlined country", async ({ page }) => {
     await page.goto("/");
     await waitForMap(page);
 
     const germany = page.locator('#mapSvg [data-country="276"]');
     const communityTab = page.locator('[data-scene="friends"]');
-    const liftedCountries = page.locator("#mapSvg .hover-layer .country-hover-lift");
+    const outlinedCountries = page.locator("#mapSvg .hover-layer .country-outline");
 
     await germany.click();
     await page.waitForTimeout(750);
@@ -481,7 +481,7 @@ test.describe("scene tab — desktop click", () => {
       ignoreCase: true,
     });
     await expect(germany).toHaveClass(/is-selected/);
-    await expect(liftedCountries).toHaveCount(1);
+    await expect(outlinedCountries).toHaveCount(1);
 
     await communityTab.hover();
 
@@ -489,7 +489,7 @@ test.describe("scene tab — desktop click", () => {
       ignoreCase: true,
     });
     await expect(germany).toHaveClass(/is-selected/);
-    await expect(liftedCountries).toHaveCount(1);
+    await expect(outlinedCountries).toHaveCount(1);
 
     await page.mouse.move(1, 1);
     await page.waitForTimeout(80);
@@ -498,7 +498,7 @@ test.describe("scene tab — desktop click", () => {
       ignoreCase: true,
     });
     await expect(germany).toHaveClass(/is-selected/);
-    await expect(liftedCountries).toHaveCount(1);
+    await expect(outlinedCountries).toHaveCount(1);
   });
 });
 
@@ -805,7 +805,7 @@ test.describe("map rendering — desktop", () => {
     await page.goto("/");
     await waitForMap(page);
 
-    await page.locator('[data-scene="eu"]').click();
+    await page.locator('#mapSvg [data-country="276"]').click();
     await expect(page.locator("#countryCard")).toBeVisible();
     await expect(page.locator("body")).toHaveClass(/has-map-sources-docked/);
 
@@ -921,7 +921,85 @@ test.describe("map rendering — desktop", () => {
     expect(stats.height).toBeGreaterThan(0);
     expect(stats.paintedSamples).toBeGreaterThan(100);
 
+    await expect(page.locator("#mapSvg .graticule")).toHaveCount(0);
     await expect(page.locator('#mapSvg [data-country="112"]')).toHaveCSS("opacity", "0");
+  });
+
+  test("fits the flat world map without wrapping Russia beside North America", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const layout = await page.locator("#mapSvg").evaluate((svg: SVGSVGElement) => {
+      const viewBox = svg.viewBox.baseVal;
+      const countryPaths = [...svg.querySelectorAll<SVGGraphicsElement>(".country-layer [data-country]")];
+      const tolerance = 2;
+      const outOfBounds = countryPaths
+        .filter((path) => path.getAttribute("data-country") !== "010")
+        .map((path) => {
+          const box = path.getBBox();
+          return {
+            id: path.getAttribute("data-country") ?? "",
+            x: box.x,
+            y: box.y,
+            right: box.x + box.width,
+            bottom: box.y + box.height,
+          };
+        })
+        .filter((box) => (
+          box.x < -tolerance ||
+          box.y < -tolerance ||
+          box.right > viewBox.width + tolerance ||
+          box.bottom > viewBox.height + tolerance
+        ));
+
+      const russia = svg.querySelector<SVGGraphicsElement>('.country-layer [data-country="643"]');
+      const russiaBox = russia?.getBBox();
+
+      return {
+        width: viewBox.width,
+        russiaX: russiaBox?.x ?? 0,
+        outOfBounds: outOfBounds.slice(0, 8),
+      };
+    });
+
+    expect(layout.outOfBounds).toEqual([]);
+    expect(layout.russiaX).toBeGreaterThan(layout.width * 0.35);
+
+    await page.locator('[data-scene="friends"]').click();
+    await page.waitForTimeout(950);
+
+    const communityLayout = await page.locator("#mapSvg").evaluate((svg: SVGSVGElement) => {
+      const svgBox = svg.getBoundingClientRect();
+      const transform = (window as any).d3.zoomTransform(svg);
+      const tolerance = 2;
+      const outOfBounds = [...svg.querySelectorAll<SVGGraphicsElement>(".country-layer [data-country]")]
+        .filter((path) => path.getAttribute("data-country") !== "010")
+        .map((path) => {
+          const box = path.getBoundingClientRect();
+          return {
+            id: path.getAttribute("data-country") ?? "",
+            left: box.left,
+            top: box.top,
+            right: box.right,
+            bottom: box.bottom,
+          };
+        })
+        .filter((box) => (
+          box.left < svgBox.left - tolerance ||
+          box.top < svgBox.top - tolerance ||
+          box.right > svgBox.right + tolerance ||
+          box.bottom > svgBox.bottom + tolerance
+        ));
+
+      return {
+        k: transform.k,
+        outOfBounds: outOfBounds.slice(0, 8),
+      };
+    });
+
+    expect(communityLayout.k).toBeCloseTo(1, 4);
+    expect(communityLayout.outOfBounds).toEqual([]);
+    await expect(page.locator("#countryCard")).toBeHidden();
   });
 
   test("places Belgium in the European Union tier by default", async ({ page }) => {
@@ -939,7 +1017,7 @@ test.describe("map rendering — desktop", () => {
     await waitForMap(page);
 
     const faroeIslands = page.locator('#mapSvg [data-country="234"]');
-    const liftedCountries = page.locator("#mapSvg .hover-layer .country-hover-lift");
+    const outlinedCountries = page.locator("#mapSvg .hover-layer .country-outline");
 
     await expect(faroeIslands).toHaveCount(1);
     await expect(faroeIslands).toHaveAttribute("data-quality", "high");
@@ -947,8 +1025,8 @@ test.describe("map rendering — desktop", () => {
     await faroeIslands.dispatchEvent("mouseenter");
 
     await expect(faroeIslands).toHaveClass(/is-hovered/);
-    await expect(faroeIslands).toHaveClass(/is-lift-source/);
-    await expect(liftedCountries).toHaveCount(1);
+    await expect(outlinedCountries).toHaveCount(1);
+    await expect(outlinedCountries.first()).toHaveAttribute("data-country-outline", "234");
   });
 });
 
@@ -1170,13 +1248,13 @@ test.describe("country chip — mobile tap", () => {
 test.describe("map country path — desktop click", () => {
   test.use(desktop);
 
-  test("country hover lifts the country without clearing the selected tier", async ({ page }) => {
+  test("country hover outlines the country without clearing the selected tier", async ({ page }) => {
     await page.goto("/");
     await waitForMap(page);
 
     const germany = page.locator('#mapSvg [data-country="276"]');
     const austria = page.locator('#mapSvg [data-country="040"]');
-    const hoverLift = page.locator("#mapSvg .hover-layer .country-hover-lift");
+    const countryOutline = page.locator("#mapSvg .hover-layer .country-outline");
     const countryCard = page.locator("#countryCard");
 
     await expect(austria).toHaveClass(/is-highlight/);
@@ -1186,8 +1264,19 @@ test.describe("map country path — desktop click", () => {
 
     await expect(germany).toHaveClass(/is-highlight/);
     await expect(germany).toHaveClass(/is-hovered/);
-    await expect(germany).toHaveClass(/is-lift-source/);
-    await expect(hoverLift).toHaveCount(1);
+    await expect(countryOutline).toHaveCount(1);
+    await expect(countryOutline.first()).toHaveAttribute("data-country-outline", "276");
+    await expect
+      .poll(() =>
+        countryOutline.first().evaluate((element) => {
+          const style = getComputedStyle(element);
+          return {
+            stroke: style.stroke,
+            strokeWidth: style.strokeWidth,
+          };
+        })
+      )
+      .toEqual({ stroke: "rgb(240, 184, 0)", strokeWidth: "4.8px" });
     await expect(austria).toHaveClass(/is-highlight/);
     await expect(austria).not.toHaveClass(/is-muted/);
     await expect(countryCard).toBeHidden();
@@ -1196,8 +1285,7 @@ test.describe("map country path — desktop click", () => {
     await page.waitForTimeout(80);
 
     await expect(germany).not.toHaveClass(/is-hovered/);
-    await expect(germany).not.toHaveClass(/is-lift-source/);
-    await expect(hoverLift).toHaveCount(0);
+    await expect(countryOutline).toHaveCount(0);
     await expect(austria).toHaveClass(/is-highlight/);
     await expect(countryCard).toBeHidden();
   });
@@ -1280,18 +1368,23 @@ test.describe("map country path — desktop click", () => {
 
     const germanyFlag = await getCanvasFlagHitbox(page, "276");
     const austriaFlag = await getCanvasFlagHitbox(page, "040");
+    const ukFlag = await getCanvasFlagHitbox(page, "826");
     const belarusFlag = await getCanvasFlagHitbox(page, "112");
     expect(germanyFlag.inTierList).toBe(true);
     expect(austriaFlag.inTierList).toBe(true);
+    expect(ukFlag.inTierList).toBe(true);
     expect(belarusFlag.inTierList).toBe(false);
     expect(germanyFlag.isFocused).toBe(false);
     expect(austriaFlag.isFocused).toBe(false);
+    expect(ukFlag.isFocused).toBe(false);
     expect(belarusFlag.isFocused).toBe(false);
-    expect(germanyFlag.isInFocusScope).toBe(false);
-    expect(austriaFlag.isInFocusScope).toBe(false);
+    expect(germanyFlag.isInFocusScope).toBe(true);
+    expect(austriaFlag.isInFocusScope).toBe(true);
+    expect(ukFlag.isInFocusScope).toBe(false);
     expect(belarusFlag.isInFocusScope).toBe(false);
     expect(germanyFlag.variant).toBe("normal");
     expect(austriaFlag.variant).toBe("normal");
+    expect(ukFlag.variant).toBe("dimmed");
     expect(belarusFlag.variant).toBe("muted");
 
     await page.locator('[data-scene="inner"]').hover();
@@ -1300,7 +1393,7 @@ test.describe("map country path — desktop click", () => {
     await expect(austriaChip).not.toHaveClass(/is-flag-focused/);
     await expect(austriaChip).toHaveClass(/is-flag-out-of-focus/);
     await waitForCanvasFlagVariant(page, "276", "selected");
-    await waitForCanvasFlagVariant(page, "040", "muted");
+    await waitForCanvasFlagVariant(page, "040", "dimmed");
 
     await page.locator('[data-scene="eu"]').hover();
     await expect(germanyChip).toHaveClass(/is-flag-focused/);
@@ -1324,7 +1417,7 @@ test.describe("map country path — desktop click", () => {
     await expect(austriaChip).not.toHaveClass(/is-flag-focused/);
     await expect(austriaChip).toHaveClass(/is-flag-out-of-focus/);
     await waitForCanvasFlagVariant(page, "276", "selected");
-    await waitForCanvasFlagVariant(page, "040", "muted");
+    await waitForCanvasFlagVariant(page, "040", "dimmed");
 
     await page.locator('.tier-card[data-tier="eu"]').hover();
     await waitForCanvasFlagVariant(page, "276", "selected");
@@ -1410,8 +1503,9 @@ test.describe("map country path — desktop click", () => {
     await waitForCanvasFlagVariant(page, "438", "hovered");
 
     const liechtenstein = page.locator('#mapSvg [data-country="438"]');
+    const countryOutline = page.locator('#mapSvg .hover-layer .country-outline[data-country-outline="438"]');
     await expect(liechtenstein).toHaveClass(/is-hovered/);
-    await expect(liechtenstein).toHaveClass(/is-lift-source/);
+    await expect(countryOutline).toHaveCount(1);
 
     if (hoverPoint.underlyingCountry) {
       await expect(page.locator(`#mapSvg [data-country="${hoverPoint.underlyingCountry}"]`))
@@ -1429,7 +1523,7 @@ test.describe("map country path — desktop click", () => {
 
     const germany = page.locator('#mapSvg [data-country="276"]');
     const austria = page.locator('#mapSvg [data-country="040"]');
-    const liftedCountries = page.locator("#mapSvg .hover-layer .country-hover-lift");
+    const outlinedCountries = page.locator("#mapSvg .hover-layer .country-outline");
 
     await germany.click();
 
@@ -1437,11 +1531,11 @@ test.describe("map country path — desktop click", () => {
       ignoreCase: true,
     });
     await expect(germany).toHaveClass(/is-selected/);
-    await expect(germany).toHaveClass(/is-lift-source/);
-    await expect(liftedCountries).toHaveCount(1);
+    await expect(outlinedCountries).toHaveCount(1);
+    await expect(outlinedCountries.first()).toHaveAttribute("data-country-outline", "276");
     await expect
       .poll(() =>
-        liftedCountries
+        outlinedCountries
           .first()
           .evaluate((element) =>
             getComputedStyle(element).getPropertyValue("shape-rendering").toLowerCase()
@@ -1453,17 +1547,14 @@ test.describe("map country path — desktop click", () => {
     await austria.hover();
 
     await expect(austria).toHaveClass(/is-hovered/);
-    await expect(austria).toHaveClass(/is-lift-source/);
-    await expect(germany).toHaveClass(/is-lift-source/);
-    await expect(liftedCountries).toHaveCount(2);
+    await expect(outlinedCountries).toHaveCount(2);
 
     await page.mouse.move(1, 1);
     await page.waitForTimeout(80);
 
     await expect(austria).not.toHaveClass(/is-hovered/);
-    await expect(austria).not.toHaveClass(/is-lift-source/);
-    await expect(germany).toHaveClass(/is-lift-source/);
-    await expect(liftedCountries).toHaveCount(1);
+    await expect(outlinedCountries).toHaveCount(1);
+    await expect(outlinedCountries.first()).toHaveAttribute("data-country-outline", "276");
   });
 
   test("clicking an untiered country on the map shows EU relationship info", async ({ page }) => {
@@ -1494,7 +1585,7 @@ test.describe("map country path — mobile tap", () => {
 
     const germany = page.locator('#mapSvg [data-country="276"]');
     const austria = page.locator('#mapSvg [data-country="040"]');
-    const liftedCountries = page.locator("#mapSvg .hover-layer .country-hover-lift");
+    const outlinedCountries = page.locator("#mapSvg .hover-layer .country-outline");
 
     await germany.tap();
 
@@ -1502,13 +1593,14 @@ test.describe("map country path — mobile tap", () => {
       ignoreCase: true,
     });
     await expect(austria).toHaveClass(/is-muted/);
-    await expect(liftedCountries).toHaveCount(1);
+    await expect(outlinedCountries).toHaveCount(1);
+    await expect(outlinedCountries.first()).toHaveAttribute("data-country-outline", "276");
 
     await germany.tap();
 
     await expect(page.locator("#countryCard h2")).toContainText("European Union");
     await expect(austria).toHaveClass(/is-highlight/);
-    await expect(liftedCountries).toHaveCount(0);
+    await expect(outlinedCountries).toHaveCount(0);
   });
 
   test("tapping a country on the map shows its info card", async ({ page }) => {
@@ -1516,14 +1608,15 @@ test.describe("map country path — mobile tap", () => {
     await waitForMap(page);
 
     const germany = page.locator('#mapSvg [data-country="276"]');
-    const liftedCountries = page.locator("#mapSvg .hover-layer .country-hover-lift");
+    const outlinedCountries = page.locator("#mapSvg .hover-layer .country-outline");
 
     await germany.tap();
 
     await expect(page.locator("#countryCard h2")).toContainText("Germany", {
       ignoreCase: true,
     });
-    await expect(liftedCountries).toHaveCount(1);
+    await expect(outlinedCountries).toHaveCount(1);
+    await expect(outlinedCountries.first()).toHaveAttribute("data-country-outline", "276");
   });
 
   test("tapping an untiered country on mobile shows reachable EU relationship info", async ({ page }) => {

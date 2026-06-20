@@ -36,7 +36,7 @@ This is an editorial scenario, not an official EU proposal. Source anchors: [EU 
 
 ### Interactive map
 
-- D3 Natural Earth projection with pan, mouse-wheel zoom, and two-finger pinch zoom on mobile.
+- D3 non-wrapping Mercator projection with pan, mouse-wheel zoom, and two-finger pinch zoom on mobile.
 - Scene buttons focus the map on Inner, EU, Associate, Community + Friends, or the wider world.
 - Countries highlight by tier, hover state, active country, and active scene.
 - Country labels adapt to zoom level so they stay readable when zoomed in and less crowded when zoomed out.

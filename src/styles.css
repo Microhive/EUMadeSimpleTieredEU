@@ -1496,13 +1496,6 @@ img.chip-flag {
   opacity: 0.42;
 }
 
-.graticule {
-  fill: none;
-  stroke: rgba(255, 248, 238, 0.13);
-  stroke-width: 0.7;
-  vector-effect: non-scaling-stroke;
-}
-
 .country {
   cursor: pointer;
   fill: var(--ice);
@@ -1560,19 +1553,11 @@ img.chip-flag {
   stroke-width: 0.96;
 }
 
-.country.is-lift-source {
-  opacity: 0;
-  animation: none;
-  filter: none;
-  pointer-events: all;
-}
-
 .country-layer .country,
 .country-layer .country.is-muted,
 .country-layer .country.is-highlight,
 .country-layer .country.is-selected,
-.country-layer .country.is-hovered,
-.country-layer .country.is-lift-source {
+.country-layer .country.is-hovered {
   opacity: 0;
   fill: transparent;
   stroke: transparent;
@@ -1586,33 +1571,19 @@ img.chip-flag {
   pointer-events: none;
 }
 
-.country-lift {
+.country-outline {
   pointer-events: none;
-}
-
-.country-lift-shadow {
-  pointer-events: none;
-  fill: #000;
-  opacity: 0.9;
-  stroke: #000;
-  stroke-linejoin: round;
-  stroke-width: 1.15;
-  transform-box: fill-box;
-  transform-origin: center;
-  vector-effect: non-scaling-stroke;
-  shape-rendering: geometricPrecision;
-  transition: none;
-}
-
-.country-hover-lift {
-  pointer-events: none;
-  opacity: 1;
+  fill: none;
+  opacity: 0.96;
   animation: none;
-  stroke: var(--white);
-  stroke-width: 1.15;
+  stroke: var(--gold);
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  stroke-width: 4.8;
   filter: none;
   shape-rendering: geometricPrecision;
   transition: none;
+  vector-effect: non-scaling-stroke;
 }
 
 .country-label {

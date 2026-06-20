@@ -68,13 +68,13 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     id: string;
     text: string;
     centroid: [number, number];
-    isRaised: boolean;
   }
 
   interface FitOptions {
     bottomPad?: number;
     topPad?: number;
     europeOnly?: boolean;
+    world?: boolean;
   }
 
   interface CardRenderOptions {
@@ -113,7 +113,6 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   );
 
   const PUBLIC_BASE_URL = import.meta.env.BASE_URL;
-  const COUNTRY_LIFT_TRANSFORM = "translate(-1, -0.75)";
   const CHIP_DRAG_START_THRESHOLD_PX = 4;
   const flagImageSrcCache = new Map<string, string>();
 
@@ -190,9 +189,11 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   // ─── d3 / map setup ───────────────────────────────────────────────────────────
 
-  const projection = d3.geoNaturalEarth1();
+  const WORLD_FIT_EXCLUDED_COUNTRY_IDS = new Set(["010"]);
+  const NO_WRAP_MERCATOR_ROTATION: [number, number] = [-11.5, 0];
+
+  const projection = d3.geoMercator().rotate(NO_WRAP_MERCATOR_ROTATION);
   const path = d3.geoPath(projection).pointRadius(4.8);
-  const graticule = d3.geoGraticule10();
   function mapWheelDelta(event: any): number {
     const modeScale = event.deltaMode === 1 ? 0.05 : event.deltaMode ? 1 : 0.002;
     return -event.deltaY * modeScale * (event.ctrlKey ? 10 : 1) * ZOOM_WHEEL_DELTA_MULTIPLIER;
@@ -240,7 +241,6 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     pointRadius: 4.8,
     keyForFeature,
     tierForFeature,
-    countryIdsFor,
   });
   const mapFlags = createCanvasMapFlagLayer({
     canvas: mapFlagCanvas,
@@ -811,9 +811,11 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
     if (!state.activeCountry && state.activeTier) {
       state.selectedIds = selectedCountrySet(cumulativeIdsFor(state.activeTier));
-      renderCountryCardForTier(state.activeTier);
+      setSelectedTierFlagScope();
+      renderCountryCardForTier(state.activeTier, { reveal: shouldRevealTierSelectionCard() });
     } else if (!state.activeCountry) {
       state.selectedIds = selectedCountrySet(sceneIdsFor(state.scene) ?? cumulativeIdsFor("friends"));
+      setSelectedTierFlagScope();
     }
 
     updateHighlights();
@@ -829,7 +831,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       .attr("class", countryClassForFeature)
       .attr("data-tier", (feature: any) => tierForFeature(feature) ?? "")
       .attr("data-quality", renderQualityForFeature);
-    drawLiftedCountries();
+    drawCountryOutlines();
   }
 
   // ─── render functions ─────────────────────────────────────────────────────────
@@ -925,7 +927,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       if (capability) hidePillTooltip();
 
       if (!tierDeck.contains(event.relatedTarget as Node | null)) {
-        clearFlagFocus();
+        restoreSelectedTierFlagScope();
       } else {
         restoreFlagFocusFromElement(event.relatedTarget as Element | null);
       }
@@ -946,8 +948,8 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
       const card = target.closest<HTMLElement>(".tier-card");
       if (card && !card.contains(relatedTarget as Node | null)) {
-        clearFlagFocus();
         clearSoftFocus();
+        restoreSelectedTierFlagScope();
       }
     });
 
@@ -1088,10 +1090,12 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     svg.attr("viewBox", `0 0 ${width} ${height}`);
     syncCanvasSize();
 
-    projection.fitExtent(
-      [[20, 20], [width - 20, height - 20]],
-      { type: "Sphere" },
-    );
+    projection
+      .clipExtent(null)
+      .fitExtent(
+        [[20, 20], [width - 20, height - 20]],
+        worldFitFeatureCollection(),
+      );
 
     svg.selectAll("*").remove();
     syncZoomScaleExtent();
@@ -1099,7 +1103,6 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     svg.on("click.restore-scene", onMapBackgroundClick);
 
     mapLayer = svg.append("g").attr("class", "map-layer");
-    mapLayer.append("path").datum(graticule).attr("class", "graticule").attr("d", path);
     countryLayer = mapLayer.append("g").attr("class", "country-layer");
     hoverLayer = mapLayer.append("g").attr("class", "hover-layer");
     labelLayer = mapLayer.append("g").attr("class", "label-layer");
@@ -1117,7 +1120,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
         if (hoverMapFlagAtEvent(event)) return;
 
         const key = keyForFeature(feature);
-        if (countryCardMetaFor(key)) setHoveredCountry(key, event.currentTarget as Element);
+        if (countryCardMetaFor(key)) setHoveredCountry(key);
       })
       .on("mouseleave", (event: MouseEvent) => {
         if (isEventOnMapFlag(event)) return;
@@ -1166,6 +1169,12 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       Math.abs(nextSize.width - width) > MAP_RESIZE_EPSILON_PX ||
       Math.abs(nextSize.height - height) > MAP_RESIZE_EPSILON_PX
     );
+  }
+
+  function worldFitFeatureCollection(): any {
+    const features = (state.visualFeatures.length ? state.visualFeatures : state.features)
+      .filter((feature) => !WORLD_FIT_EXCLUDED_COUNTRY_IDS.has(keyForFeature(feature)));
+    return { type: "FeatureCollection", features };
   }
 
   function onZoom(event: any): void {
@@ -1227,8 +1236,6 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       features: state.visualFeatures,
       transform,
       selectedIds: state.selectedIds,
-      activeCountry: state.activeCountry,
-      hoveredCountry: state.hoveredCountry,
       width,
       height,
     });
@@ -1284,6 +1291,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     state.activeCountry = null;
     state.hoveredCountry = null;
     state.selectedIds = selectedCountrySet(cumulativeIdsFor(tierId));
+    setSelectedTierFlagScope(tierId);
     updateHighlights();
     renderCountryCardForTier(tierId, { reveal });
     drawConnections();
@@ -1291,7 +1299,13 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   function previewTier(tierId: TierId): void {
     if (state.activeCountry) return;
-    activateTier(tierId, { reveal: isCountryCardVisible() });
+    state.activeTier = tierId;
+    state.activeCountry = null;
+    state.hoveredCountry = null;
+    state.selectedIds = selectedCountrySet(cumulativeIdsFor(tierId));
+    updateHighlights();
+    renderCountryCardForTier(tierId, { reveal: isCountryCardVisible() });
+    drawConnections();
   }
 
   function activateCountry(countryId: string, shouldZoom: boolean): void {
@@ -1311,9 +1325,8 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     if (shouldZoom) fitToCountries(countryIdsFor(canonicalId), 700);
   }
 
-  function setHoveredCountry(countryId: string, target?: Element): void {
+  function setHoveredCountry(countryId: string): void {
     const canonicalId = canonicalCountryId(countryId);
-    if (target?.classList.contains("country")) d3.select(target).raise();
     if (state.hoveredCountry === canonicalId) return;
 
     state.hoveredCountry = canonicalId;
@@ -1353,10 +1366,18 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     return selectedIdsForScene(scene);
   }
 
+  function selectedTierFlagScope(scene: SceneKey = state.scene): Set<string> {
+    return activeTierForScene(scene) ? selectedIdsForScene(scene) : new Set();
+  }
+
   function setFlagFocusIds(ids: Set<string>, scopeIds: Set<string> = ids): void {
     state.flagFocusIds = ids;
     state.flagFocusScopeIds = scopeIds;
     syncFlagFocusHighlights();
+  }
+
+  function setSelectedTierFlagScope(scene: SceneKey = state.scene): void {
+    setFlagFocusIds(new Set(), selectedTierFlagScope(scene));
   }
 
   function focusFlagsForTier(tierId: TierId): void {
@@ -1398,7 +1419,16 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       return;
     }
 
-    clearFlagFocus();
+    restoreSelectedTierFlagScope();
+  }
+
+  function restoreSelectedTierFlagScope(): void {
+    if (state.activeCountry) {
+      clearFlagFocus();
+      return;
+    }
+
+    setSelectedTierFlagScope();
   }
 
   function restoreSceneSelection(): void {
@@ -1406,8 +1436,9 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     state.hoveredCountry = null;
     state.activeTier = activeTierForScene();
     state.selectedIds = selectedIdsForScene();
+    setSelectedTierFlagScope();
     updateHighlights();
-    renderCountryCardForScene(undefined, { reveal: isCountryCardVisible() });
+    renderCountryCardForScene(undefined, { reveal: shouldRevealTierSelectionCard() });
     drawConnections();
   }
 
@@ -1436,13 +1467,11 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       const key = keyForFeature(feature);
       const activeIds = state.activeCountry ? countryIdsFor(state.activeCountry) : [];
       const hoveredIds = state.hoveredCountry ? countryIdsFor(state.hoveredCountry) : [];
-      const isLifted = activeIds.includes(key) || hoveredIds.includes(key);
       const isSelected = state.selectedIds.has(key);
       this.classList.toggle("is-muted", hasSelection && !isSelected);
       this.classList.toggle("is-highlight", isSelected);
       this.classList.toggle("is-selected", activeIds.includes(key));
       this.classList.toggle("is-hovered", hoveredIds.includes(key));
-      this.classList.toggle("is-lift-source", isLifted);
     });
 
     tierCardElements.forEach((card) => {
@@ -1463,7 +1492,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     });
 
     queueMapVisualRender();
-    drawLiftedCountries();
+    drawCountryOutlines();
     drawLabels();
     syncMapFlagStates();
   }
@@ -1480,7 +1509,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     queueMapFlagRender();
   }
 
-  function drawLiftedCountries(): void {
+  function drawCountryOutlines(): void {
     if (!hoverLayer) return;
 
     const featuresByKey = new Map<string, any>();
@@ -1493,25 +1522,18 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     });
 
     hoverLayer
-      .selectAll(".country-lift")
+      .selectAll(".country-outline")
       .data([...featuresByKey.values()], keyForFeature)
       .join(
-        (enter: any) => {
-          const group = enter.append("g").attr("class", "country-lift");
-          group.append("path").attr("class", "country-lift-shadow").attr("d", path);
-          group
-            .append("path")
-            .attr("class", (feature: any) => `${countryClassForFeature(feature)} country-hover-lift`)
-            .attr("transform", COUNTRY_LIFT_TRANSFORM)
-            .attr("d", path);
-          return group;
-        },
+        (enter: any) => enter
+          .append("path")
+          .attr("class", "country-outline")
+          .attr("data-country-outline", keyForFeature)
+          .attr("d", path),
         (update: any) => {
-          update.select(".country-lift-shadow").attr("d", path);
           update
-            .select(".country-hover-lift")
-            .attr("class", (feature: any) => `${countryClassForFeature(feature)} country-hover-lift`)
-            .attr("transform", COUNTRY_LIFT_TRANSFORM)
+            .attr("class", "country-outline")
+            .attr("data-country-outline", keyForFeature)
             .attr("d", path);
           return update;
         },
@@ -1585,11 +1607,27 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     countryCard.hidden = false;
   }
 
+  function hideCountryCard(): void {
+    countryCard.hidden = true;
+  }
+
+  function shouldRevealTierSelectionCard(): boolean {
+    return countryCardBelowMapQuery.matches;
+  }
+
+  function setCountryCardVisibility(visible: boolean): void {
+    if (visible) {
+      showCountryCard();
+    } else {
+      hideCountryCard();
+    }
+  }
+
   function renderCountryCardForTier(tierId: TierId, { reveal = true }: CardRenderOptions = {}): void {
-    if (reveal) showCountryCard();
+    setCountryCardVisibility(reveal);
     const tier = tierArrangement.tier(tierId);
     countryCard.innerHTML = renderCountryCardForTierMarkup(tier);
-    revealCountryCardBelowMap();
+    if (reveal) revealCountryCardBelowMap();
   }
 
   function renderCountryCardForScene(
@@ -1602,9 +1640,9 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       return;
     }
 
-    if (reveal) showCountryCard();
+    setCountryCardVisibility(reveal);
     countryCard.innerHTML = renderCountryCardForSceneMarkup(scene);
-    revealCountryCardBelowMap();
+    if (reveal) revealCountryCardBelowMap();
   }
 
   function renderCountryCardForCountry(meta: Pick<CountryMeta, "id" | "code" | "name">): void {
@@ -1637,23 +1675,19 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     if (!labelLayer) return;
 
     const labelsById = new Map<string, LabelDatum>();
-    const addLabel = (id: string, isRaised = false): void => {
-      const label = labelForCountry(id, isRaised);
+    const addLabel = (id: string): void => {
+      const label = labelForCountry(id);
       if (!label) return;
 
-      const existing = labelsById.get(label.id);
-      labelsById.set(label.id, {
-        ...label,
-        isRaised: label.isRaised || existing?.isRaised === true,
-      });
+      labelsById.set(label.id, label);
     };
 
     if (state.selectedIds.size <= 14) {
       [...state.selectedIds].forEach((id) => addLabel(id));
     }
 
-    if (state.activeCountry) addLabel(state.activeCountry, true);
-    if (state.hoveredCountry) addLabel(state.hoveredCountry, true);
+    if (state.activeCountry) addLabel(state.activeCountry);
+    if (state.hoveredCountry) addLabel(state.hoveredCountry);
 
     const labels = [...labelsById.values()];
 
@@ -1671,7 +1705,6 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       .attr("dy", labelShadowOffset)
       .attr("text-anchor", labelTextAnchorFor)
       .attr("dominant-baseline", "middle")
-      .attr("transform", labelTransformFor)
       .style("font-size", labelFontSizeForScale(currentScale))
       .text((item: LabelDatum) => item.text);
 
@@ -1684,7 +1717,6 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       .attr("y", (item: LabelDatum) => labelYForScale(item))
       .attr("text-anchor", labelTextAnchorFor)
       .attr("dominant-baseline", "middle")
-      .attr("transform", labelTransformFor)
       .style("font-size", labelFontSizeForScale(currentScale))
       .text((item: LabelDatum) => item.text)
       .raise();
@@ -1701,11 +1733,6 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   function labelTextAnchorFor(item: LabelDatum): "start" | "middle" {
     return shouldPlaceLabelRightOfFlag(item) ? "start" : "middle";
-  }
-
-  function labelTransformFor(item: LabelDatum): string | null {
-    if (shouldPlaceLabelRightOfFlag(item)) return null;
-    return item.isRaised ? COUNTRY_LIFT_TRANSFORM : null;
   }
 
   function shouldPlaceLabelRightOfFlag(item: LabelDatum): boolean {
@@ -1731,7 +1758,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     return tierArrangement.entryForCountry(countryId)?.[1] ?? null;
   }
 
-  function labelForCountry(countryId: string, isRaised = false): LabelDatum | null {
+  function labelForCountry(countryId: string): LabelDatum | null {
     const id = canonicalCountryId(countryId);
     if (isAliasCountryId(id)) return null;
 
@@ -1744,7 +1771,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     const layout = layoutForFeature(feature);
     if (!layout) return null;
 
-    return { id, text: name, centroid: layout.centroid, isRaised };
+    return { id, text: name, centroid: layout.centroid };
   }
 
   // ─── scene management ─────────────────────────────────────────────────────────
@@ -1754,7 +1781,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     options: { intro?: boolean; revealCard?: boolean } = {},
   ): void {
     if (options.intro && state.userTouched) return;
-    const revealCard = options.revealCard ?? true;
+    const revealCard = options.revealCard ?? shouldRevealTierSelectionCard();
 
     state.scene = scene;
     sceneTabs.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
@@ -1766,6 +1793,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       state.activeCountry = null;
       state.hoveredCountry = null;
       state.selectedIds = selectedCountrySet(cumulativeIdsFor("friends"));
+      setSelectedTierFlagScope(scene);
       updateHighlights();
       drawConnections();
       renderCountryCardForScene(scene, { reveal: revealCard });
@@ -1778,6 +1806,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     state.hoveredCountry = null;
     state.activeTier = tierArrangement.hasTier(scene) ? scene : null;
     state.selectedIds = selectedCountrySet(ids);
+    setSelectedTierFlagScope(scene);
     updateHighlights();
 
     if (state.activeTier) {
@@ -1791,7 +1820,16 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     fitToCountries(ids, options.intro ? 1400 : 900, fitOptionsForScene(scene));
   }
 
-  function fitToCountries(ids: string[], duration = 900, { bottomPad = 0, topPad = 0, europeOnly = false }: FitOptions = {}): void {
+  function fitToCountries(
+    ids: string[],
+    duration = 900,
+    { bottomPad = 0, topPad = 0, europeOnly = false, world = false }: FitOptions = {},
+  ): void {
+    if (world) {
+      applyZoomTransform(d3.zoomIdentity, duration);
+      return;
+    }
+
     if (!ids.length) return;
 
     let features = ids.map((id) => visualFeatureForCountry(id) ?? state.featureByKey.get(id)).filter(Boolean);
@@ -1817,6 +1855,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   function fitOptionsForScene(scene: SceneKey = state.scene): FitOptions {
     if (scene === "world") return {};
+    if (scene === "friends") return { world: true };
     return {
       bottomPad: 160,
       topPad: window.innerWidth <= 720 ? 60 : 0,
@@ -1874,7 +1913,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   sceneTabs.addEventListener("focusout", (event: FocusEvent) => {
     if (!sceneTabs.contains(event.relatedTarget as Node | null)) {
-      clearFlagFocus();
+      restoreSelectedTierFlagScope();
     } else {
       restoreFlagFocusFromElement(event.relatedTarget as Element | null);
     }
@@ -1889,8 +1928,8 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       });
     });
     sceneTabs.addEventListener("mouseleave", () => {
-      clearFlagFocus();
       restoreScenePreview();
+      restoreSelectedTierFlagScope();
     });
   }
 

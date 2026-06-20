@@ -299,7 +299,9 @@ export function createCanvasMapFlagLayer({
     if (hoveredId === item.id) return "hovered";
     if (draggingId === item.id) return "muted";
     if (item.isFocused) return "selected";
-    if (hasActiveFocusScope && !item.isInFocusScope) return "muted";
+    if (hasActiveFocusScope && !item.isInFocusScope) {
+      return item.inTierList ? "dimmed" : "muted";
+    }
     return item.inTierList ? "normal" : "muted";
   };
 

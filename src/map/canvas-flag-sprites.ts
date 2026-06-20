@@ -1,4 +1,4 @@
-export type CanvasFlagBadgeVariant = "normal" | "muted" | "selected" | "hovered";
+export type CanvasFlagBadgeVariant = "normal" | "dimmed" | "muted" | "selected" | "hovered";
 
 export interface CanvasFlagBadgeSprite {
   canvas: HTMLCanvasElement;
@@ -16,6 +16,7 @@ interface CanvasFlagSpriteOptions {
 const SPRITE_PADDING_PX = 4;
 const SHADOW_OFFSET_PX = 2;
 const HOVER_SHADOW_OFFSET_PX = 3;
+const DIMMED_ALPHA = 0.52;
 const MUTED_ALPHA = 0.28;
 const MUTED_FLAG_FILTER = "grayscale(1) saturate(0) contrast(0.82) brightness(0.92)";
 
@@ -67,12 +68,14 @@ function renderSprite(
 
   const isHovered = variant === "hovered";
   const isHighlighted = variant === "hovered" || variant === "selected";
+  const isDimmed = variant === "dimmed";
   const isMuted = variant === "muted";
+  const isSubdued = isDimmed || isMuted;
   context.scale(dpr, dpr);
-  context.globalAlpha = isMuted ? MUTED_ALPHA : 1;
-  context.shadowColor = isMuted ? "transparent" : "rgba(0, 0, 0, 0.44)";
-  context.shadowOffsetX = isMuted ? 0 : isHovered ? HOVER_SHADOW_OFFSET_PX : SHADOW_OFFSET_PX;
-  context.shadowOffsetY = isMuted ? 0 : isHovered ? HOVER_SHADOW_OFFSET_PX : SHADOW_OFFSET_PX;
+  context.globalAlpha = isMuted ? MUTED_ALPHA : isDimmed ? DIMMED_ALPHA : 1;
+  context.shadowColor = isSubdued ? "transparent" : "rgba(0, 0, 0, 0.44)";
+  context.shadowOffsetX = isSubdued ? 0 : isHovered ? HOVER_SHADOW_OFFSET_PX : SHADOW_OFFSET_PX;
+  context.shadowOffsetY = isSubdued ? 0 : isHovered ? HOVER_SHADOW_OFFSET_PX : SHADOW_OFFSET_PX;
   context.shadowBlur = 0;
 
   context.beginPath();

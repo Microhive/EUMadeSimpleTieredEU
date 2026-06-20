@@ -8,7 +8,6 @@ interface CanvasCountryLayerOptions {
   pointRadius: number;
   keyForFeature: (feature: any) => string;
   tierForFeature: (feature: any) => TierId | undefined;
-  countryIdsFor: (countryId: string) => string[];
 }
 
 interface CanvasCountryLayerSize {
@@ -20,16 +19,14 @@ interface CanvasCountryLayerDrawOptions extends CanvasCountryLayerSize {
   features: any[];
   transform: any;
   selectedIds: ReadonlySet<string>;
-  activeCountry: string | null;
-  hoveredCountry: string | null;
 }
 
 const BASE_FILL = "#bfd0df";
 const BASE_STROKE = "rgba(2, 52, 95, 0.78)";
-const HIGHLIGHT_STROKE = "rgba(255, 244, 168, 0.86)";
+const HIGHLIGHT_STROKE = "#f0b800";
 const MUTED_ALPHA = 0.26;
 const BASE_STROKE_WIDTH = 0.42;
-const HIGHLIGHT_STROKE_WIDTH = 0.82;
+const HIGHLIGHT_STROKE_WIDTH = 1.08;
 
 export function createCanvasCountryLayer({
   canvas,
@@ -38,7 +35,6 @@ export function createCanvasCountryLayer({
   pointRadius,
   keyForFeature,
   tierForFeature,
-  countryIdsFor,
 }: CanvasCountryLayerOptions) {
   const context = canvas.getContext("2d", { alpha: true });
   const canvasPath = context
@@ -71,8 +67,6 @@ export function createCanvasCountryLayer({
     features,
     transform,
     selectedIds,
-    activeCountry,
-    hoveredCountry,
     width,
     height,
   }: CanvasCountryLayerDrawOptions): void => {
@@ -86,7 +80,7 @@ export function createCanvasCountryLayer({
     context.scale(dpr, dpr);
     context.translate(transform.x, transform.y);
     context.scale(transform.k, transform.k);
-    drawCountries(features, selectedIds, activeCountry, hoveredCountry, transform.k);
+    drawCountries(features, selectedIds, transform.k);
     context.restore();
 
     canvas.dataset.renderRevision = String(++renderRevision);
@@ -96,23 +90,16 @@ export function createCanvasCountryLayer({
   const drawCountries = (
     features: any[],
     selectedIds: ReadonlySet<string>,
-    activeCountry: string | null,
-    hoveredCountry: string | null,
     scale: number,
   ): void => {
     if (!context || !canvasPath) return;
 
     const hasSelection = selectedIds.size > 0;
-    const activeIds = activeCountry ? countryIdsFor(activeCountry) : [];
-    const hoveredIds = hoveredCountry ? countryIdsFor(hoveredCountry) : [];
     const strokeScale = Math.max(scale, 0.001);
     context.lineJoin = "round";
 
     for (const feature of features) {
       const key = keyForFeature(feature);
-      const isLifted = activeIds.includes(key) || hoveredIds.includes(key);
-      if (isLifted) continue;
-
       const isSelected = selectedIds.has(key);
       context.globalAlpha = hasSelection && !isSelected ? MUTED_ALPHA : 1;
       context.fillStyle = fillForFeature(feature);
