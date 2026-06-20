@@ -5,6 +5,7 @@ import type {
   SceneKey,
   Tier,
 } from "../domain/tiered-europe";
+import type { CountryContextInfo } from "../domain/country-context";
 import { escapeAttribute, escapeHtml } from "./html";
 import { MOBILE_LEGEND_LABELS, TIER_COLORS } from "./tier-appearance";
 
@@ -13,6 +14,8 @@ interface RenderTierDeckOptions {
   capabilityInfoByLabel: ReadonlyMap<string, CapabilityInfo>;
   flagSvgMarkup: (code: string) => string;
 }
+
+type CountryCardMeta = Pick<CountryMeta, "id" | "code" | "name">;
 
 export function capabilityLookupKey(label: string): string {
   return label.replace(/\u00a0/g, " ");
@@ -115,12 +118,17 @@ export function renderCountryCardForScene(scene: SceneKey): string {
   `;
 }
 
-export function renderCountryCardForCountry(meta: CountryMeta, tier: Tier): string {
+export function renderCountryCardForCountry(
+  meta: CountryCardMeta,
+  tier: Tier | null,
+  context?: CountryContextInfo,
+): string {
   return `
     <p class="eyebrow">${escapeHtml(meta.code)}</p>
-    <span class="tier-pill" data-tier="${tier.id}">Tier ${tier.order}: ${escapeHtml(tier.shortTitle)}</span>
+    ${renderCountryTierPill(tier)}
     <h2>${escapeHtml(meta.name)}</h2>
     <p>${escapeHtml(scenarioLine(meta, tier))}</p>
+    ${context ? renderCountryContext(context) : ""}
   `;
 }
 
@@ -147,15 +155,45 @@ function renderCapability(
   return `<button type="button" class="capability" data-cap-key="${escapeAttribute(key)}" data-tooltip="${escapeAttribute(info.tooltip)}">${escapeHtml(capability)}</button>`;
 }
 
-function scenarioLine(meta: CountryMeta, tier: Tier): string {
-  if (tier.id === "inner") {
+function renderCountryTierPill(tier: Tier | null): string {
+  if (!tier) return `<span class="tier-pill tier-pill-unassigned">Not assigned</span>`;
+  return `<span class="tier-pill" data-tier="${tier.id}">Tier ${tier.order}: ${escapeHtml(tier.shortTitle)}</span>`;
+}
+
+function renderCountryContext(context: CountryContextInfo): string {
+  const links = context.links
+    .map(
+      (link) =>
+        `<a href="${escapeAttribute(link.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label)}</a>`,
+    )
+    .join("");
+
+  return `
+    <details class="country-context">
+      <summary>Relationship context</summary>
+      <div class="country-context-body">
+        <span class="country-context-badge">${escapeHtml(context.label)}</span>
+        <p>${escapeHtml(context.summary)}</p>
+        <p>${escapeHtml(context.detail)}</p>
+        ${context.sourceNote ? `<p class="country-context-note">${escapeHtml(context.sourceNote)}</p>` : ""}
+        <div class="country-context-links">${links}</div>
+      </div>
+    </details>
+  `;
+}
+
+function scenarioLine(meta: CountryCardMeta, tier: Tier | null): string {
+  if (tier?.id === "inner") {
     return `${meta.name} is modelled as part of the frontrunner core for deeper defence, eurozone, Schengen, and foreign-policy integration.`;
   }
-  if (tier.id === "eu") {
+  if (tier?.id === "eu") {
     return `${meta.name} remains inside the full EU layer, sharing law, budget, institutions, and the single market while deeper integration continues around it.`;
   }
-  if (tier.id === "associate") {
+  if (tier?.id === "associate") {
     return `${meta.name} is shown as an associate-path country: close enough to adopt standards and market rules before full membership is settled.`;
+  }
+  if (!tier) {
+    return `${meta.name} is not currently assigned to a scenario tier, but its EU relationship can still be explored here.`;
   }
   return `${meta.name} is shown as a democratic friend: outside the EU ladder, but connected through security, climate, technology, and crisis cooperation.`;
 }

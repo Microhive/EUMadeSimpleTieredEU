@@ -253,6 +253,48 @@ async function hoverCanvasFlag(page: Page, countryId: string): Promise<CanvasFla
   return getCanvasFlagHitbox(page, countryId);
 }
 
+async function countryAtViewportPoint(
+  page: Page,
+  x: number,
+  y: number
+): Promise<string | null> {
+  return page.evaluate(({ x, y }) => {
+    const element = document.elementFromPoint(x, y);
+    const country = element?.closest("#mapSvg [data-country]");
+    return country?.getAttribute("data-country") ?? null;
+  }, { x, y });
+}
+
+async function canvasFlagPointOverAnotherCountry(
+  page: Page,
+  countryId: string
+): Promise<CanvasFlagHitbox & { hoverX: number; hoverY: number; underlyingCountry: string | null }> {
+  const flag = await getCanvasFlagHitbox(page, countryId);
+  const offset = flag.size * 0.45;
+  const offsets: Array<[number, number]> = [
+    [offset, 0],
+    [-offset, 0],
+    [0, offset],
+    [0, -offset],
+    [offset * 0.72, offset * 0.72],
+    [-offset * 0.72, offset * 0.72],
+    [offset * 0.72, -offset * 0.72],
+    [-offset * 0.72, -offset * 0.72],
+  ];
+
+  for (const [dx, dy] of offsets) {
+    const hoverX = flag.clientX + dx;
+    const hoverY = flag.clientY + dy;
+    const underlyingCountry = await countryAtViewportPoint(page, hoverX, hoverY);
+    if (underlyingCountry && underlyingCountry !== countryId) {
+      return { ...flag, hoverX, hoverY, underlyingCountry };
+    }
+  }
+
+  const underlyingCountry = await countryAtViewportPoint(page, flag.clientX, flag.clientY);
+  return { ...flag, hoverX: flag.clientX, hoverY: flag.clientY, underlyingCountry };
+}
+
 async function dragCanvasFlagToLocator(
   page: Page,
   countryId: string,
@@ -316,7 +358,7 @@ test.describe("first paint content", () => {
     await expect(tierDeck).toContainText("European Community + Friends");
     await expect(tierDeck).toContainText("Crisis response");
     await expect(tierDeck).toContainText("A wider democratic circle");
-    await expect(tierDeck.locator(".country-chip-skeleton")).toHaveCount(48);
+    await expect(tierDeck.locator(".country-chip-skeleton")).toHaveCount(53);
   });
 
   test("renders the map legend and EU stars before app JavaScript runs", async ({
@@ -530,6 +572,25 @@ test.describe("country chip — desktop click", () => {
     await expect
       .poll(() => chip.evaluate((element) => getComputedStyle(element).boxShadow))
       .toContain("rgb(240, 184, 0)");
+  });
+
+  test("microstate chips appear in tier 3 with relationship context", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const andorraChip = page.locator('.tier-card[data-tier="associate"] .country-chip[data-country="020"]');
+    await expect(andorraChip).toHaveAttribute("aria-label", "Andorra");
+
+    await andorraChip.click();
+
+    const countryCard = page.locator("#countryCard");
+    await expect(countryCard.locator("h2")).toContainText("Andorra");
+    await expect(countryCard).toContainText("European microstate");
+    await expect(countryCard).toContainText("No standalone DG Trade country article");
+    await expect(countryCard.locator('.country-context-links a')).toHaveAttribute(
+      "href",
+      "https://policy.trade.ec.europa.eu/eu-trade-relationships-country-and-region/countries-and-regions_en",
+    );
   });
 });
 
@@ -1335,6 +1396,33 @@ test.describe("map country path — desktop click", () => {
     await expect(page.locator(".map-flag-layer")).toHaveAttribute("data-render-mode", "off");
   });
 
+  test("hovering a map flag highlights the flag country instead of the territory underneath", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator("#mapFlagsButton").click();
+
+    const hoverPoint = await canvasFlagPointOverAnotherCountry(page, "438");
+    expect(hoverPoint.underlyingCountry).toBeTruthy();
+    expect(hoverPoint.underlyingCountry).not.toBe("438");
+
+    await page.mouse.move(hoverPoint.hoverX, hoverPoint.hoverY);
+    await waitForCanvasFlagVariant(page, "438", "hovered");
+
+    const liechtenstein = page.locator('#mapSvg [data-country="438"]');
+    await expect(liechtenstein).toHaveClass(/is-hovered/);
+    await expect(liechtenstein).toHaveClass(/is-lift-source/);
+
+    if (hoverPoint.underlyingCountry) {
+      await expect(page.locator(`#mapSvg [data-country="${hoverPoint.underlyingCountry}"]`))
+        .not.toHaveClass(/is-hovered/);
+    }
+
+    await expect(
+      page.locator("#mapSvg .country-label").filter({ hasText: "Liechtenstein" }).first(),
+    ).toBeVisible();
+  });
+
   test("clicking a country on the map shows its info card", async ({ page }) => {
     await page.goto("/");
     await waitForMap(page);
@@ -1377,6 +1465,24 @@ test.describe("map country path — desktop click", () => {
     await expect(germany).toHaveClass(/is-lift-source/);
     await expect(liftedCountries).toHaveCount(1);
   });
+
+  test("clicking an untiered country on the map shows EU relationship info", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const belarus = page.locator('#mapSvg [data-country="112"]');
+    await belarus.click();
+
+    const countryCard = page.locator("#countryCard");
+    await expect(countryCard.locator("h2")).toContainText("Belarus");
+    await expect(countryCard).toContainText("Not assigned");
+    await expect(countryCard).toContainText("External relationship");
+    await expect(countryCard.locator(".country-context-links a")).toHaveAttribute(
+      "href",
+      "https://policy.trade.ec.europa.eu/eu-trade-relationships-country-and-region/countries-and-regions/belarus_en",
+    );
+    await expect(belarus).toHaveClass(/is-selected/);
+  });
 });
 
 test.describe("map country path — mobile tap", () => {
@@ -1418,6 +1524,34 @@ test.describe("map country path — mobile tap", () => {
       ignoreCase: true,
     });
     await expect(liftedCountries).toHaveCount(1);
+  });
+
+  test("tapping an untiered country on mobile shows reachable EU relationship info", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const belarus = page.locator('#mapSvg [data-country="112"]');
+    await belarus.tap();
+
+    const countryCard = page.locator("#countryCard");
+    await expect(countryCard.locator("h2")).toContainText("Belarus");
+    await expect(countryCard).toContainText("Not assigned");
+
+    await expect
+      .poll(async () => {
+        const box = await countryCard.boundingBox();
+        const viewport = page.viewportSize();
+        if (!box || !viewport) return false;
+        return box.y < viewport.height && box.y + Math.min(box.height, 32) > 0;
+      })
+      .toBe(true);
+
+    await countryCard.locator(".country-context summary").tap();
+    await expect(countryCard.locator(".country-context-links a")).toBeVisible();
+    await expect(countryCard.locator(".country-context-links a")).toHaveAttribute(
+      "href",
+      "https://policy.trade.ec.europa.eu/eu-trade-relationships-country-and-region/countries-and-regions/belarus_en",
+    );
   });
 });
 

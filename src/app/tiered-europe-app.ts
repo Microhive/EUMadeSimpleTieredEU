@@ -5,6 +5,7 @@ import {
   isAliasCountryId,
   selectedCountrySet,
 } from "../domain/country-identity";
+import { countryContextFor } from "../domain/country-context";
 import { createTierArrangement } from "../domain/tier-arrangement";
 import { ISO2_BY_NUMERIC } from "../domain/country-flag-codes";
 import {
@@ -149,6 +150,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   const legend = document.querySelector<HTMLElement>("#legend")!;
   const countryCard = document.querySelector<HTMLElement>("#countryCard")!;
   const mapWrap = document.querySelector<HTMLElement>(".map-wrap")!;
+  const countryCardBelowMapQuery = window.matchMedia("(max-width: 1279px)");
   const sources = document.querySelector<HTMLElement>("#sources")!;
   const sourcesMobileMount = document.querySelector<HTMLElement>("#sourcesMobileMount")!;
   const editToggle = document.querySelector<HTMLButtonElement>("#editToggle")!;
@@ -295,6 +297,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   setupEditToolbar();
   setupMapFlagsButton();
   setupMapFlagLayerInteractions();
+  setupCountryCardPlacement();
   setupSourcesPlacement();
   setupVideoTooltip();
   setupSceneTabsScale(sceneTabs);
@@ -347,6 +350,22 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     mapWrap.addEventListener("pointermove", onMapFlagPointerMove, { capture: true });
     mapWrap.addEventListener("pointerleave", clearMapFlagHover);
     mapWrap.addEventListener("click", onMapFlagClick, { capture: true });
+  }
+
+  function setupCountryCardPlacement(): void {
+    const syncCountryCardPlacement = (): void => {
+      if (countryCardBelowMapQuery.matches) {
+        if (countryCard.parentElement === mapWrap) mapWrap.after(countryCard);
+        return;
+      }
+
+      if (countryCard.parentElement !== mapWrap) {
+        mapWrap.insertBefore(countryCard, mapFlagLayer);
+      }
+    };
+
+    countryCardBelowMapQuery.addEventListener("change", syncCountryCardPlacement);
+    syncCountryCardPlacement();
   }
 
   function setupSourcesPlacement(): void {
@@ -404,8 +423,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       return;
     }
 
-    if (!mapFlags.setHovered(flag.id)) return;
-    setHoveredCountry(flag.id);
+    hoverMapFlag(flag.id);
   }
 
   function onMapFlagClick(event: MouseEvent): void {
@@ -420,8 +438,30 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   function activateMapFlag(countryId: string): void {
     if (countryDrag.consumeSuppressedClick(countryId)) return;
 
-    const meta = metaForCountry(countryId);
+    const meta = countryCardMetaFor(countryId);
     if (meta) activateCountry(meta.id, true);
+  }
+
+  function hoverMapFlag(countryId: string): void {
+    const didChangeFlagHover = mapFlags.setHovered(countryId);
+    const canonicalId = canonicalCountryId(countryId);
+
+    if (state.hoveredCountry !== canonicalId) {
+      setHoveredCountry(countryId);
+      return;
+    }
+
+    if (didChangeFlagHover) queueMapFlagRender();
+  }
+
+  function hoverMapFlagAtEvent(event: { clientX?: number; clientY?: number }): boolean {
+    if (typeof event.clientX !== "number" || typeof event.clientY !== "number") return false;
+
+    const flag = mapFlags.hitTest(event.clientX, event.clientY);
+    if (!flag) return false;
+
+    hoverMapFlag(flag.id);
+    return true;
   }
 
   function clearMapFlagHover(): void {
@@ -539,6 +579,22 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   function metaForCountry(countryId: string): CountryMeta | undefined {
     return tierArrangement.metaForCountry(countryId);
+  }
+
+  function entryForCountry(countryId: string): CountryEntry | null {
+    return tierArrangement.entryForCountry(countryId);
+  }
+
+  function countryCardMetaFor(countryId: string): Pick<CountryMeta, "id" | "code" | "name"> | null {
+    const canonicalId = canonicalCountryId(countryId);
+    const meta = metaForCountry(canonicalId);
+    if (meta) return meta;
+
+    const entry = entryForCountry(canonicalId);
+    if (!entry) return null;
+
+    const [id, code, name] = entry;
+    return { id, code, name };
   }
 
   function flagImageSrc(code: string): string {
@@ -740,9 +796,12 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     refreshCountryTierClasses();
 
     if (state.activeCountry) {
-      const meta = metaForCountry(state.activeCountry);
+      const meta = countryCardMetaFor(state.activeCountry);
       if (meta) {
-        state.activeTier = activeTierForScene() ?? meta.tier;
+        state.activeTier =
+          activeTierForScene() ??
+          tierArrangement.directTierForCountry(state.activeCountry) ??
+          null;
         state.selectedIds = selectedCountrySet(countryIdsFor(state.activeCountry));
         renderCountryCardForCountry(meta);
       } else {
@@ -1055,10 +1114,15 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       .attr("data-tier", (feature: any) => tierForFeature(feature) ?? "")
       .attr("data-quality", renderQualityForFeature)
       .on("mouseenter", (event: MouseEvent, feature: any) => {
+        if (hoverMapFlagAtEvent(event)) return;
+
         const key = keyForFeature(feature);
-        if (metaForCountry(key)) setHoveredCountry(key, event.currentTarget as Element);
+        if (countryCardMetaFor(key)) setHoveredCountry(key, event.currentTarget as Element);
       })
-      .on("mouseleave", clearHoveredCountry)
+      .on("mouseleave", (event: MouseEvent) => {
+        if (isEventOnMapFlag(event)) return;
+        clearHoveredCountry();
+      })
       .on("click", (event: MouseEvent, feature: any) => {
         event.stopPropagation();
         const key = keyForFeature(feature);
@@ -1067,7 +1131,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
           restoreSceneSelection();
           return;
         }
-        if (metaForCountry(key)) activateCountry(key, true);
+        if (countryCardMetaFor(key)) activateCountry(key, true);
       });
 
     updateHighlights();
@@ -1232,12 +1296,12 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   function activateCountry(countryId: string, shouldZoom: boolean): void {
     const canonicalId = canonicalCountryId(countryId);
-    const meta = metaForCountry(countryId);
+    const meta = countryCardMetaFor(countryId);
     if (!meta) return;
 
     state.activeCountry = canonicalId;
     state.hoveredCountry = null;
-    state.activeTier = activeTierForScene() ?? meta.tier;
+    state.activeTier = activeTierForScene() ?? tierArrangement.directTierForCountry(canonicalId) ?? null;
     state.selectedIds = selectedCountrySet(countryIdsFor(canonicalId));
     state.userTouched = true;
     updateHighlights();
@@ -1525,6 +1589,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     if (reveal) showCountryCard();
     const tier = tierArrangement.tier(tierId);
     countryCard.innerHTML = renderCountryCardForTierMarkup(tier);
+    revealCountryCardBelowMap();
   }
 
   function renderCountryCardForScene(
@@ -1539,12 +1604,29 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
     if (reveal) showCountryCard();
     countryCard.innerHTML = renderCountryCardForSceneMarkup(scene);
+    revealCountryCardBelowMap();
   }
 
-  function renderCountryCardForCountry(meta: CountryMeta): void {
+  function renderCountryCardForCountry(meta: Pick<CountryMeta, "id" | "code" | "name">): void {
     showCountryCard();
-    const tier = tierArrangement.tier(meta.tier);
-    countryCard.innerHTML = renderCountryCardForCountryMarkup(meta, tier);
+    const tierId = tierArrangement.directTierForCountry(meta.id);
+    const tier = tierId ? tierArrangement.tier(tierId) : null;
+    countryCard.innerHTML = renderCountryCardForCountryMarkup(
+      meta,
+      tier,
+      countryContextFor(meta, tier),
+    );
+    revealCountryCardBelowMap();
+  }
+
+  function revealCountryCardBelowMap(): void {
+    if (!countryCardBelowMapQuery.matches) return;
+
+    window.requestAnimationFrame(() => {
+      if (!countryCard.hidden) {
+        countryCard.scrollIntoView({ block: "nearest", inline: "nearest" });
+      }
+    });
   }
 
   // ─── map overlays ─────────────────────────────────────────────────────────────
