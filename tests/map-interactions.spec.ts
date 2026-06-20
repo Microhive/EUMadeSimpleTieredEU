@@ -215,13 +215,15 @@ async function getCanvasFlagHitbox(
 ): Promise<CanvasFlagHitbox> {
   await page.waitForFunction((id) => {
     const layer = document.querySelector<HTMLElement>(".map-flag-layer");
-    const flags = JSON.parse(layer?.dataset.flagHitboxes ?? "[]") as CanvasFlagHitbox[];
+    const flags = (layer as (HTMLElement & { __mapFlagHitboxes?: CanvasFlagHitbox[] }) | null)?.__mapFlagHitboxes ?? [];
     return flags.some((flag) => flag.id === id);
   }, countryId);
 
   const flag = await page.locator(".map-flag-layer").evaluate(
     (layer, id) => {
-      const flags = JSON.parse((layer as HTMLElement).dataset.flagHitboxes ?? "[]") as CanvasFlagHitbox[];
+      const flags =
+        (layer as HTMLElement & { __mapFlagHitboxes?: CanvasFlagHitbox[] })
+          .__mapFlagHitboxes ?? [];
       return flags.find((item) => item.id === id) ?? null;
     },
     countryId
@@ -247,7 +249,7 @@ async function hoverCanvasFlag(page: Page, countryId: string): Promise<CanvasFla
   await page.mouse.move(flag.clientX, flag.clientY);
   await page.waitForFunction((id) => {
     const layer = document.querySelector<HTMLElement>(".map-flag-layer");
-    const flags = JSON.parse(layer?.dataset.flagHitboxes ?? "[]") as CanvasFlagHitbox[];
+    const flags = (layer as (HTMLElement & { __mapFlagHitboxes?: CanvasFlagHitbox[] }) | null)?.__mapFlagHitboxes ?? [];
     return flags.find((item) => item.id === id)?.variant === "hovered";
   }, countryId);
   return getCanvasFlagHitbox(page, countryId);
@@ -1464,6 +1466,9 @@ test.describe("map country path — desktop click", () => {
     await waitForCanvasFlagVariant(page, "040", "selected");
     await expect(germanyChip).not.toHaveClass(/is-flag-focused/);
     await expect(germanyChip).toHaveClass(/is-flag-out-of-focus/);
+    await expect
+      .poll(() => germanyChip.evaluate((element) => getComputedStyle(element).filter))
+      .toBe("none");
     await expect(austriaChip).toHaveClass(/is-flag-focused/);
     await expect(austriaChip).not.toHaveClass(/is-flag-out-of-focus/);
 

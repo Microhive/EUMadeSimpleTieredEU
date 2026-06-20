@@ -35,6 +35,23 @@ interface MapFlagRenderItem extends MapFlagDatum {
   isInFocusScope: boolean;
 }
 
+interface MapFlagDebugHitbox {
+  id: string;
+  clientX: number;
+  clientY: number;
+  screenX: number;
+  screenY: number;
+  size: number;
+  inTierList: boolean;
+  isFocused: boolean;
+  isInFocusScope: boolean;
+  variant: CanvasFlagBadgeVariant;
+}
+
+interface MapFlagDebugLayer extends HTMLElement {
+  __mapFlagHitboxes?: MapFlagDebugHitbox[];
+}
+
 interface TransformLike {
   apply(point: [number, number]): [number, number];
   k?: number;
@@ -73,6 +90,7 @@ export function createCanvasMapFlagLayer({
   onImageReady,
 }: CanvasMapFlagLayerOptions) {
   const context = canvas.getContext("2d", { alpha: true });
+  const debugLayer = layer as MapFlagDebugLayer;
   const imageCache = new Map<string, HTMLImageElement>();
   const sprites = createCanvasFlagSprites({ badgeSize, imageSize });
 
@@ -325,30 +343,33 @@ export function createCanvasMapFlagLayer({
   };
 
   const syncMetadata = (): void => {
-    const visibleFlags = items.filter((item) => item.visible);
+    const visibleFlags: MapFlagRenderItem[] = [];
+    let tieredCount = 0;
+
+    for (const item of items) {
+      if (item.visible) visibleFlags.push(item);
+      if (item.inTierList) tieredCount += 1;
+    }
+
     layer.dataset.flagTotalCount = String(items.length);
     layer.dataset.flagVisibleCount = String(visibleFlags.length);
-    layer.dataset.flagTieredCount = String(
-      items.filter((item) => item.inTierList).length,
-    );
+    layer.dataset.flagTieredCount = String(tieredCount);
 
     if (import.meta.env.DEV) {
-      layer.dataset.flagHitboxes = JSON.stringify(
-        visibleFlags.map((item) => ({
-          id: item.id,
-          clientX: Number(item.clientX.toFixed(2)),
-          clientY: Number(item.clientY.toFixed(2)),
-          screenX: Number(item.screenX.toFixed(2)),
-          screenY: Number(item.screenY.toFixed(2)),
-          size: Number(item.renderSize.toFixed(2)),
-          inTierList: item.inTierList,
-          isFocused: item.isFocused,
-          isInFocusScope: item.isInFocusScope,
-          variant: badgeVariantFor(item),
-        })),
-      );
+      debugLayer.__mapFlagHitboxes = visibleFlags.map((item) => ({
+        id: item.id,
+        clientX: Number(item.clientX.toFixed(2)),
+        clientY: Number(item.clientY.toFixed(2)),
+        screenX: Number(item.screenX.toFixed(2)),
+        screenY: Number(item.screenY.toFixed(2)),
+        size: Number(item.renderSize.toFixed(2)),
+        inTierList: item.inTierList,
+        isFocused: item.isFocused,
+        isInFocusScope: item.isInFocusScope,
+        variant: badgeVariantFor(item),
+      }));
     } else {
-      delete layer.dataset.flagHitboxes;
+      delete debugLayer.__mapFlagHitboxes;
     }
   };
 

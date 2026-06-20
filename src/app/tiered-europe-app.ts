@@ -291,6 +291,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   let mapResizeObserver: ResizeObserver | null = null;
   let sourcesResizeObserver: ResizeObserver | null = null;
   let tierDeckInteractionsBound = false;
+  let hasCountryFocusIsolation = false;
 
   // ─── init ─────────────────────────────────────────────────────────────────────
   buildBenefitPills();
@@ -1410,9 +1411,19 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   }
 
   function setFlagFocusIds(ids: Set<string>, scopeIds: Set<string> = ids): void {
+    if (setsEqual(state.flagFocusIds, ids) && setsEqual(state.flagFocusScopeIds, scopeIds)) return;
+
     state.flagFocusIds = ids;
     state.flagFocusScopeIds = scopeIds;
     syncFlagFocusHighlights();
+  }
+
+  function setsEqual<T>(first: ReadonlySet<T>, second: ReadonlySet<T>): boolean {
+    if (first.size !== second.size) return false;
+    for (const item of first) {
+      if (!second.has(item)) return false;
+    }
+    return true;
   }
 
   function setSelectedTierFlagScope(scene: SceneKey = state.scene): void {
@@ -1550,7 +1561,14 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       );
     });
     mapFlags.syncFocus(state.flagFocusIds, state.flagFocusScopeIds);
-    queueMapVisualRender(currentZoomTransform(), { updateLabels: false });
+
+    const nextCountryFocusIsolation = state.flagFocusIds.size > 0 && state.flagFocusScopeIds.size > 0;
+    if (hasCountryFocusIsolation || nextCountryFocusIsolation) {
+      queueMapVisualRender(currentZoomTransform(), { updateLabels: false });
+    } else {
+      queueMapFlagRender();
+    }
+    hasCountryFocusIsolation = nextCountryFocusIsolation;
   }
 
   function drawCountryOutlines(): void {
