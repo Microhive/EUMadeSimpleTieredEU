@@ -79,6 +79,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   interface CardRenderOptions {
     reveal?: boolean;
+    scroll?: boolean;
   }
 
   interface AppState {
@@ -1338,7 +1339,6 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     state.hoveredCountry = null;
     state.selectedIds = selectedCountrySet(cumulativeIdsFor(tierId));
     updateHighlights();
-    renderCountryCardForTier(tierId, { reveal: isCountryCardVisible() });
     drawConnections();
   }
 
@@ -1381,7 +1381,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   function clearSoftFocus(): void {
     if (state.activeCountry || !state.activeTier) return;
-    restoreSceneSelection();
+    restoreSceneSelection({ scrollCard: false });
   }
 
   function onMapBackgroundClick(event: MouseEvent): void {
@@ -1486,14 +1486,17 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     setSelectedTierFlagScope();
   }
 
-  function restoreSceneSelection(): void {
+  function restoreSceneSelection({ scrollCard = true }: { scrollCard?: boolean } = {}): void {
     state.activeCountry = null;
     state.hoveredCountry = null;
     state.activeTier = activeTierForScene();
     state.selectedIds = selectedIdsForScene();
     setSelectedTierFlagScope();
     updateHighlights();
-    renderCountryCardForScene(undefined, { reveal: shouldRevealTierSelectionCard() });
+    renderCountryCardForScene(undefined, {
+      reveal: shouldRevealTierSelectionCard(),
+      scroll: scrollCard,
+    });
     drawConnections();
   }
 
@@ -1504,13 +1507,13 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     state.activeTier = activeTierForScene(scene);
     state.selectedIds = selectedIdsForScene(scene);
     updateHighlights();
-    renderCountryCardForScene(scene, { reveal: isCountryCardVisible() });
+    renderCountryCardForScene(scene, { reveal: isCountryCardVisible(), scroll: false });
     drawConnections();
   }
 
   function restoreScenePreview(): void {
     if (state.activeCountry) return;
-    restoreSceneSelection();
+    restoreSceneSelection({ scrollCard: false });
   }
 
   function updateHighlights(): void {
@@ -1685,26 +1688,29 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     }
   }
 
-  function renderCountryCardForTier(tierId: TierId, { reveal = true }: CardRenderOptions = {}): void {
+  function renderCountryCardForTier(
+    tierId: TierId,
+    { reveal = true, scroll = true }: CardRenderOptions = {},
+  ): void {
     setCountryCardVisibility(reveal);
     const tier = tierArrangement.tier(tierId);
     countryCard.innerHTML = renderCountryCardForTierMarkup(tier);
-    if (reveal) revealCountryCardBelowMap();
+    if (reveal && scroll) revealCountryCardBelowMap();
   }
 
   function renderCountryCardForScene(
     scene: SceneKey = state.scene,
-    { reveal = true }: CardRenderOptions = {},
+    { reveal = true, scroll = true }: CardRenderOptions = {},
   ): void {
     const tierId = activeTierForScene(scene);
     if (tierId) {
-      renderCountryCardForTier(tierId, { reveal });
+      renderCountryCardForTier(tierId, { reveal, scroll });
       return;
     }
 
     setCountryCardVisibility(reveal);
     countryCard.innerHTML = renderCountryCardForSceneMarkup(scene);
-    if (reveal) revealCountryCardBelowMap();
+    if (reveal && scroll) revealCountryCardBelowMap();
   }
 
   function renderCountryCardForCountry(meta: Pick<CountryMeta, "id" | "code" | "name">): void {
@@ -1840,10 +1846,11 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   function focusScene(
     scene: SceneKey,
-    options: { intro?: boolean; revealCard?: boolean } = {},
+    options: { intro?: boolean; revealCard?: boolean; scrollCard?: boolean } = {},
   ): void {
     if (options.intro && state.userTouched) return;
     const revealCard = options.revealCard ?? shouldRevealTierSelectionCard();
+    const scrollCard = options.scrollCard ?? revealCard;
 
     state.scene = scene;
     sceneTabs.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
@@ -1858,7 +1865,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       setSelectedTierFlagScope(scene);
       updateHighlights();
       drawConnections();
-      renderCountryCardForScene(scene, { reveal: revealCard });
+      renderCountryCardForScene(scene, { reveal: revealCard, scroll: scrollCard });
       applyZoomTransform(d3.zoomIdentity, 900);
       return;
     }
@@ -1872,10 +1879,10 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     updateHighlights();
 
     if (state.activeTier) {
-      renderCountryCardForTier(state.activeTier, { reveal: revealCard });
+      renderCountryCardForTier(state.activeTier, { reveal: revealCard, scroll: scrollCard });
       drawConnections();
     } else {
-      renderCountryCardForScene(scene, { reveal: revealCard });
+      renderCountryCardForScene(scene, { reveal: revealCard, scroll: scrollCard });
       drawConnections();
     }
 
@@ -1968,7 +1975,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     const button = (event.target as Element).closest<HTMLButtonElement>("[data-scene]");
     if (!button?.dataset.scene) return;
     state.userTouched = true;
-    focusScene(button.dataset.scene as SceneKey);
+    focusScene(button.dataset.scene as SceneKey, { scrollCard: false });
     if (button.matches(":hover, :focus-visible")) {
       focusFlagsForScene(button.dataset.scene as SceneKey);
     }

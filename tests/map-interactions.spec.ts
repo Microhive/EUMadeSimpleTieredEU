@@ -505,6 +505,66 @@ test.describe("scene tab — desktop click", () => {
   });
 });
 
+test.describe("scene tab — small viewport hover", () => {
+  test.use({ ...desktop, viewport: { width: 393, height: 851 } });
+
+  test("hovering tier tabs previews without scrolling the description into view", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator('[data-scene="eu"]').click();
+    await expect(page.locator("#countryCard")).toContainText("European Union");
+
+    await page.evaluate(() => window.scrollTo(0, 160));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(160);
+
+    await page.locator('[data-scene="friends"]').hover();
+    await page.waitForTimeout(120);
+
+    await expect(page.locator("#countryCard")).toContainText("Community + Friends");
+    await expect.poll(() => page.evaluate(() => Math.round(window.scrollY))).toBe(160);
+
+    await page.mouse.move(1, 1);
+    await page.waitForTimeout(120);
+
+    await expect(page.locator("#countryCard")).toContainText("European Union");
+    await expect.poll(() => page.evaluate(() => Math.round(window.scrollY))).toBe(160);
+  });
+});
+
+test.describe("tier list — small viewport hover", () => {
+  test.use({ ...desktop, viewport: { width: 393, height: 851 } });
+
+  test("hovering tier cards previews the map without rendering a description", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator('[data-scene="eu"]').click();
+    await expect(page.locator("#countryCard")).toContainText("European Union");
+
+    const communityCard = page.locator('.tier-card[data-tier="friends"]');
+    await page.evaluate(() => window.scrollTo(0, 160));
+    await expect.poll(() => page.evaluate(() => Math.round(window.scrollY))).toBe(160);
+
+    await communityCard.dispatchEvent("mouseover", {
+      bubbles: true,
+      cancelable: true,
+    });
+    await page.waitForTimeout(120);
+
+    await expect(page.locator('#mapSvg [data-country="124"]')).toHaveClass(/is-highlight/);
+    await expect(page.locator("#countryCard")).toContainText("European Union");
+    await expect(page.locator("#countryCard")).not.toContainText("Community + Friends");
+    await expect
+      .poll(() => page.evaluate(() => Math.round(window.scrollY)))
+      .toBe(160);
+  });
+});
+
 test.describe("scene tab — mobile tap", () => {
   // Pixel 5: hasTouch=true, viewport 393×851
   test.use(mobile);
@@ -520,6 +580,23 @@ test.describe("scene tab — mobile tap", () => {
 
     await expect(tab).toHaveClass(/is-active/);
     await expect(page.locator("#countryCard")).toContainText("European Union");
+  });
+
+  test("tapping a tier tab does not scroll the page to the country card", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.evaluate(() => window.scrollTo(0, 160));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(160);
+
+    await page.locator('[data-scene="friends"]').tap();
+    await page.waitForTimeout(950);
+
+    await expect(page.locator('[data-scene="friends"]')).toHaveClass(/is-active/);
+    await expect(page.locator("#countryCard")).toContainText("Community + Friends");
+    await expect.poll(() => page.evaluate(() => Math.round(window.scrollY))).toBe(160);
   });
 
   test("viewport height changes preserve the selected tier framing", async ({
