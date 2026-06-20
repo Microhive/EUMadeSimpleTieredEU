@@ -1265,16 +1265,20 @@ test.describe("map country path — desktop click", () => {
     await page.goto("/");
     await waitForMap(page);
 
+    await page.locator("#mapFlagsButton").click();
+
     const germany = page.locator('#mapSvg [data-country="276"]');
     const austria = page.locator('#mapSvg [data-country="040"]');
     const countryOutline = page.locator("#mapSvg .hover-layer .country-outline");
     const countryCard = page.locator("#countryCard");
 
+    await waitForCanvasFlagVariant(page, "276", "normal");
     await expect(austria).toHaveClass(/is-highlight/);
     await expect(countryCard).toBeHidden();
 
     await germany.hover();
 
+    await waitForCanvasFlagVariant(page, "276", "hovered");
     await expect(germany).toHaveClass(/is-highlight/);
     await expect(germany).toHaveClass(/is-hovered/);
     await expect(countryOutline).toHaveCount(1);
@@ -1299,6 +1303,7 @@ test.describe("map country path — desktop click", () => {
 
     await expect(germany).not.toHaveClass(/is-hovered/);
     await expect(countryOutline).toHaveCount(0);
+    await waitForCanvasFlagVariant(page, "276", "normal");
     await expect(austria).toHaveClass(/is-highlight/);
     await expect(countryCard).toBeHidden();
   });
@@ -1364,6 +1369,8 @@ test.describe("map country path — desktop click", () => {
 
     const germanyChip = page.locator('.country-chip[data-country="276"]');
     const austriaChip = page.locator('.country-chip[data-country="040"]');
+    const germanyOutline = page.locator('#mapSvg .hover-layer .country-outline[data-country-outline="276"]');
+    const austriaOutline = page.locator('#mapSvg .hover-layer .country-outline[data-country-outline="040"]');
 
     await expect(page.locator(".map-flag")).toHaveCount(0);
     await expect(page.locator(".map-flag-canvas")).toHaveCount(1);
@@ -1407,6 +1414,11 @@ test.describe("map country path — desktop click", () => {
     await expect(austriaChip).toHaveClass(/is-flag-out-of-focus/);
     await waitForCanvasFlagVariant(page, "276", "selected");
     await waitForCanvasFlagVariant(page, "040", "dimmed");
+    await expect(germanyOutline).toHaveCount(1);
+    await expect
+      .poll(() => germanyOutline.evaluate((element) => getComputedStyle(element).strokeWidth))
+      .toBe("4.8px");
+    await expect(austriaOutline).toHaveCount(0);
 
     await page.locator('[data-scene="eu"]').hover();
     await expect(germanyChip).toHaveClass(/is-flag-focused/);
@@ -1415,10 +1427,14 @@ test.describe("map country path — desktop click", () => {
     await expect(austriaChip).not.toHaveClass(/is-flag-out-of-focus/);
     await waitForCanvasFlagVariant(page, "276", "selected");
     await waitForCanvasFlagVariant(page, "040", "selected");
+    await expect(germanyOutline).toHaveCount(1);
+    await expect(austriaOutline).toHaveCount(1);
 
     await page.mouse.move(1, 1);
     await waitForCanvasFlagVariant(page, "276", "normal");
     await waitForCanvasFlagVariant(page, "040", "normal");
+    await expect(germanyOutline).toHaveCount(0);
+    await expect(austriaOutline).toHaveCount(0);
     await expect(germanyChip).not.toHaveClass(/is-flag-focused/);
     await expect(austriaChip).not.toHaveClass(/is-flag-focused/);
     await expect(germanyChip).not.toHaveClass(/is-flag-out-of-focus/);
@@ -1790,5 +1806,66 @@ test.describe("map mouse wheel zoom (desktop)", () => {
     expect(canvasRenderTransform.k).toBeCloseTo(zoomTransform.k, 4);
     expect(canvasRenderTransform.x).toBeCloseTo(zoomTransform.x, 1);
     expect(canvasRenderTransform.y).toBeCloseTo(zoomTransform.y, 1);
+  });
+
+  test("dragging a zoomed map stays near the world bounds", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const box = await page.locator("#mapSvg").boundingBox();
+    if (!box) throw new Error("Could not get #mapSvg bounding box");
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+
+    await page.mouse.move(cx, cy);
+    await page.mouse.wheel(0, -1600);
+    await page.waitForTimeout(350);
+    expect(await getZoomScale(page)).toBeGreaterThan(1);
+
+    const dragFromCenter = async (dx: number, dy: number): Promise<void> => {
+      await page.mouse.move(cx, cy);
+      await page.mouse.down();
+      await page.mouse.move(cx + dx, cy + dy, { steps: 24 });
+      await page.mouse.up();
+      await page.waitForTimeout(120);
+    };
+
+    const boundedTransform = async (): Promise<{
+      x: number;
+      y: number;
+      minX: number;
+      maxX: number;
+      minY: number;
+      maxY: number;
+    }> => page.locator("#mapSvg").evaluate((svg: SVGSVGElement) => {
+      const rect = svg.getBoundingClientRect();
+      const transform = (window as any).d3.zoomTransform(svg);
+      const paddingRatio = 0.08;
+      const xPad = rect.width * paddingRatio;
+      const yPad = rect.height * paddingRatio;
+
+      return {
+        x: transform.x,
+        y: transform.y,
+        minX: rect.width - transform.k * (rect.width + xPad),
+        maxX: transform.k * xPad,
+        minY: rect.height - transform.k * (rect.height + yPad),
+        maxY: transform.k * yPad,
+      };
+    });
+
+    await dragFromCenter(6000, 5000);
+    const afterPositiveDrag = await boundedTransform();
+    expect(afterPositiveDrag.x).toBeLessThanOrEqual(afterPositiveDrag.maxX + 2);
+    expect(afterPositiveDrag.y).toBeLessThanOrEqual(afterPositiveDrag.maxY + 2);
+    expect(afterPositiveDrag.x).toBeGreaterThanOrEqual(afterPositiveDrag.minX - 2);
+    expect(afterPositiveDrag.y).toBeGreaterThanOrEqual(afterPositiveDrag.minY - 2);
+
+    await dragFromCenter(-12000, -10000);
+    const afterNegativeDrag = await boundedTransform();
+    expect(afterNegativeDrag.x).toBeLessThanOrEqual(afterNegativeDrag.maxX + 2);
+    expect(afterNegativeDrag.y).toBeLessThanOrEqual(afterNegativeDrag.maxY + 2);
+    expect(afterNegativeDrag.x).toBeGreaterThanOrEqual(afterNegativeDrag.minX - 2);
+    expect(afterNegativeDrag.y).toBeGreaterThanOrEqual(afterNegativeDrag.minY - 2);
   });
 });

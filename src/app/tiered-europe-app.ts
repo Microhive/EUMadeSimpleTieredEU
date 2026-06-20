@@ -106,6 +106,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   const MOBILE_MAX_ZOOM_SCALE = 22;
   const FIT_MAX_ZOOM_SCALE = 12;
   const LABEL_MIN_SCREEN_SCALE = 0.52;
+  const MAP_TRANSLATE_EXTENT_PADDING_RATIO = 0.08;
 
   const CIRCLE_FLAG_SVGS: Record<string, string> = import.meta.glob(
     "../../node_modules/circle-flags/flags/*.svg",
@@ -206,7 +207,9 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   }
 
   function syncZoomScaleExtent(): void {
-    zoom.scaleExtent([1, maxMapZoomScale()]);
+    zoom
+      .scaleExtent([1, maxMapZoomScale()])
+      .translateExtent(mapTranslateExtent());
   }
 
   const zoom = d3.zoom()
@@ -1325,7 +1328,11 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   function setHoveredCountry(countryId: string): void {
     const canonicalId = canonicalCountryId(countryId);
-    if (state.hoveredCountry === canonicalId) return;
+    const didChangeFlagHover = state.mapFlagsMode ? mapFlags.setHovered(canonicalId) : false;
+    if (state.hoveredCountry === canonicalId) {
+      if (didChangeFlagHover) queueMapFlagRender();
+      return;
+    }
 
     state.hoveredCountry = canonicalId;
     updateHighlights();
@@ -1334,6 +1341,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   function clearHoveredCountry(): void {
     if (!state.hoveredCountry) return;
     state.hoveredCountry = null;
+    if (state.mapFlagsMode) mapFlags.clearHover();
     updateHighlights();
   }
 
@@ -1504,6 +1512,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       );
     });
     mapFlags.syncFocus(state.flagFocusIds, state.flagFocusScopeIds);
+    drawCountryOutlines();
     queueMapFlagRender();
   }
 
@@ -1511,7 +1520,11 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     if (!hoverLayer) return;
 
     const featuresByKey = new Map<string, any>();
-    [state.activeCountry, state.hoveredCountry].forEach((countryId) => {
+    [
+      state.activeCountry,
+      state.hoveredCountry,
+      ...(state.activeCountry ? [] : state.flagFocusIds),
+    ].forEach((countryId) => {
       if (!countryId) return;
       countryIdsFor(countryId)
         .map((id) => visualFeatureForCountry(id) ?? state.featureByKey.get(id))
@@ -1849,6 +1862,12 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     const translate: [number, number] = [width / 2 - scale * x, topPad + effectiveHeight / 2 - scale * y];
 
     applyZoomTransform(d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale), duration);
+  }
+
+  function mapTranslateExtent(): [[number, number], [number, number]] {
+    const xPad = width * MAP_TRANSLATE_EXTENT_PADDING_RATIO;
+    const yPad = height * MAP_TRANSLATE_EXTENT_PADDING_RATIO;
+    return [[-xPad, -yPad], [width + xPad, height + yPad]];
   }
 
   function fitOptionsForScene(scene: SceneKey = state.scene): FitOptions {
