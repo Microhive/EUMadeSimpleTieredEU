@@ -1863,7 +1863,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
         .style("font-size", (item: LabelDatum) => labelFontSizeForScale(item, scale));
     };
     const animateLabelOut = (selection: any): void => {
-      selection.interrupt();
+      selection.classed("is-exiting", true);
       if (duration <= 0) {
         selection.remove();
         return;
@@ -1879,7 +1879,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     };
 
     labelLayer
-      .selectAll(".country-label-shadow")
+      .selectAll(".country-label-shadow:not(.is-exiting)")
       .data(labels, labelKey)
       .join(
         (enter: any) => {
@@ -1899,7 +1899,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       );
 
     labelLayer
-      .selectAll(".country-label")
+      .selectAll(".country-label:not(.is-exiting)")
       .data(labels, labelKey)
       .join(
         (enter: any) => {

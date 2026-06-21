@@ -1823,6 +1823,29 @@ test.describe("map country path — desktop click", () => {
     expect(liechtensteinFontSize).toBeLessThan(germanyFontSize * 0.8);
   });
 
+  test("rapid flag hover lets previous country labels finish fading out", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator("#mapFlagsButton").click();
+
+    for (const countryId of ["528", "276", "616", "203", "348"]) {
+      const flag = await getCanvasFlagHitbox(page, countryId);
+      await page.mouse.move(flag.clientX, flag.clientY);
+      await page.waitForTimeout(30);
+    }
+
+    await waitForCanvasFlagVariant(page, "348", "hovered");
+    await expect(page.locator(".map-label-svg .country-label:not(.is-exiting)"))
+      .toHaveCount(1);
+    await expect(page.locator('.map-label-svg .country-label[data-country-label="348"]:not(.is-exiting)'))
+      .toBeVisible();
+
+    await page.waitForTimeout(260);
+    await expect(page.locator(".map-label-svg .country-label"))
+      .toHaveCount(1);
+  });
+
   test("clicking a country also highlights its map flag", async ({ page }) => {
     await page.goto("/");
     await waitForMap(page);
