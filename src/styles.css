@@ -1291,7 +1291,8 @@ img.chip-flag {
 }
 
 .map-wrap.is-map-ready #mapSvg,
-.map-wrap.is-map-ready .map-canvas {
+.map-wrap.is-map-ready .map-canvas,
+.map-wrap.is-map-ready .map-label-svg {
   animation: map-reveal 420ms var(--ease-out) both;
 }
 
@@ -1313,12 +1314,23 @@ img.chip-flag {
 
 #mapSvg {
   position: relative;
-  z-index: 3;
+  z-index: 1;
   display: block;
   width: 100%;
   height: 100%;
   min-height: 700px;
   touch-action: pan-y;
+}
+
+.map-label-svg {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 700px;
+  pointer-events: none;
 }
 
 .map-canvas,
@@ -2138,7 +2150,8 @@ img.chip-flag {
   .map-wrap,
   #mapSvg,
   .map-canvas,
-  .map-flag-canvas {
+  .map-flag-canvas,
+  .map-label-svg {
     height: 100%;
     min-height: 0;
   }
@@ -2271,7 +2284,8 @@ img.chip-flag {
 
   #mapSvg,
   .map-canvas,
-  .map-flag-canvas {
+  .map-flag-canvas,
+  .map-label-svg {
     min-height: 0;
   }
 
@@ -2391,7 +2405,8 @@ img.chip-flag {
 
   #mapSvg,
   .map-canvas,
-  .map-flag-canvas {
+  .map-flag-canvas,
+  .map-label-svg {
     min-height: 560px;
   }
 

@@ -71,6 +71,8 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     isMicrostate: boolean;
   }
 
+  type FlagFocusSource = "country" | "tier" | "scene" | null;
+
   interface FitOptions {
     bottomPad?: number;
     topPad?: number;
@@ -94,6 +96,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     selectedIds: Set<string>;
     flagFocusIds: Set<string>;
     flagFocusScopeIds: Set<string>;
+    flagFocusSource: FlagFocusSource;
     scene: SceneKey;
     editMode: boolean;
     mapFlagsMode: boolean;
@@ -144,6 +147,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     selectedIds: new Set(),
     flagFocusIds: new Set(),
     flagFocusScopeIds: new Set(),
+    flagFocusSource: null,
     scene: "world",
     editMode: false,
     mapFlagsMode: false,
@@ -155,6 +159,8 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   // ─── DOM references ───────────────────────────────────────────────────────────
 
   const svg = d3.select("#mapSvg");
+  const labelSvgElement = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  const labelSvg = d3.select(labelSvgElement);
   const tierDeck = document.querySelector<HTMLElement>("#tierDeck")!;
   const sceneTabs = document.querySelector<HTMLElement>("#sceneTabs")!;
   const legend = document.querySelector<HTMLElement>("#legend")!;
@@ -180,12 +186,16 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   const mapFlagCanvas = document.createElement("canvas");
   const mapFlagLayer = document.createElement("div");
 
+  labelSvgElement.classList.add("map-label-svg");
+  labelSvgElement.setAttribute("aria-hidden", "true");
+  labelSvgElement.setAttribute("focusable", "false");
   mapCanvas.className = "map-canvas";
   mapCanvas.setAttribute("aria-hidden", "true");
   mapWrap.insertBefore(mapCanvas, svg.node() as SVGSVGElement);
   mapFlagCanvas.className = "map-flag-canvas";
   mapFlagCanvas.setAttribute("aria-hidden", "true");
   mapWrap.insertBefore(mapFlagCanvas, countryCard);
+  mapWrap.insertBefore(labelSvgElement, countryCard);
   mapFlagLayer.className = "map-flag-layer";
   mapFlagLayer.setAttribute("aria-label", "Country flags");
   mapFlagLayer.setAttribute("aria-hidden", "true");
@@ -288,6 +298,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   });
 
   let mapLayer: any = null;
+  let labelMapLayer: any = null;
   let countryLayer: any = null;
   let hoverLayer: any = null;
   let labelLayer: any = null;
@@ -1130,6 +1141,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     height = nextSize.height;
     geometryCache = new Map();
     svg.attr("viewBox", `0 0 ${width} ${height}`);
+    labelSvg.attr("viewBox", `0 0 ${width} ${height}`);
     syncCanvasSize();
 
     projection
@@ -1140,14 +1152,16 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       );
 
     svg.selectAll("*").remove();
+    labelSvg.selectAll("*").remove();
     syncZoomScaleExtent();
     svg.call(zoom);
     svg.on("click.restore-scene", onMapBackgroundClick);
 
     mapLayer = svg.append("g").attr("class", "map-layer");
+    labelMapLayer = labelSvg.append("g").attr("class", "label-map-layer");
     countryLayer = mapLayer.append("g").attr("class", "country-layer");
     hoverLayer = mapLayer.append("g").attr("class", "hover-layer");
-    labelLayer = mapLayer.append("g").attr("class", "label-layer");
+    labelLayer = labelMapLayer.append("g").attr("class", "label-layer");
 
     countryLayer
       .selectAll("path")
@@ -1256,6 +1270,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
     if (request.includeMap) {
       if (mapLayer) mapLayer.attr("transform", transform);
+      if (labelMapLayer) labelMapLayer.attr("transform", transform);
       drawCanvasMap(transform);
     }
 
@@ -1264,6 +1279,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     }
 
     if (request.updateLabels) {
+      if (labelMapLayer) labelMapLayer.attr("transform", transform);
       updateLabelScale(transform.k);
     }
   }
@@ -1414,11 +1430,22 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     return activeTierForScene(scene) ? selectedIdsForScene(scene) : new Set();
   }
 
-  function setFlagFocusIds(ids: Set<string>, scopeIds: Set<string> = ids): void {
-    if (setsEqual(state.flagFocusIds, ids) && setsEqual(state.flagFocusScopeIds, scopeIds)) return;
+  function setFlagFocusIds(
+    ids: Set<string>,
+    scopeIds: Set<string> = ids,
+    source: FlagFocusSource = ids.size > 0 ? "country" : null,
+  ): void {
+    if (
+      setsEqual(state.flagFocusIds, ids) &&
+      setsEqual(state.flagFocusScopeIds, scopeIds) &&
+      state.flagFocusSource === source
+    ) {
+      return;
+    }
 
     state.flagFocusIds = ids;
     state.flagFocusScopeIds = scopeIds;
+    state.flagFocusSource = source;
     syncFlagFocusHighlights();
   }
 
@@ -1431,23 +1458,23 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   }
 
   function setSelectedTierFlagScope(scene: SceneKey = state.scene): void {
-    setFlagFocusIds(new Set(), selectedTierFlagScope(scene));
+    setFlagFocusIds(new Set(), selectedTierFlagScope(scene), null);
   }
 
   function focusFlagsForTier(tierId: TierId): void {
-    setFlagFocusIds(flagFocusIdsForTier(tierId));
+    setFlagFocusIds(flagFocusIdsForTier(tierId), flagFocusIdsForTier(tierId), "tier");
   }
 
   function focusFlagsForScene(scene: SceneKey): void {
-    setFlagFocusIds(flagFocusIdsForScene(scene));
+    setFlagFocusIds(flagFocusIdsForScene(scene), flagFocusIdsForScene(scene), "scene");
   }
 
   function focusFlagForCountry(countryId: string, scopeIds: Set<string> = selectedCountrySet(countryIdsFor(countryId))): void {
-    setFlagFocusIds(selectedCountrySet(countryIdsFor(countryId)), scopeIds);
+    setFlagFocusIds(selectedCountrySet(countryIdsFor(countryId)), scopeIds, "country");
   }
 
   function setActiveCountryFlagFocus(countryId: string): void {
-    setFlagFocusIds(selectedCountrySet(countryIdsFor(countryId)), new Set());
+    setFlagFocusIds(selectedCountrySet(countryIdsFor(countryId)), new Set(), "country");
   }
 
   function clearFlagFocus(): void {
@@ -1794,7 +1821,9 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       labelsById.set(label.id, label);
     };
 
-    state.flagFocusIds.forEach((id) => addLabel(id));
+    if (state.flagFocusSource === "country") {
+      state.flagFocusIds.forEach((id) => addLabel(id));
+    }
 
     if (scale >= ALL_COUNTRY_LABEL_MIN_ZOOM_SCALE) {
       state.visualFeatures.forEach((feature) => addLabel(keyForFeature(feature)));

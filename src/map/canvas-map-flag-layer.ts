@@ -46,6 +46,7 @@ interface MapFlagDebugHitbox {
   isFocused: boolean;
   isInFocusScope: boolean;
   variant: CanvasFlagBadgeVariant;
+  hoverProgress?: number;
 }
 
 interface MapFlagDebugLayer extends HTMLElement {
@@ -84,6 +85,12 @@ interface FlagVariantAnimation {
   startedAt: number;
 }
 
+interface FlagHoverAnimation {
+  from: number;
+  target: number;
+  startedAt: number;
+}
+
 export function createCanvasMapFlagLayer({
   canvas,
   layer,
@@ -113,6 +120,7 @@ export function createCanvasMapFlagLayer({
   let latestViewport: MapViewport | null = null;
   let animationFrame: number | null = null;
   const variantAnimations = new Map<string, FlagVariantAnimation>();
+  const hoverAnimations = new Map<string, FlagHoverAnimation>();
   const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   const setEnabled = (nextEnabled: boolean): void => {
@@ -133,6 +141,7 @@ export function createCanvasMapFlagLayer({
       hasActiveFocusIds = false;
       hasActiveFocusScope = false;
       variantAnimations.clear();
+      hoverAnimations.clear();
       mapWrap.classList.remove("has-map-flag-hover");
       scheduleCanvasClear();
     }
@@ -234,6 +243,7 @@ export function createCanvasMapFlagLayer({
     context.clearRect(0, 0, canvas.width, canvas.height);
     position(latestTransform, viewport);
     syncVariantAnimations(now);
+    syncHoverAnimations(now);
 
     context.save();
     context.scale(dpr, dpr);
@@ -242,7 +252,7 @@ export function createCanvasMapFlagLayer({
       if (!item.visible) continue;
 
       const image = primeImage(item.src);
-      const sprite = sprites.spriteFor(image, badgeVariantFor(item), dpr);
+      const sprite = sprites.spriteFor(image, baseBadgeVariantFor(item), dpr);
       const spriteScale = item.renderSize / badgeSize;
       const cssWidth = sprite.cssWidth * spriteScale;
       const cssHeight = sprite.cssHeight * spriteScale;
@@ -255,9 +265,9 @@ export function createCanvasMapFlagLayer({
     context.globalAlpha = 1;
     context.filter = "none";
     canvas.dataset.renderRevision = String(++renderRevision);
-    canvas.dataset.stateAnimation = hasActiveVariantAnimations(now) ? "active" : "idle";
+    canvas.dataset.stateAnimation = hasActiveAnimations(now) ? "active" : "idle";
 
-    if (hasActiveVariantAnimations(now)) {
+    if (hasActiveAnimations(now)) {
       scheduleAnimationFrame();
     } else if (animationFrame !== null) {
       window.cancelAnimationFrame(animationFrame);
@@ -351,6 +361,10 @@ export function createCanvasMapFlagLayer({
 
   const badgeVariantFor = (item: MapFlagRenderItem): CanvasFlagBadgeVariant => {
     if (hoveredId === item.id) return "hovered";
+    return baseBadgeVariantFor(item);
+  };
+
+  const baseBadgeVariantFor = (item: MapFlagRenderItem): CanvasFlagBadgeVariant => {
     if (draggingId === item.id) return "muted";
     if (item.isFocused) return "selected";
     if (hasActiveFocusScope && !item.isInFocusScope) {
@@ -377,6 +391,7 @@ export function createCanvasMapFlagLayer({
   const syncMetadata = (): void => {
     const visibleFlags: MapFlagRenderItem[] = [];
     let tieredCount = 0;
+    const now = performance.now();
 
     for (const item of items) {
       if (item.visible) visibleFlags.push(item);
@@ -399,6 +414,7 @@ export function createCanvasMapFlagLayer({
         isFocused: item.isFocused,
         isInFocusScope: item.isInFocusScope,
         variant: badgeVariantFor(item),
+        hoverProgress: Number(hoverProgressForItem(item.id, now).toFixed(3)),
       }));
     } else {
       delete debugLayer.__mapFlagHitboxes;
@@ -426,7 +442,7 @@ export function createCanvasMapFlagLayer({
       if (!item.visible) continue;
 
       visibleIds.add(item.id);
-      const target = badgeVariantFor(item);
+      const target = baseBadgeVariantFor(item);
       const existing = variantAnimations.get(item.id);
       if (!existing) {
         variantAnimations.set(item.id, { from: target, target, startedAt: now });
@@ -447,6 +463,34 @@ export function createCanvasMapFlagLayer({
     }
   }
 
+  function syncHoverAnimations(now: number): void {
+    const visibleIds = new Set<string>();
+
+    for (const item of items) {
+      if (!item.visible) continue;
+
+      visibleIds.add(item.id);
+      const target = hoveredId === item.id ? 1 : 0;
+      const existing = hoverAnimations.get(item.id);
+      if (!existing) {
+        hoverAnimations.set(item.id, { from: target, target, startedAt: now });
+        continue;
+      }
+
+      if (existing.target === target) continue;
+
+      hoverAnimations.set(item.id, {
+        from: hoverProgressForItem(item.id, now),
+        target,
+        startedAt: now,
+      });
+    }
+
+    for (const id of hoverAnimations.keys()) {
+      if (!visibleIds.has(id)) hoverAnimations.delete(id);
+    }
+  }
+
   function drawAnimatedFlagSprite(
     item: MapFlagRenderItem,
     image: HTMLImageElement | null,
@@ -460,10 +504,11 @@ export function createCanvasMapFlagLayer({
     if (!context) return;
 
     const animation = variantAnimations.get(item.id);
-    const target = badgeVariantFor(item);
+    const target = baseBadgeVariantFor(item);
     if (!animation || prefersReducedMotion()) {
       const sprite = sprites.spriteFor(image, target, dpr);
       context.drawImage(sprite.canvas, x, y, cssWidth, cssHeight);
+      drawHoverOverlay(item, image, dpr, x, y, cssWidth, cssHeight, now);
       return;
     }
 
@@ -471,6 +516,7 @@ export function createCanvasMapFlagLayer({
     if (animation.from === animation.target || progress >= 1) {
       const sprite = sprites.spriteFor(image, animation.target, dpr);
       context.drawImage(sprite.canvas, x, y, cssWidth, cssHeight);
+      drawHoverOverlay(item, image, dpr, x, y, cssWidth, cssHeight, now);
       return;
     }
 
@@ -483,11 +529,48 @@ export function createCanvasMapFlagLayer({
     context.globalAlpha = previousAlpha * progress;
     context.drawImage(targetSprite.canvas, x, y, cssWidth, cssHeight);
     context.globalAlpha = previousAlpha;
+    drawHoverOverlay(item, image, dpr, x, y, cssWidth, cssHeight, now);
+  }
+
+  function drawHoverOverlay(
+    item: MapFlagRenderItem,
+    image: HTMLImageElement | null,
+    dpr: number,
+    x: number,
+    y: number,
+    cssWidth: number,
+    cssHeight: number,
+    now: number,
+  ): void {
+    if (!context) return;
+
+    const progress = hoverProgressForItem(item.id, now);
+    if (progress <= 0) return;
+
+    const previousAlpha = context.globalAlpha;
+    const sprite = sprites.spriteFor(image, "hovered", dpr);
+    context.globalAlpha = previousAlpha * progress;
+    context.drawImage(sprite.canvas, x, y, cssWidth, cssHeight);
+    context.globalAlpha = previousAlpha;
+  }
+
+  function hasActiveAnimations(now: number): boolean {
+    return hasActiveVariantAnimations(now) || hasActiveHoverAnimations(now);
   }
 
   function hasActiveVariantAnimations(now: number): boolean {
     if (prefersReducedMotion()) return false;
     for (const animation of variantAnimations.values()) {
+      if (animation.from !== animation.target && animationProgress(animation.startedAt, now) < 1) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function hasActiveHoverAnimations(now: number): boolean {
+    if (prefersReducedMotion()) return false;
+    for (const animation of hoverAnimations.values()) {
       if (animation.from !== animation.target && animationProgress(animation.startedAt, now) < 1) {
         return true;
       }
@@ -509,6 +592,15 @@ export function createCanvasMapFlagLayer({
   ): CanvasFlagBadgeVariant {
     if (prefersReducedMotion()) return animation.target;
     return animationProgress(animation.startedAt, now) < 0.5 ? animation.from : animation.target;
+  }
+
+  function hoverProgressForItem(id: string, now: number): number {
+    const animation = hoverAnimations.get(id);
+    if (!animation) return hoveredId === id ? 1 : 0;
+    if (prefersReducedMotion()) return animation.target;
+
+    const progress = easeOutCubic(animationProgress(animation.startedAt, now));
+    return animation.from + (animation.target - animation.from) * progress;
   }
 
   function prefersReducedMotion(): boolean {
