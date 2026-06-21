@@ -1066,6 +1066,13 @@ test.describe("map rendering — desktop", () => {
     await expect(page.locator('#mapSvg [data-country="112"]')).toHaveCSS("opacity", "0");
   });
 
+  test("does not render Antarctica", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await expect(page.locator('#mapSvg [data-country="010"]')).toHaveCount(0);
+  });
+
   test("fits the flat world map without wrapping Russia beside North America", async ({ page }) => {
     await page.goto("/");
     await waitForMap(page);
@@ -1861,6 +1868,23 @@ test.describe("map country path — desktop click", () => {
     expect(franceFlag.isFocused).toBe(true);
     expect(franceFlag.isInFocusScope).toBe(false);
     await expect(page.locator('.country-chip[data-country="250"]')).toHaveClass(/is-flag-focused/);
+  });
+
+  test("clicking a country outside the active scene keeps the active scene outlines", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator('[data-scene="inner"]').click();
+    await page.locator('.tier-card[data-tier="associate"] .country-chip[data-country="578"]').click();
+
+    await expect(page.locator('[data-scene="inner"]')).toHaveClass(/is-active/);
+    await expect(page.locator('#mapSvg [data-country="578"]')).toHaveClass(/is-selected/);
+    await expect(page.locator('#mapSvg [data-country="578"]')).toHaveClass(/is-highlight/);
+    await expect(page.locator('#mapSvg [data-country="276"]')).toHaveClass(/is-highlight/);
+    await expect(page.locator('#mapSvg [data-country="040"]')).not.toHaveClass(/is-highlight/);
+    await expect(page.locator('#mapSvg [data-country="804"]')).not.toHaveClass(/is-highlight/);
+    await expect(page.locator('#mapSvg .hover-layer .country-outline[data-country-outline="578"]'))
+      .toHaveCount(1);
   });
 
   test("clicking a country on the map shows its info card", async ({ page }) => {

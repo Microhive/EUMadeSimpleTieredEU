@@ -21,6 +21,7 @@ const EUROPE_BOUNDS: EuropeBounds = {
 };
 
 const RUSSIA_ID = "643";
+const EXCLUDED_MAP_FEATURE_IDS = new Set(["010"]);
 
 const CRIMEA_BOUNDS: EuropeBounds = {
   minLon: 32,
@@ -94,8 +95,11 @@ export function withHighDetailInteractionFeatures(
 }
 
 export function withScenarioFeatures(features: any[]): any[] {
-  const existingKeys = new Set(features.map(keyForFeature));
-  const normalizedFeatures = features.map(featureWithScenarioAdjustments);
+  const includedFeatures = features.filter(
+    (feature) => !EXCLUDED_MAP_FEATURE_IDS.has(keyForFeature(feature)),
+  );
+  const existingKeys = new Set(includedFeatures.map(keyForFeature));
+  const normalizedFeatures = includedFeatures.map(featureWithScenarioAdjustments);
   const missingFeatures = SCENARIO_EXTRA_FEATURES.filter(
     (feature) => !existingKeys.has(keyForFeature(feature)),
   );

@@ -210,7 +210,6 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   // ─── d3 / map setup ───────────────────────────────────────────────────────────
 
-  const WORLD_FIT_EXCLUDED_COUNTRY_IDS = new Set(["010"]);
   const NO_WRAP_MERCATOR_ROTATION: [number, number] = [-11.5, 0];
 
   const projection = d3.geoMercator().rotate(NO_WRAP_MERCATOR_ROTATION);
@@ -853,11 +852,8 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     if (state.activeCountry) {
       const meta = countryCardMetaFor(state.activeCountry);
       if (meta) {
-        state.activeTier =
-          activeTierForScene() ??
-          tierArrangement.directTierForCountry(state.activeCountry) ??
-          null;
-        state.selectedIds = selectedCountrySet(countryIdsFor(state.activeCountry));
+        state.activeTier = activeTierForScene();
+        state.selectedIds = selectedIdsForCountryFocus(state.activeCountry);
         renderCountryCardForCountry(meta);
       } else {
         state.activeCountry = null;
@@ -1228,8 +1224,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   }
 
   function worldFitFeatureCollection(): any {
-    const features = (state.visualFeatures.length ? state.visualFeatures : state.features)
-      .filter((feature) => !WORLD_FIT_EXCLUDED_COUNTRY_IDS.has(keyForFeature(feature)));
+    const features = state.visualFeatures.length ? state.visualFeatures : state.features;
     return { type: "FeatureCollection", features };
   }
 
@@ -1359,18 +1354,10 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     const meta = countryCardMetaFor(countryId);
     if (!meta) return;
 
-    const countryFeatureIds = countryIdsFor(canonicalId);
-    const isInCurrentSelection = countryFeatureIds.some((id) => state.selectedIds.has(id));
-    const directTierId = tierArrangement.directTierForCountry(canonicalId) ?? null;
-
     state.activeCountry = canonicalId;
     state.hoveredCountry = null;
-    state.activeTier = isInCurrentSelection ? state.activeTier : directTierId;
-    state.selectedIds = isInCurrentSelection
-      ? new Set(state.selectedIds)
-      : directTierId
-        ? selectedCountrySet(cumulativeIdsFor(directTierId))
-        : selectedCountrySet(countryFeatureIds);
+    state.activeTier = activeTierForScene();
+    state.selectedIds = selectedIdsForCountryFocus(canonicalId);
     state.userTouched = true;
     setActiveCountryFlagFocus(canonicalId);
     updateHighlights();
@@ -1416,6 +1403,12 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   function selectedIdsForScene(scene: SceneKey = state.scene): Set<string> {
     return selectedCountrySet(sceneIdsFor(scene) ?? cumulativeIdsFor("friends"));
+  }
+
+  function selectedIdsForCountryFocus(countryId: string): Set<string> {
+    const ids = selectedIdsForScene();
+    countryIdsFor(countryId).forEach((id) => ids.add(id));
+    return ids;
   }
 
   function flagFocusIdsForTier(tierId: TierId): Set<string> {
