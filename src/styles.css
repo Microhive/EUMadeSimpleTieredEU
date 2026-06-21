@@ -1313,7 +1313,7 @@ img.chip-flag {
 
 #mapSvg {
   position: relative;
-  z-index: 1;
+  z-index: 3;
   display: block;
   width: 100%;
   height: 100%;
@@ -1409,7 +1409,7 @@ img.chip-flag {
 .map-flag-layer {
   position: absolute;
   inset: 0;
-  z-index: 3;
+  z-index: 2;
   display: none;
   overflow: hidden;
   pointer-events: none;

@@ -68,6 +68,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     id: string;
     text: string;
     centroid: [number, number];
+    isMicrostate: boolean;
   }
 
   interface FitOptions {
@@ -111,6 +112,10 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   const COUNTRY_OUTLINE_ANIMATION_MS = 180;
   const COUNTRY_OUTLINE_ENTER_WIDTH = 1.2;
   const COUNTRY_OUTLINE_ACTIVE_WIDTH = 4.8;
+  const COUNTRY_LABEL_ANIMATION_MS = 170;
+  const COUNTRY_LABEL_ENTER_SCALE = 0.86;
+  const ALL_COUNTRY_LABEL_MIN_ZOOM_SCALE = 12.25;
+  const MICROSTATE_LABEL_SCALE = 0.72;
 
   const CIRCLE_FLAG_SVGS: Record<string, string> = import.meta.glob(
     "../../node_modules/circle-flags/flags/*.svg",
@@ -124,6 +129,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   // ─── derived lookups ──────────────────────────────────────────────────────────
 
   const tierArrangement = createTierArrangement(tiers);
+  const MICROSTATE_COUNTRY_IDS = new Set(["020", "438", "492", "674", "336"]);
 
   // ─── state ────────────────────────────────────────────────────────────────────
 
@@ -1289,16 +1295,16 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     return DESKTOP_LABEL_PX;
   }
 
-  function labelScreenPxForScale(scale: number): number {
+  function labelScreenPxForScale(item: LabelDatum, scale: number): number {
     const zoomRange = Math.max(1, maxMapZoomScale() - 1);
     const progress = Math.max(0, Math.min(1, (scale - 1) / zoomRange));
     const easedProgress = Math.sqrt(progress);
     const scaleFactor = LABEL_MIN_SCREEN_SCALE + (1 - LABEL_MIN_SCREEN_SCALE) * easedProgress;
-    return countryLabelBasePx() * scaleFactor;
+    return countryLabelBasePx() * scaleFactor * (item.isMicrostate ? MICROSTATE_LABEL_SCALE : 1);
   }
 
-  function labelFontSizeForScale(scale: number): string {
-    return `${labelScreenPxForScale(scale) / Math.max(1, scale)}px`;
+  function labelFontSizeForScale(item: LabelDatum, scale: number, sizeScale = 1): string {
+    return `${(labelScreenPxForScale(item, scale) * sizeScale) / Math.max(1, scale)}px`;
   }
 
   function labelShadowOffsetForScale(scale: number): number {
@@ -1306,20 +1312,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   }
 
   function updateLabelScale(scale: number): void {
-    if (!labelLayer) return;
-
-    labelLayer
-      .selectAll(".country-label, .country-label-shadow")
-      .style("font-size", labelFontSizeForScale(scale))
-      .attr("x", (item: LabelDatum) => labelXForScale(item, scale))
-      .attr("y", (item: LabelDatum) => labelYForScale(item))
-      .attr("text-anchor", labelTextAnchorFor);
-
-    const shadowOffset = labelShadowOffsetForScale(scale);
-    labelLayer
-      .selectAll(".country-label-shadow")
-      .attr("dx", shadowOffset)
-      .attr("dy", shadowOffset);
+    drawLabels(scale);
   }
 
   // ─── interaction ──────────────────────────────────────────────────────────────
@@ -1583,6 +1576,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       queueMapFlagRender();
     }
     hasCountryFocusIsolation = nextCountryFocusIsolation;
+    drawLabels();
   }
 
   function drawCountryOutlines(): void {
@@ -1789,7 +1783,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   function drawConnections(): void {}
 
-  function drawLabels(): void {
+  function drawLabels(scale: number = currentZoomTransform().k): void {
     if (!labelLayer) return;
 
     const labelsById = new Map<string, LabelDatum>();
@@ -1800,43 +1794,96 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       labelsById.set(label.id, label);
     };
 
-    if (state.selectedIds.size <= 14) {
-      [...state.selectedIds].forEach((id) => addLabel(id));
+    state.flagFocusIds.forEach((id) => addLabel(id));
+
+    if (scale >= ALL_COUNTRY_LABEL_MIN_ZOOM_SCALE) {
+      state.visualFeatures.forEach((feature) => addLabel(keyForFeature(feature)));
     }
 
     if (state.activeCountry) addLabel(state.activeCountry);
     if (state.hoveredCountry) addLabel(state.hoveredCountry);
 
     const labels = [...labelsById.values()];
+    const labelShadowOffset = labelShadowOffsetForScale(scale);
+    const duration = motionDuration(COUNTRY_LABEL_ANIMATION_MS);
+    const labelKey = (item: LabelDatum): string => item.id;
+    const labelClass = (item: LabelDatum, baseClass: string): string => (
+      item.isMicrostate ? `${baseClass} ${baseClass}--microstate` : baseClass
+    );
+    const applyBaseLabelAttrs = (selection: any, baseClass: string): any => selection
+      .attr("class", (item: LabelDatum) => labelClass(item, baseClass))
+      .attr("data-country-label", (item: LabelDatum) => item.id)
+      .attr("data-microstate-label", (item: LabelDatum) => String(item.isMicrostate))
+      .attr("x", (item: LabelDatum) => labelXForScale(item, scale))
+      .attr("y", (item: LabelDatum) => labelYForScale(item))
+      .attr("text-anchor", labelTextAnchorFor)
+      .attr("dominant-baseline", "middle")
+      .style("font-size", (item: LabelDatum) => labelFontSizeForScale(item, scale))
+      .text((item: LabelDatum) => item.text);
+    const animateLabelIn = (selection: any, finalOpacity: number): void => {
+      if (duration <= 0) {
+        selection.style("opacity", finalOpacity);
+        return;
+      }
 
-    const currentScale: number = svg.node() ? d3.zoomTransform(svg.node()).k : 1;
-    const labelShadowOffset = labelShadowOffsetForScale(currentScale);
+      selection
+        .transition()
+        .duration(duration)
+        .ease(d3.easeCubicOut)
+        .style("opacity", finalOpacity)
+        .style("font-size", (item: LabelDatum) => labelFontSizeForScale(item, scale));
+    };
+    const animateLabelOut = (selection: any): void => {
+      selection.interrupt();
+      if (duration <= 0) {
+        selection.remove();
+        return;
+      }
+
+      selection
+        .transition()
+        .duration(duration)
+        .ease(d3.easeCubicIn)
+        .style("opacity", 0)
+        .style("font-size", (item: LabelDatum) => labelFontSizeForScale(item, scale, COUNTRY_LABEL_ENTER_SCALE))
+        .remove();
+    };
 
     labelLayer
       .selectAll(".country-label-shadow")
-      .data(labels, (item: LabelDatum) => item.id)
-      .join("text")
-      .attr("class", "country-label-shadow")
-      .attr("x", (item: LabelDatum) => labelXForScale(item, currentScale))
-      .attr("y", (item: LabelDatum) => labelYForScale(item))
-      .attr("dx", labelShadowOffset)
-      .attr("dy", labelShadowOffset)
-      .attr("text-anchor", labelTextAnchorFor)
-      .attr("dominant-baseline", "middle")
-      .style("font-size", labelFontSizeForScale(currentScale))
-      .text((item: LabelDatum) => item.text);
+      .data(labels, labelKey)
+      .join(
+        (enter: any) => {
+          const entered = applyBaseLabelAttrs(enter.append("text"), "country-label-shadow")
+            .attr("dx", labelShadowOffset)
+            .attr("dy", labelShadowOffset)
+            .style("opacity", 0)
+            .style("font-size", (item: LabelDatum) => labelFontSizeForScale(item, scale, COUNTRY_LABEL_ENTER_SCALE));
+          animateLabelIn(entered, 0.95);
+          return entered;
+        },
+        (update: any) => applyBaseLabelAttrs(update.interrupt(), "country-label-shadow")
+          .attr("dx", labelShadowOffset)
+          .attr("dy", labelShadowOffset)
+          .style("opacity", 0.95),
+        animateLabelOut,
+      );
 
     labelLayer
       .selectAll(".country-label")
-      .data(labels, (item: LabelDatum) => item.id)
-      .join("text")
-      .attr("class", "country-label")
-      .attr("x", (item: LabelDatum) => labelXForScale(item, currentScale))
-      .attr("y", (item: LabelDatum) => labelYForScale(item))
-      .attr("text-anchor", labelTextAnchorFor)
-      .attr("dominant-baseline", "middle")
-      .style("font-size", labelFontSizeForScale(currentScale))
-      .text((item: LabelDatum) => item.text)
+      .data(labels, labelKey)
+      .join(
+        (enter: any) => {
+          const entered = applyBaseLabelAttrs(enter.append("text"), "country-label")
+            .style("opacity", 0)
+            .style("font-size", (item: LabelDatum) => labelFontSizeForScale(item, scale, COUNTRY_LABEL_ENTER_SCALE));
+          animateLabelIn(entered, 1);
+          return entered;
+        },
+        (update: any) => applyBaseLabelAttrs(update.interrupt(), "country-label")
+          .style("opacity", 1),
+        animateLabelOut,
+      )
       .raise();
   }
 
@@ -1889,7 +1936,12 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     const layout = layoutForFeature(feature);
     if (!layout) return null;
 
-    return { id, text: name, centroid: layout.centroid };
+    return {
+      id,
+      text: name,
+      centroid: layout.centroid,
+      isMicrostate: MICROSTATE_COUNTRY_IDS.has(id),
+    };
   }
 
   // ─── scene management ─────────────────────────────────────────────────────────
@@ -2030,9 +2082,6 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     if (!button?.dataset.scene) return;
     state.userTouched = true;
     focusScene(button.dataset.scene as SceneKey, { scrollCard: false });
-    if (button.matches(":hover, :focus-visible")) {
-      focusFlagsForScene(button.dataset.scene as SceneKey);
-    }
   });
 
   sceneTabs.addEventListener("focusin", (event: FocusEvent) => {

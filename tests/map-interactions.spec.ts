@@ -1540,14 +1540,39 @@ test.describe("map country path — desktop click", () => {
     });
   });
 
-  test("country labels grow as the map zooms in", async ({ page }) => {
+  test("active tier labels stay zoom-gated while focus and far zoom show labels", async ({ page }) => {
     await page.goto("/");
     await waitForMap(page);
 
     await page.locator('[data-scene="inner"]').click();
     await page.waitForTimeout(950);
 
-    const germanyLabel = page.locator("#mapSvg .country-label").filter({ hasText: "Germany" }).first();
+    const germanyLabel = page.locator('#mapSvg .country-label[data-country-label="276"]');
+    await expect(germanyLabel).toHaveCount(0);
+
+    await page.mouse.move(10, 220);
+    await page.locator('[data-scene="inner"]').hover();
+    await expect(germanyLabel).toBeVisible();
+
+    await page.mouse.move(10, 220);
+    await expect(germanyLabel).toHaveCount(0);
+
+    await page.mouse.move(680, 360);
+    await page.mouse.wheel(0, -5200);
+    await page.waitForTimeout(450);
+
+    await expect(germanyLabel).toBeVisible();
+    await expect(page.locator('#mapSvg .country-label[data-country-label="112"]')).toBeVisible();
+  });
+
+  test("country labels grow as the map zooms in", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator('#mapSvg [data-country="276"]').click();
+    await page.waitForTimeout(850);
+
+    const germanyLabel = page.locator('#mapSvg .country-label[data-country-label="276"]').first();
     await expect(germanyLabel).toBeVisible();
 
     const beforeBox = await germanyLabel.boundingBox();
@@ -1740,7 +1765,8 @@ test.describe("map country path — desktop click", () => {
         flagCanvas: zIndexFor(".map-flag-canvas"),
       };
     });
-    expect(stackOrder.flagCanvas).toBeGreaterThan(stackOrder.mapSvg);
+    expect(stackOrder.mapSvg).toBeGreaterThan(stackOrder.flagCanvas);
+    expect(stackOrder.mapSvg).toBeGreaterThan(stackOrder.mapCanvas);
     expect(stackOrder.flagCanvas).toBeGreaterThan(stackOrder.mapCanvas);
 
     await expect(germanyChip).toHaveClass(/is-map-hovered/);
@@ -1778,9 +1804,20 @@ test.describe("map country path — desktop click", () => {
         .not.toHaveClass(/is-hovered/);
     }
 
-    await expect(
-      page.locator("#mapSvg .country-label").filter({ hasText: "Liechtenstein" }).first(),
-    ).toBeVisible();
+    const liechtensteinLabel = page.locator('#mapSvg .country-label[data-country-label="438"]').first();
+    await expect(liechtensteinLabel).toBeVisible();
+    await expect(liechtensteinLabel).toHaveAttribute("data-microstate-label", "true");
+    const liechtensteinFontSize = await liechtensteinLabel.evaluate((element) =>
+      Number.parseFloat(getComputedStyle(element).fontSize),
+    );
+
+    await hoverCanvasFlag(page, "276");
+    const germanyLabel = page.locator('#mapSvg .country-label[data-country-label="276"]').first();
+    await expect(germanyLabel).toBeVisible();
+    const germanyFontSize = await germanyLabel.evaluate((element) =>
+      Number.parseFloat(getComputedStyle(element).fontSize),
+    );
+    expect(liechtensteinFontSize).toBeLessThan(germanyFontSize * 0.8);
   });
 
   test("clicking a country also highlights its map flag", async ({ page }) => {
