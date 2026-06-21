@@ -53,6 +53,12 @@ _Avoid_: Tier state, assignment map
 - A **Tier Arrangement** records which **Countries** currently belong to each **Integration Tier**
 - The **Integration Ladder** describes movement from **European Community + Friends** toward **Inner Union**
 
+## Feature Expectations
+
+For the current interaction contract, see `docs/FEATURE_EXPECTATIONS.md`.
+It summarizes the behaviors covered by the Playwright suite and should be used
+as a reference before changing map, tier, flag, label, modal, or drag behavior.
+
 ## Example Dialogue
 
 > **Dev:** "If Ukraine is in **Associate Membership**, should it also appear in **European Union**?"
