@@ -76,6 +76,13 @@ interface CanvasMapFlagLayerOptions {
 }
 
 const FLAG_CANVAS_FADE_OUT_MS = 180;
+const FLAG_STATE_ANIMATION_MS = 180;
+
+interface FlagVariantAnimation {
+  from: CanvasFlagBadgeVariant;
+  target: CanvasFlagBadgeVariant;
+  startedAt: number;
+}
 
 export function createCanvasMapFlagLayer({
   canvas,
@@ -102,6 +109,11 @@ export function createCanvasMapFlagLayer({
   let hasActiveFocusScope = false;
   let hasActiveFocusIds = false;
   let clearTimer: ReturnType<typeof window.setTimeout> | null = null;
+  let latestTransform: TransformLike | null = null;
+  let latestViewport: MapViewport | null = null;
+  let animationFrame: number | null = null;
+  const variantAnimations = new Map<string, FlagVariantAnimation>();
+  const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   const setEnabled = (nextEnabled: boolean): void => {
     if (clearTimer !== null) {
@@ -120,6 +132,7 @@ export function createCanvasMapFlagLayer({
       draggingId = null;
       hasActiveFocusIds = false;
       hasActiveFocusScope = false;
+      variantAnimations.clear();
       mapWrap.classList.remove("has-map-flag-hover");
       scheduleCanvasClear();
     }
@@ -202,6 +215,15 @@ export function createCanvasMapFlagLayer({
   const draw = (transform: TransformLike, viewport: MapViewport): void => {
     if (!context || viewport.width <= 0 || viewport.height <= 0) return;
 
+    latestTransform = transform;
+    latestViewport = viewport;
+    drawFrame(performance.now());
+  };
+
+  const drawFrame = (now: number): void => {
+    if (!context || !latestTransform || !latestViewport) return;
+
+    const viewport = latestViewport;
     const dpr = window.devicePixelRatio || 1;
     context.setTransform(1, 0, 0, 1, 0, 0);
     if (!enabled) {
@@ -210,7 +232,8 @@ export function createCanvasMapFlagLayer({
     }
 
     context.clearRect(0, 0, canvas.width, canvas.height);
-    position(transform, viewport);
+    position(latestTransform, viewport);
+    syncVariantAnimations(now);
 
     context.save();
     context.scale(dpr, dpr);
@@ -225,13 +248,21 @@ export function createCanvasMapFlagLayer({
       const cssHeight = sprite.cssHeight * spriteScale;
       const x = Math.round(item.screenX - sprite.offsetX * spriteScale);
       const y = Math.round(item.screenY - sprite.offsetY * spriteScale);
-      context.drawImage(sprite.canvas, x, y, cssWidth, cssHeight);
+      drawAnimatedFlagSprite(item, image, dpr, x, y, cssWidth, cssHeight, now);
     }
 
     context.restore();
     context.globalAlpha = 1;
     context.filter = "none";
     canvas.dataset.renderRevision = String(++renderRevision);
+    canvas.dataset.stateAnimation = hasActiveVariantAnimations(now) ? "active" : "idle";
+
+    if (hasActiveVariantAnimations(now)) {
+      scheduleAnimationFrame();
+    } else if (animationFrame !== null) {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = null;
+    }
   };
 
   const hitTest = (clientX: number, clientY: number): MapFlagHit | null => {
@@ -304,6 +335,7 @@ export function createCanvasMapFlagLayer({
     context.setTransform(1, 0, 0, 1, 0, 0);
     context.clearRect(0, 0, canvas.width, canvas.height);
     canvas.dataset.renderRevision = String(++renderRevision);
+    canvas.dataset.stateAnimation = "idle";
   };
 
   const scheduleCanvasClear = (): void => {
@@ -386,4 +418,108 @@ export function createCanvasMapFlagLayer({
     setDragging,
     isEventOnFlag,
   };
+
+  function syncVariantAnimations(now: number): void {
+    const visibleIds = new Set<string>();
+
+    for (const item of items) {
+      if (!item.visible) continue;
+
+      visibleIds.add(item.id);
+      const target = badgeVariantFor(item);
+      const existing = variantAnimations.get(item.id);
+      if (!existing) {
+        variantAnimations.set(item.id, { from: target, target, startedAt: now });
+        continue;
+      }
+
+      if (existing.target === target) continue;
+
+      variantAnimations.set(item.id, {
+        from: currentVariantForAnimation(existing, now),
+        target,
+        startedAt: now,
+      });
+    }
+
+    for (const id of variantAnimations.keys()) {
+      if (!visibleIds.has(id)) variantAnimations.delete(id);
+    }
+  }
+
+  function drawAnimatedFlagSprite(
+    item: MapFlagRenderItem,
+    image: HTMLImageElement | null,
+    dpr: number,
+    x: number,
+    y: number,
+    cssWidth: number,
+    cssHeight: number,
+    now: number,
+  ): void {
+    if (!context) return;
+
+    const animation = variantAnimations.get(item.id);
+    const target = badgeVariantFor(item);
+    if (!animation || prefersReducedMotion()) {
+      const sprite = sprites.spriteFor(image, target, dpr);
+      context.drawImage(sprite.canvas, x, y, cssWidth, cssHeight);
+      return;
+    }
+
+    const progress = easeOutCubic(animationProgress(animation.startedAt, now));
+    if (animation.from === animation.target || progress >= 1) {
+      const sprite = sprites.spriteFor(image, animation.target, dpr);
+      context.drawImage(sprite.canvas, x, y, cssWidth, cssHeight);
+      return;
+    }
+
+    const fromSprite = sprites.spriteFor(image, animation.from, dpr);
+    const targetSprite = sprites.spriteFor(image, animation.target, dpr);
+    const previousAlpha = context.globalAlpha;
+
+    context.globalAlpha = previousAlpha * (1 - progress);
+    context.drawImage(fromSprite.canvas, x, y, cssWidth, cssHeight);
+    context.globalAlpha = previousAlpha * progress;
+    context.drawImage(targetSprite.canvas, x, y, cssWidth, cssHeight);
+    context.globalAlpha = previousAlpha;
+  }
+
+  function hasActiveVariantAnimations(now: number): boolean {
+    if (prefersReducedMotion()) return false;
+    for (const animation of variantAnimations.values()) {
+      if (animation.from !== animation.target && animationProgress(animation.startedAt, now) < 1) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function scheduleAnimationFrame(): void {
+    if (animationFrame !== null) return;
+    animationFrame = window.requestAnimationFrame((now) => {
+      animationFrame = null;
+      drawFrame(now);
+    });
+  }
+
+  function currentVariantForAnimation(
+    animation: FlagVariantAnimation,
+    now: number,
+  ): CanvasFlagBadgeVariant {
+    if (prefersReducedMotion()) return animation.target;
+    return animationProgress(animation.startedAt, now) < 0.5 ? animation.from : animation.target;
+  }
+
+  function prefersReducedMotion(): boolean {
+    return reducedMotionQuery.matches;
+  }
+}
+
+function animationProgress(startedAt: number, now: number): number {
+  return Math.max(0, Math.min(1, (now - startedAt) / FLAG_STATE_ANIMATION_MS));
+}
+
+function easeOutCubic(progress: number): number {
+  return 1 - Math.pow(1 - progress, 3);
 }

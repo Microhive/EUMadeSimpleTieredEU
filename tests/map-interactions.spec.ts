@@ -1781,6 +1781,8 @@ test.describe("map country path — desktop click", () => {
         "https://reforms-investments.ec.europa.eu/european-semester-your-country/european-semester-documents-germany_en"
       );
     await expect(germany).toHaveClass(/is-selected/);
+    await expect(austria).toHaveClass(/is-highlight/);
+    await expect(austria).not.toHaveClass(/is-muted/);
     await expect(outlinedCountries).toHaveCount(1);
     await expect(outlinedCountries.first()).toHaveAttribute("data-country-outline", "276");
     await expect
@@ -1842,7 +1844,8 @@ test.describe("map country path — mobile tap", () => {
     await expect(page.locator("#countryCard h2")).toContainText("Germany", {
       ignoreCase: true,
     });
-    await expect(austria).toHaveClass(/is-muted/);
+    await expect(austria).toHaveClass(/is-highlight/);
+    await expect(austria).not.toHaveClass(/is-muted/);
     await expect(outlinedCountries).toHaveCount(1);
     await expect(outlinedCountries.first()).toHaveAttribute("data-country-outline", "276");
 

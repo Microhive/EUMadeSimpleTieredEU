@@ -108,6 +108,9 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   const FIT_MAX_ZOOM_SCALE = 12;
   const LABEL_MIN_SCREEN_SCALE = 0.52;
   const MAP_TRANSLATE_EXTENT_PADDING_RATIO = 0.08;
+  const COUNTRY_OUTLINE_ANIMATION_MS = 180;
+  const COUNTRY_OUTLINE_ENTER_WIDTH = 1.2;
+  const COUNTRY_OUTLINE_ACTIVE_WIDTH = 4.8;
 
   const CIRCLE_FLAG_SVGS: Record<string, string> = import.meta.glob(
     "../../node_modules/circle-flags/flags/*.svg",
@@ -1347,10 +1350,18 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     const meta = countryCardMetaFor(countryId);
     if (!meta) return;
 
+    const countryFeatureIds = countryIdsFor(canonicalId);
+    const isInCurrentSelection = countryFeatureIds.some((id) => state.selectedIds.has(id));
+    const directTierId = tierArrangement.directTierForCountry(canonicalId) ?? null;
+
     state.activeCountry = canonicalId;
     state.hoveredCountry = null;
-    state.activeTier = activeTierForScene() ?? tierArrangement.directTierForCountry(canonicalId) ?? null;
-    state.selectedIds = selectedCountrySet(countryIdsFor(canonicalId));
+    state.activeTier = isInCurrentSelection ? state.activeTier : directTierId;
+    state.selectedIds = isInCurrentSelection
+      ? new Set(state.selectedIds)
+      : directTierId
+        ? selectedCountrySet(cumulativeIdsFor(directTierId))
+        : selectedCountrySet(countryFeatureIds);
     state.userTouched = true;
     setActiveCountryFlagFocus(canonicalId);
     updateHighlights();
@@ -1586,23 +1597,62 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
         .forEach((feature) => featuresByKey.set(keyForFeature(feature), feature));
     });
 
+    const duration = motionDuration(COUNTRY_OUTLINE_ANIMATION_MS);
+    const applyActiveOutline = (selection: any): void => {
+      if (duration <= 0) {
+        selection
+          .style("opacity", 0.96)
+          .style("stroke-width", `${COUNTRY_OUTLINE_ACTIVE_WIDTH}px`);
+        return;
+      }
+
+      selection
+        .transition()
+        .duration(duration)
+        .ease(d3.easeCubicOut)
+        .style("opacity", 0.96)
+        .style("stroke-width", `${COUNTRY_OUTLINE_ACTIVE_WIDTH}px`);
+    };
+
     hoverLayer
       .selectAll(".country-outline")
       .data([...featuresByKey.values()], keyForFeature)
       .join(
-        (enter: any) => enter
-          .append("path")
-          .attr("class", "country-outline")
-          .attr("data-country-outline", keyForFeature)
-          .attr("d", path),
+        (enter: any) => {
+          const entered = enter
+            .append("path")
+            .attr("class", "country-outline")
+            .attr("data-country-outline", keyForFeature)
+            .attr("d", path)
+            .style("opacity", 0)
+            .style("stroke-width", `${COUNTRY_OUTLINE_ENTER_WIDTH}px`);
+          applyActiveOutline(entered);
+          return entered;
+        },
         (update: any) => {
           update
+            .interrupt()
             .attr("class", "country-outline")
             .attr("data-country-outline", keyForFeature)
             .attr("d", path);
+          applyActiveOutline(update);
           return update;
         },
-        (exit: any) => exit.remove(),
+        (exit: any) => {
+          exit.interrupt();
+          if (duration <= 0) {
+            exit.remove();
+            return;
+          }
+
+          exit
+            .transition()
+            .duration(duration)
+            .ease(d3.easeCubicIn)
+            .style("opacity", 0)
+            .style("stroke-width", `${COUNTRY_OUTLINE_ENTER_WIDTH}px`)
+            .remove();
+        },
       );
   }
 
@@ -1967,6 +2017,10 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       .duration(duration)
       .ease(d3.easeCubicInOut)
       .call(zoom.transform, transform);
+  }
+
+  function motionDuration(duration: number): number {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : duration;
   }
 
   // ─── event listeners ──────────────────────────────────────────────────────────
