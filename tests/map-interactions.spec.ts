@@ -245,6 +245,54 @@ async function waitForCanvasFlagVariant(
   return getCanvasFlagHitbox(page, countryId);
 }
 
+async function getCanvasFlagChromaStats(
+  page: Page,
+  countryId: string
+): Promise<{ totalSamples: number; colorfulSamples: number; maxChroma: number }> {
+  const flag = await getCanvasFlagHitbox(page, countryId);
+  return page.locator(".map-flag-canvas").evaluate((canvas: HTMLCanvasElement, flag) => {
+    const context = canvas.getContext("2d");
+    if (!context) return { totalSamples: 0, colorfulSamples: 0, maxChroma: 0 };
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const centerX = Math.round((flag.clientX - rect.left) * scaleX);
+    const centerY = Math.round((flag.clientY - rect.top) * scaleY);
+    const radius = Math.max(3, Math.round(flag.size * 0.28 * Math.max(scaleX, scaleY)));
+    const left = Math.max(0, centerX - radius);
+    const top = Math.max(0, centerY - radius);
+    const right = Math.min(canvas.width, centerX + radius);
+    const bottom = Math.min(canvas.height, centerY + radius);
+    const width = Math.max(1, right - left);
+    const height = Math.max(1, bottom - top);
+    const data = context.getImageData(left, top, width, height).data;
+    let totalSamples = 0;
+    let colorfulSamples = 0;
+    let maxChroma = 0;
+
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        if (Math.hypot(left + x - centerX, top + y - centerY) > radius) continue;
+
+        const index = (y * width + x) * 4;
+        if (data[index + 3] < 12) continue;
+
+        const chroma = Math.max(
+          Math.abs(data[index] - data[index + 1]),
+          Math.abs(data[index] - data[index + 2]),
+          Math.abs(data[index + 1] - data[index + 2]),
+        );
+        totalSamples += 1;
+        maxChroma = Math.max(maxChroma, chroma);
+        if (chroma > 32) colorfulSamples += 1;
+      }
+    }
+
+    return { totalSamples, colorfulSamples, maxChroma };
+  }, flag);
+}
+
 async function hoverCanvasFlag(page: Page, countryId: string): Promise<CanvasFlagHitbox> {
   const flag = await getCanvasFlagHitbox(page, countryId);
   await page.mouse.move(flag.clientX, flag.clientY);
@@ -1593,6 +1641,12 @@ test.describe("map country path — desktop click", () => {
     expect(austriaFlag.variant).toBe("normal");
     expect(ukFlag.variant).toBe("dimmed");
     expect(belarusFlag.variant).toBe("muted");
+    await expect.poll(async () => (await getCanvasFlagChromaStats(page, "276")).colorfulSamples)
+      .toBeGreaterThan(10);
+    const mutedBelarusChroma = await getCanvasFlagChromaStats(page, "112");
+    expect(mutedBelarusChroma.totalSamples).toBeGreaterThan(20);
+    expect(mutedBelarusChroma.colorfulSamples).toBe(0);
+    expect(mutedBelarusChroma.maxChroma).toBeLessThanOrEqual(32);
 
     await page.locator('[data-scene="inner"]').hover();
     await expect(germanyChip).toHaveClass(/is-flag-focused/);

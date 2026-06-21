@@ -18,7 +18,8 @@ const SHADOW_OFFSET_PX = 2;
 const HOVER_SHADOW_OFFSET_PX = 3;
 const DIMMED_ALPHA = 0.52;
 const MUTED_ALPHA = 0.28;
-const MUTED_FLAG_FILTER = "grayscale(1) saturate(0) contrast(0.82) brightness(0.92)";
+const MUTED_FLAG_CONTRAST = 0.82;
+const MUTED_FLAG_BRIGHTNESS = 0.92;
 
 export function createCanvasFlagSprites({ badgeSize, imageSize }: CanvasFlagSpriteOptions) {
   const cache = new Map<string, CanvasFlagBadgeSprite>();
@@ -93,17 +94,69 @@ function renderSprite(
     context.beginPath();
     context.arc(center, center, imageRadius, 0, Math.PI * 2);
     context.clip();
-    if (isMuted) context.filter = MUTED_FLAG_FILTER;
-    context.drawImage(
-      image,
-      center - imageRadius,
-      center - imageRadius,
-      imageSize,
-      imageSize,
-    );
-    context.filter = "none";
+    drawFlagImage(context, image, center - imageRadius, center - imageRadius, imageSize, dpr, isMuted);
     context.restore();
   }
 
   return { canvas, cssWidth, cssHeight, offsetX: center, offsetY: center };
+}
+
+function drawFlagImage(
+  context: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  x: number,
+  y: number,
+  size: number,
+  dpr: number,
+  isMuted: boolean,
+): void {
+  if (!isMuted) {
+    context.drawImage(image, x, y, size, size);
+    return;
+  }
+
+  context.drawImage(mutedFlagCanvas(image, size, dpr), x, y, size, size);
+}
+
+function mutedFlagCanvas(
+  image: HTMLImageElement,
+  size: number,
+  dpr: number,
+): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  const pixelSize = Math.max(1, Math.round(size * dpr));
+  canvas.width = pixelSize;
+  canvas.height = pixelSize;
+
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return canvas;
+
+  context.drawImage(image, 0, 0, pixelSize, pixelSize);
+
+  try {
+    const imageData = context.getImageData(0, 0, pixelSize, pixelSize);
+    const data = imageData.data;
+
+    for (let index = 0; index < data.length; index += 4) {
+      const gray = data[index] * 0.2126 + data[index + 1] * 0.7152 + data[index + 2] * 0.0722;
+      const adjusted = clampChannel(((gray - 128) * MUTED_FLAG_CONTRAST + 128) * MUTED_FLAG_BRIGHTNESS);
+      data[index] = adjusted;
+      data[index + 1] = adjusted;
+      data[index + 2] = adjusted;
+    }
+
+    context.putImageData(imageData, 0, 0);
+  } catch {
+    // If a browser ever refuses pixel access, fall back to a neutral mask so
+    // muted flags never remain colorful.
+    context.globalCompositeOperation = "source-in";
+    context.fillStyle = "rgb(146, 155, 160)";
+    context.fillRect(0, 0, pixelSize, pixelSize);
+  }
+
+  return canvas;
+}
+
+function clampChannel(value: number): number {
+  return Math.max(0, Math.min(255, Math.round(value)));
 }
