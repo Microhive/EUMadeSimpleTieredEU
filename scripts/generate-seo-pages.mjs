@@ -3,9 +3,9 @@ import { join } from "node:path";
 
 const siteOrigin = "https://tiered.eu";
 const socialImageUrl = `${siteOrigin}/social-card.jpg`;
-const rootTitle = "Tiered Europe Map: Interactive EU Integration Scenario | EU Made Simple";
+const rootTitle = "Tiered Europe Map: Interactive EU Integration Scenario | tiered.eu";
 const rootDescription =
-  "Explore an interactive Tiered Europe map from EU Made Simple, showing how a multi-speed European Union could work across four integration tiers.";
+  "Explore an interactive Tiered Europe map from tiered.eu, showing how a multi-speed European Union could work across four integration tiers.";
 
 const distDir = "dist";
 const templatePath = join(distDir, "index.html");
@@ -37,7 +37,7 @@ function withRootStructuredData(html) {
   return replaceStructuredData(html, {
     "@context": "https://schema.org",
     "@type": "WebApplication",
-    name: "EU Made Simple - Tiered Europe",
+    name: "tiered.eu - Tiered Europe",
     url: `${siteOrigin}/`,
     applicationCategory: "EducationalApplication",
     operatingSystem: "Any",
@@ -47,7 +47,7 @@ function withRootStructuredData(html) {
     image: socialImageUrl,
     creator: {
       "@type": "Organization",
-      name: "EU Made Simple",
+      name: "tiered.eu",
     },
   });
 }
@@ -56,7 +56,7 @@ function renderTierPageHtml(html, content) {
   const canonicalUrl = `${siteOrigin}${content.path}`;
   const title = content.seoTitle;
   const description = content.metaDescription;
-  const socialTitle = `${content.title} - EU Made Simple`;
+  const socialTitle = `${content.title} - tiered.eu`;
 
   return replaceStructuredData(
     replaceTierDetail(
@@ -75,7 +75,7 @@ function renderTierPageHtml(html, content) {
       url: canonicalUrl,
       isPartOf: {
         "@type": "WebSite",
-        name: "EU Made Simple - Tiered Europe",
+        name: "tiered.eu - Tiered Europe",
         url: siteOrigin,
       },
       inLanguage: "en",

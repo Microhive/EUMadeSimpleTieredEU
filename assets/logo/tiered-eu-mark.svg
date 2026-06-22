@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">tiered.eu compass mark</title>
+  <desc id="desc">Textless tiered.eu compass mark with four integration rings and an inward pointer.</desc>
+  <defs>
+    <filter id="markShadow" x="-12%" y="-12%" width="124%" height="124%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="5" dy="5" stdDeviation="0" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+  <rect width="128" height="128" fill="none"/>
+  <g filter="url(#markShadow)">
+    <circle cx="61" cy="61" r="58" fill="#080B0F"/>
+    <circle cx="61" cy="61" r="55" fill="#FFFFFF"/>
+    <circle cx="61" cy="61" r="44" fill="#FFCC00"/>
+    <circle cx="61" cy="61" r="33" fill="#72BFD0"/>
+    <circle cx="61" cy="61" r="22" fill="#053F70"/>
+    <circle cx="61" cy="61" r="11" fill="#02345F"/>
+    <path d="M88 34 71.5 71.5 34 88 50.5 50.5Z" fill="#02345F" opacity="0.96"/>
+    <path d="M71.5 71.5 50.5 50.5" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" opacity="0.82"/>
+  </g>
+</svg>

@@ -206,9 +206,10 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   const mapWrap = document.querySelector<HTMLElement>(".map-wrap")!;
   const mapToolbar = document.querySelector<HTMLElement>(".map-toolbar")!;
   const mapToolbarPrimary = document.querySelector<HTMLElement>(".map-toolbar-primary")!;
-  const brand = document.querySelector<HTMLElement>(".brand")!;
+  const brand = document.querySelector<HTMLAnchorElement>(".brand")!;
   const brandLogo = document.querySelector<HTMLImageElement>(".brand-logo")!;
   const brandAnchor = document.createComment("brand");
+  const brandHomeHref = brand.getAttribute("href") ?? "/";
   const mastheadActions = document.querySelector<HTMLElement>(".masthead-actions")!;
   const mastheadActionsAnchor = document.createComment("masthead actions");
   const countryCardBelowMapQuery = window.matchMedia("(max-width: 1279px)");
@@ -522,11 +523,15 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
         if (brand.parentElement !== mapToolbarPrimary || brand.previousElementSibling !== sceneTabs) {
           mapToolbarPrimary.insertBefore(brand, sceneTabs.nextSibling);
         }
+        brand.removeAttribute("href");
+        brand.setAttribute("aria-label", "tiered.eu branding");
         brandLogo.src = mapLogoSrc;
       } else {
         if (brandAnchor.parentNode) {
           brandAnchor.parentNode.insertBefore(brand, brandAnchor.nextSibling);
         }
+        brand.setAttribute("href", brandHomeHref);
+        brand.setAttribute("aria-label", "tiered.eu home");
         brandLogo.src = headerLogoSrc;
       }
 

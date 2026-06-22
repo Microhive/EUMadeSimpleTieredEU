@@ -710,21 +710,29 @@ test.describe("map toolbar — desktop layout", () => {
     await page.goto("/");
     await waitForMap(page);
 
-    const [mapBox, tabsBox, brandBox, editBox, videoBox] = await Promise.all([
+    const [mapBox, tabsBox, innerButtonBox, flagButtonBox, brandBox, editBox, editButtonBox, videoBox] = await Promise.all([
       page.locator(".map-wrap").boundingBox(),
       page.locator("#sceneTabs").boundingBox(),
+      page.locator('#sceneTabs [data-scene="inner"]').boundingBox(),
+      page.locator("#mapFlagsButton").boundingBox(),
       page.locator(".map-toolbar .brand").boundingBox(),
       page.locator(".map-toolbar .masthead-actions .edit-control").boundingBox(),
+      page.locator("#editToggle").boundingBox(),
       page.locator(".map-toolbar .video-link").boundingBox(),
     ]);
 
     expect(mapBox).not.toBeNull();
     expect(tabsBox).not.toBeNull();
+    expect(innerButtonBox).not.toBeNull();
+    expect(flagButtonBox).not.toBeNull();
     expect(brandBox).not.toBeNull();
     expect(editBox).not.toBeNull();
+    expect(editButtonBox).not.toBeNull();
     expect(videoBox).not.toBeNull();
     expect(tabsBox!.x).toBeLessThanOrEqual(mapBox!.x + 24);
     expect(tabsBox!.x).toBeGreaterThanOrEqual(mapBox!.x + 8);
+    expect(innerButtonBox!.height).toBeCloseTo(editButtonBox!.height, 1);
+    expect(flagButtonBox!.height).toBeCloseTo(editButtonBox!.height, 1);
     expect(brandBox!.x).toBeCloseTo(tabsBox!.x, 1);
     expect(brandBox!.y).toBeGreaterThan(tabsBox!.y + tabsBox!.height);
     expect(editBox!.x).toBeGreaterThan(tabsBox!.x + tabsBox!.width);
