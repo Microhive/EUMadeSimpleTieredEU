@@ -1,6 +1,8 @@
 export function setupSceneTabsScale(sceneTabs: HTMLElement): void {
-  const toolbar = sceneTabs.closest<HTMLElement>(".map-toolbar");
-  if (!toolbar) return;
+  const container =
+    sceneTabs.closest<HTMLElement>(".map-toolbar-primary") ??
+    sceneTabs.closest<HTMLElement>(".map-toolbar");
+  if (!container) return;
 
   let frame: number | null = null;
 
@@ -8,14 +10,13 @@ export function setupSceneTabsScale(sceneTabs: HTMLElement): void {
     if (frame !== null) return;
     frame = window.requestAnimationFrame(() => {
       frame = null;
-      updateSceneTabsScale(sceneTabs, toolbar);
+      updateSceneTabsScale(sceneTabs, container);
     });
   };
 
   if (typeof ResizeObserver !== "undefined") {
     const observer = new ResizeObserver(scheduleUpdate);
-    observer.observe(toolbar);
-    sceneTabs.querySelectorAll("button").forEach((button) => observer.observe(button));
+    observer.observe(container);
   }
 
   window.addEventListener("resize", scheduleUpdate);
@@ -23,11 +24,11 @@ export function setupSceneTabsScale(sceneTabs: HTMLElement): void {
   scheduleUpdate();
 }
 
-function updateSceneTabsScale(sceneTabs: HTMLElement, toolbar: HTMLElement): void {
+function updateSceneTabsScale(sceneTabs: HTMLElement, container: HTMLElement): void {
   const currentScale =
     Number.parseFloat(getComputedStyle(sceneTabs).getPropertyValue("--scene-tabs-scale")) || 1;
-  const fullWidth = sceneTabs.getBoundingClientRect().width / currentScale;
-  const availableWidth = getSceneTabsAvailableWidth(sceneTabs, toolbar);
+  const fullWidth = measureSceneTabsFullWidth(sceneTabs);
+  const availableWidth = getSceneTabsAvailableWidth(sceneTabs, container);
   const nextScale = fullWidth > availableWidth ? Math.max(0.68, availableWidth / fullWidth) : 1;
   const roundedScale = Number(nextScale.toFixed(3));
 
@@ -36,19 +37,39 @@ function updateSceneTabsScale(sceneTabs: HTMLElement, toolbar: HTMLElement): voi
   }
 }
 
-function getSceneTabsAvailableWidth(sceneTabs: HTMLElement, toolbar: HTMLElement): number {
-  const toolbarStyle = getComputedStyle(toolbar);
+function measureSceneTabsFullWidth(sceneTabs: HTMLElement): number {
+  const previousScale = sceneTabs.style.getPropertyValue("--scene-tabs-scale");
+
+  sceneTabs.style.setProperty("--scene-tabs-scale", "1");
+  const fullWidth = sceneTabs.getBoundingClientRect().width;
+
+  if (previousScale) {
+    sceneTabs.style.setProperty("--scene-tabs-scale", previousScale);
+  } else {
+    sceneTabs.style.removeProperty("--scene-tabs-scale");
+  }
+
+  return fullWidth;
+}
+
+function getSceneTabsAvailableWidth(sceneTabs: HTMLElement, container: HTMLElement): number {
+  const toolbarStyle = getComputedStyle(container);
   const gap =
     Number.parseFloat(toolbarStyle.columnGap) ||
     Number.parseFloat(toolbarStyle.gap) ||
     0;
-  const visibleSiblings = [...toolbar.children]
+  const sceneTabsRect = sceneTabs.getBoundingClientRect();
+  const visibleSiblings = [...container.children]
     .filter((child): child is HTMLElement => child instanceof HTMLElement && child !== sceneTabs)
-    .filter((child) => getComputedStyle(child).display !== "none");
+    .filter((child) => getComputedStyle(child).display !== "none")
+    .filter((child) => {
+      const rect = child.getBoundingClientRect();
+      return rect.bottom > sceneTabsRect.top + 1 && rect.top < sceneTabsRect.bottom - 1;
+    });
   const siblingWidth = visibleSiblings.reduce(
     (total, child) => total + child.getBoundingClientRect().width,
     0,
   );
 
-  return Math.max(0, toolbar.clientWidth - siblingWidth - gap * visibleSiblings.length);
+  return Math.max(0, container.clientWidth - siblingWidth - gap * visibleSiblings.length);
 }

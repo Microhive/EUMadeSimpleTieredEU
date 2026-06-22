@@ -84,9 +84,9 @@ interface TierPageContent {
 }
 
 const SITE_ORIGIN = "https://tiered.eu";
-const ROOT_SEO_TITLE = "Tiered Europe Map: Interactive EU Integration Scenario | EU Made Simple";
+const ROOT_SEO_TITLE = "Tiered Europe Map: Interactive EU Integration Scenario";
 const ROOT_META_DESCRIPTION =
-  "Explore an interactive Tiered Europe map from EU Made Simple, showing how a multi-speed European Union could work across four integration tiers.";
+  "Explore an interactive Tiered Europe map showing how a multi-speed European Union could work across four integration tiers.";
 const SOCIAL_IMAGE_URL = `${SITE_ORIGIN}/social-card.jpg`;
 const TIER_PAGE_CONTENT = tierPageContentData as TierPageContent[];
 const TIER_PAGE_BY_PATH = new Map<string, TierPageContent>(
@@ -204,6 +204,13 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   const legend = document.querySelector<HTMLElement>("#legend")!;
   const countryCard = document.querySelector<HTMLElement>("#countryCard")!;
   const mapWrap = document.querySelector<HTMLElement>(".map-wrap")!;
+  const mapToolbar = document.querySelector<HTMLElement>(".map-toolbar")!;
+  const mapToolbarPrimary = document.querySelector<HTMLElement>(".map-toolbar-primary")!;
+  const brand = document.querySelector<HTMLElement>(".brand")!;
+  const brandLogo = document.querySelector<HTMLImageElement>(".brand-logo")!;
+  const brandAnchor = document.createComment("brand");
+  const mastheadActions = document.querySelector<HTMLElement>(".masthead-actions")!;
+  const mastheadActionsAnchor = document.createComment("masthead actions");
   const countryCardBelowMapQuery = window.matchMedia("(max-width: 1279px)");
   const sources = document.querySelector<HTMLElement>("#sources")!;
   const sourcesMobileMount = document.querySelector<HTMLElement>("#sourcesMobileMount")!;
@@ -212,6 +219,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   const resetTiersButton = document.querySelector<HTMLButtonElement>("#resetTiersButton")!;
   const clearTiersButton = document.querySelector<HTMLButtonElement>("#clearTiersButton")!;
   const shareTiersButton = document.querySelector<HTMLButtonElement>("#shareTiersButton")!;
+  const editControl = document.querySelector<HTMLElement>(".edit-control")!;
   const mapFlagsButton = document.querySelector<HTMLButtonElement>("#mapFlagsButton")!;
   const videoLink = document.querySelector<HTMLElement>(".video-link")!;
   const benefitModal = document.querySelector<HTMLDialogElement>("#benefitModal")!;
@@ -224,6 +232,8 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   const mapFlagCanvas = document.createElement("canvas");
   const mapFlagLayer = document.createElement("div");
 
+  brand.before(brandAnchor);
+  mastheadActions.before(mastheadActionsAnchor);
   labelSvgElement.classList.add("map-label-svg");
   labelSvgElement.setAttribute("aria-hidden", "true");
   labelSvgElement.setAttribute("focusable", "false");
@@ -269,11 +279,17 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       .translateExtent(mapTranslateExtent());
   }
 
+  function isEventInsideCountryCard(event: any): boolean {
+    const target = event.target;
+    return target instanceof Node && countryCard.contains(target);
+  }
+
   const zoom = d3.zoom()
     .scaleExtent([1, maxMapZoomScale()])
     .wheelDelta(mapWheelDelta)
     .filter((event: any) => {
       if (countryDrag.isDragging()) return false;
+      if (event.type === "wheel" && isEventInsideCountryCard(event)) return false;
       if (state.editMode && event.type !== "wheel" && isEventOnMapFlag(event)) {
         return false;
       }
@@ -348,6 +364,8 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   let resizeTimer: ReturnType<typeof setTimeout> | null = null;
   let mapResizeObserver: ResizeObserver | null = null;
   let sourcesResizeObserver: ResizeObserver | null = null;
+  let editToolbarPlacementObserver: ResizeObserver | null = null;
+  let editToolbarPlacementFrame: number | null = null;
   let tierDeckInteractionsBound = false;
   let hasCountryFocusIsolation = false;
   let mapReady = false;
@@ -362,8 +380,11 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   setupMapFlagsButton();
   setupMapFlagLayerInteractions();
   setupCountryCardPlacement();
+  setupCountryCardWheelIsolation();
   setupSourcesPlacement();
   setupVideoTooltip();
+  setupBrandPlacement();
+  setupMastheadActionsPlacement();
   setupSceneTabsScale(sceneTabs);
   setupRouteNavigation();
   loadMap();
@@ -371,9 +392,15 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   function setupEditToggleTooltip(): void {
     if (!window.matchMedia("(hover: hover)").matches) return;
-    editToggle.addEventListener("mouseenter", () => showPillTooltip(editToggle));
+    const showEditToggleTooltip = (): void => {
+      if (state.editMode && editControl.parentElement === mapToolbarPrimary) return;
+      if (state.editMode && document.body.classList.contains("has-edit-toolbar-below")) return;
+      showPillTooltip(editToggle);
+    };
+
+    editToggle.addEventListener("mouseenter", showEditToggleTooltip);
     editToggle.addEventListener("mouseleave", () => hidePillTooltip());
-    editToggle.addEventListener("focus", () => showPillTooltip(editToggle));
+    editToggle.addEventListener("focus", showEditToggleTooltip);
     editToggle.addEventListener("blur", () => hidePillTooltip());
   }
 
@@ -400,6 +427,15 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     shareTiersButton.addEventListener("click", () => {
       void copyTierShareUrl();
     });
+
+    window.addEventListener("resize", scheduleEditToolbarPlacement);
+
+    if (typeof ResizeObserver !== "undefined") {
+      editToolbarPlacementObserver = new ResizeObserver(scheduleEditToolbarPlacement);
+      editToolbarPlacementObserver.observe(mapToolbar);
+      editToolbarPlacementObserver.observe(sceneTabs);
+      editToolbarPlacementObserver.observe(mastheadActions);
+    }
   }
 
   function setupMapFlagsButton(): void {
@@ -431,6 +467,12 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
     countryCardBelowMapQuery.addEventListener("change", syncCountryCardPlacement);
     syncCountryCardPlacement();
+  }
+
+  function setupCountryCardWheelIsolation(): void {
+    countryCard.addEventListener("wheel", (event) => {
+      event.stopPropagation();
+    }, { passive: true });
   }
 
   function setupSourcesPlacement(): void {
@@ -467,6 +509,95 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
     const offset = Math.ceil(sources.getBoundingClientRect().height + 14);
     mapWrap.style.setProperty("--map-disclaimer-offset", `${offset}px`);
+  }
+
+  function setupBrandPlacement(): void {
+    const desktopBrandQuery = window.matchMedia("(min-width: 1280px)");
+    const headerLogoSrc = "/logo/tiered-eu-logo-header.svg";
+    const mapLogoSrc = "/logo/tiered-eu-logo-white.svg";
+    const syncBrandPlacement = (): void => {
+      const shouldDockBrand = desktopBrandQuery.matches;
+
+      if (shouldDockBrand) {
+        if (brand.parentElement !== mapToolbarPrimary || brand.previousElementSibling !== sceneTabs) {
+          mapToolbarPrimary.insertBefore(brand, sceneTabs.nextSibling);
+        }
+        brandLogo.src = mapLogoSrc;
+      } else {
+        if (brandAnchor.parentNode) {
+          brandAnchor.parentNode.insertBefore(brand, brandAnchor.nextSibling);
+        }
+        brandLogo.src = headerLogoSrc;
+      }
+
+      document.body.classList.toggle("has-map-brand-docked", shouldDockBrand);
+    };
+
+    desktopBrandQuery.addEventListener("change", syncBrandPlacement);
+    syncBrandPlacement();
+  }
+
+  function setupMastheadActionsPlacement(): void {
+    const desktopActionsQuery = window.matchMedia("(min-width: 1280px)");
+    const syncMastheadActionsPlacement = (): void => {
+      const shouldDockActions = desktopActionsQuery.matches;
+
+      if (shouldDockActions) {
+        if (editControl.parentElement !== mastheadActions || editControl.nextElementSibling !== videoLink) {
+          mastheadActions.insertBefore(editControl, videoLink);
+        }
+
+        if (mastheadActions.parentElement !== mapToolbar) {
+          mapToolbar.appendChild(mastheadActions);
+        }
+      } else {
+        if (editControl.parentElement !== mastheadActions) {
+          mastheadActions.insertBefore(editControl, videoLink);
+        }
+
+        if (mastheadActionsAnchor.parentNode) {
+          mastheadActionsAnchor.parentNode.insertBefore(
+            mastheadActions,
+            mastheadActionsAnchor.nextSibling,
+          );
+        }
+      }
+
+      document.body.classList.toggle("has-map-actions-docked", shouldDockActions);
+      scheduleEditToolbarPlacement();
+    };
+
+    desktopActionsQuery.addEventListener("change", syncMastheadActionsPlacement);
+    syncMastheadActionsPlacement();
+  }
+
+  function scheduleEditToolbarPlacement(): void {
+    if (editToolbarPlacementFrame !== null) return;
+
+    editToolbarPlacementFrame = window.requestAnimationFrame(() => {
+      editToolbarPlacementFrame = null;
+      syncEditToolbarPlacement();
+    });
+  }
+
+  function syncEditToolbarPlacement(): void {
+    if (
+      !state.editMode ||
+      mastheadActions.parentElement !== mapToolbar ||
+      editControl.parentElement === mapToolbarPrimary
+    ) {
+      document.body.classList.remove("has-edit-toolbar-below");
+      return;
+    }
+
+    const toolbarGap = 8;
+    const collisionGap = 8;
+    const editControlRect = editControl.getBoundingClientRect();
+    const sceneTabsRect = sceneTabs.getBoundingClientRect();
+    const projectedToolbarLeft = editControlRect.left - editToolbar.offsetWidth - toolbarGap;
+    const wouldOverlapSceneTabs = projectedToolbarLeft < sceneTabsRect.right + collisionGap;
+
+    document.body.classList.toggle("has-edit-toolbar-below", wouldOverlapSceneTabs);
   }
 
   function onMapFlagPointerDown(event: PointerEvent): void {
@@ -704,10 +835,10 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
     document.title = title;
     setMetaContent('meta[name="description"]', description);
-    setMetaContent('meta[property="og:title"]', content ? `${content.title} - EU Made Simple` : "Tiered Europe Map - EU Made Simple");
+    setMetaContent('meta[property="og:title"]', content ? `${content.title} - Tiered Europe` : "Tiered Europe Map");
     setMetaContent('meta[property="og:description"]', description);
     setMetaContent('meta[property="og:url"]', canonicalUrl);
-    setMetaContent('meta[name="twitter:title"]', content ? `${content.title} - EU Made Simple` : "Tiered Europe Map - EU Made Simple");
+    setMetaContent('meta[name="twitter:title"]', content ? `${content.title} - Tiered Europe` : "Tiered Europe Map");
     setMetaContent('meta[name="twitter:description"]', description);
     setCanonicalHref(canonicalUrl);
     updateStructuredData(content, canonicalUrl, description);
@@ -734,11 +865,11 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
         ? {
             "@context": "https://schema.org",
             "@type": "WebPage",
-            name: `${content.title} - EU Made Simple`,
+            name: `${content.title} - Tiered Europe`,
             url: canonicalUrl,
             isPartOf: {
               "@type": "WebSite",
-              name: "EU Made Simple - Tiered Europe",
+              name: "Tiered Europe",
               url: SITE_ORIGIN,
             },
             inLanguage: "en",
@@ -748,7 +879,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
         : {
             "@context": "https://schema.org",
             "@type": "WebApplication",
-            name: "EU Made Simple - Tiered Europe",
+            name: "Tiered Europe Map",
             url: canonicalUrl,
             applicationCategory: "EducationalApplication",
             operatingSystem: "Any",
@@ -758,7 +889,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
             image: SOCIAL_IMAGE_URL,
             creator: {
               "@type": "Organization",
-              name: "EU Made Simple",
+              name: "Tiered Europe",
             },
           },
       null,
@@ -1004,6 +1135,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       countryDrag.cancel();
     }
 
+    scheduleEditToolbarPlacement();
     syncMapFlagsControls();
     renderMapFlags();
   }
@@ -2395,7 +2527,17 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
   editToggle.addEventListener("click", () => {
     setEditMode(!state.editMode);
-    if (window.matchMedia("(hover: hover)").matches && editToggle.matches(":hover")) {
+    syncEditToolbarPlacement();
+    const shouldSuppressEditTooltip =
+      state.editMode &&
+      (editControl.parentElement === mapToolbarPrimary ||
+        document.body.classList.contains("has-edit-toolbar-below"));
+
+    if (
+      !shouldSuppressEditTooltip &&
+      window.matchMedia("(hover: hover)").matches &&
+      editToggle.matches(":hover")
+    ) {
       showPillTooltip(editToggle);
     } else {
       hidePillTooltip();

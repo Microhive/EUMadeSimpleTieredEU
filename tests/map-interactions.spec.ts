@@ -392,9 +392,7 @@ test.describe("first paint content", () => {
   test("declares search and social metadata before app JavaScript runs", async ({ page }) => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
 
-    await expect(page).toHaveTitle(
-      "Tiered Europe Map: Interactive EU Integration Scenario | EU Made Simple",
-    );
+    await expect(page).toHaveTitle("Tiered Europe Map: Interactive EU Integration Scenario");
     await expect(page.locator('meta[name="description"]')).toHaveAttribute(
       "content",
       /interactive Tiered Europe map/,
@@ -413,7 +411,7 @@ test.describe("first paint content", () => {
     );
     await expect
       .poll(() => page.locator("#structuredData").evaluate((script) => script.textContent ?? ""))
-      .toContain("EU Made Simple - Tiered Europe");
+      .toContain("Tiered Europe Map");
   });
 
   test("renders tier titles, capability pills, summaries, and flag skeletons before app JavaScript runs", async ({
@@ -678,6 +676,59 @@ test.describe("scene tab — small viewport hover", () => {
 
     await expect(page.locator("#countryCard")).toContainText("European Union");
     await expect.poll(() => page.evaluate(() => Math.round(window.scrollY))).toBe(160);
+  });
+});
+
+test.describe("scene tab — responsive sizing", () => {
+  test.use({ ...desktop, viewport: { width: 486, height: 944 } });
+
+  test("keeps the map tier button scale stable at narrow widths", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const scaleSamples = await page.locator("#sceneTabs").evaluate(async (sceneTabs) => {
+      const readScale = () =>
+        getComputedStyle(sceneTabs).getPropertyValue("--scene-tabs-scale").trim();
+      const samples: string[] = [];
+
+      for (let index = 0; index < 18; index += 1) {
+        samples.push(readScale());
+        await new Promise((resolve) => window.setTimeout(resolve, 50));
+      }
+
+      return samples;
+    });
+
+    expect([...new Set(scaleSamples)]).toHaveLength(1);
+  });
+});
+
+test.describe("map toolbar — desktop layout", () => {
+  test.use({ ...desktop, viewport: { width: 1440, height: 900 } });
+
+  test("aligns the tier buttons top left and stacks the logo underneath", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const [mapBox, tabsBox, brandBox, editBox, videoBox] = await Promise.all([
+      page.locator(".map-wrap").boundingBox(),
+      page.locator("#sceneTabs").boundingBox(),
+      page.locator(".map-toolbar .brand").boundingBox(),
+      page.locator(".map-toolbar .masthead-actions .edit-control").boundingBox(),
+      page.locator(".map-toolbar .video-link").boundingBox(),
+    ]);
+
+    expect(mapBox).not.toBeNull();
+    expect(tabsBox).not.toBeNull();
+    expect(brandBox).not.toBeNull();
+    expect(editBox).not.toBeNull();
+    expect(videoBox).not.toBeNull();
+    expect(tabsBox!.x).toBeLessThanOrEqual(mapBox!.x + 24);
+    expect(tabsBox!.x).toBeGreaterThanOrEqual(mapBox!.x + 8);
+    expect(brandBox!.x).toBeCloseTo(tabsBox!.x, 1);
+    expect(brandBox!.y).toBeGreaterThan(tabsBox!.y + tabsBox!.height);
+    expect(editBox!.x).toBeGreaterThan(tabsBox!.x + tabsBox!.width);
+    expect(editBox!.x + editBox!.width).toBeLessThanOrEqual(videoBox!.x);
   });
 });
 
@@ -2249,6 +2300,42 @@ test.describe("map mouse wheel zoom (desktop)", () => {
     expect(canvasRenderTransform.k).toBeCloseTo(zoomTransform.k, 4);
     expect(canvasRenderTransform.x).toBeCloseTo(zoomTransform.x, 1);
     expect(canvasRenderTransform.y).toBeCloseTo(zoomTransform.y, 1);
+  });
+
+  test("scrolling over the country card does not zoom the map", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator('#mapSvg [data-country="234"]').dispatchEvent("click", {
+      bubbles: true,
+      cancelable: true,
+    });
+    const countryCard = page.locator("#countryCard");
+    await expect(countryCard.locator("h2")).toContainText("Faroe Islands");
+    await page.waitForTimeout(800);
+    await countryCard.locator(".country-context").evaluate((details: HTMLDetailsElement) => {
+      details.open = true;
+    });
+    await expect.poll(() => countryCard.evaluate((card) => card.scrollHeight > card.clientHeight))
+      .toBe(true);
+
+    const cardBox = await countryCard.boundingBox();
+    if (!cardBox) throw new Error("Expected the country card to be visible.");
+
+    await page.mouse.move(cardBox.x + cardBox.width / 2, cardBox.y + 64);
+
+    const zoomBefore = await getZoomTransform(page);
+    const cardScrollBefore = await countryCard.evaluate((card) => card.scrollTop);
+
+    await page.mouse.wheel(0, 300);
+    await page.waitForTimeout(200);
+
+    const zoomAfter = await getZoomTransform(page);
+    expect(zoomAfter.k).toBeCloseTo(zoomBefore.k, 4);
+    expect(zoomAfter.x).toBeCloseTo(zoomBefore.x, 1);
+    expect(zoomAfter.y).toBeCloseTo(zoomBefore.y, 1);
+    await expect.poll(() => countryCard.evaluate((card) => card.scrollTop))
+      .toBeGreaterThan(cardScrollBefore);
   });
 
   test("dragging a zoomed map stays near the world bounds", async ({ page }) => {

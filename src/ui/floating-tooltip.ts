@@ -35,7 +35,9 @@ export function createFloatingTooltip({ resolveAssetSrc }: FloatingTooltipOption
     const text = anchor.dataset.tooltip ?? "";
     const title = anchor.dataset.tooltipTitle ?? "";
     const image = anchor.dataset.tooltipImage ?? "";
-    if (!text && !title && !image) return;
+    const credit = anchor.dataset.tooltipCredit ?? "";
+    const creditUrl = anchor.dataset.tooltipCreditUrl ?? "";
+    if (!text && !title && !image && !credit) return;
 
     tooltipEl.replaceChildren();
     tooltipEl.classList.toggle("has-media", Boolean(image));
@@ -76,6 +78,21 @@ export function createFloatingTooltip({ resolveAssetSrc }: FloatingTooltipOption
       bodyEl.className = "pill-tooltip-body";
       bodyEl.textContent = text;
       tooltipEl.appendChild(bodyEl);
+    }
+
+    if (credit) {
+      const creditEl = document.createElement(creditUrl ? "a" : "span");
+      creditEl.className = "pill-tooltip-credit";
+      creditEl.textContent = credit;
+
+      if (creditEl instanceof HTMLAnchorElement) {
+        creditEl.href = creditUrl;
+        creditEl.target = "_blank";
+        creditEl.rel = "noopener noreferrer";
+        creditEl.addEventListener("click", () => hide(0));
+      }
+
+      tooltipEl.appendChild(creditEl);
     }
 
     tooltipEl.classList.add("is-visible");
