@@ -16,8 +16,8 @@ interface LoadedScenarioMapFeatureSets extends MapFeatureSets {
   highDetailFeatureByKey: Map<string, any>;
 }
 
-const TOPOLOGY_URL_110M = "countries-110m.json";
-const TOPOLOGY_URL_50M = "countries-50m.json";
+const TOPOLOGY_URL_110M = `${import.meta.env.BASE_URL}countries-110m.json`;
+const TOPOLOGY_URL_50M = `${import.meta.env.BASE_URL}countries-50m.json`;
 
 export async function loadScenarioMapFeatureSets({
   d3,

@@ -1,0 +1,142 @@
+[
+  {
+    "id": "inner",
+    "slug": "inner-union",
+    "path": "/inner-union/",
+    "seoTitle": "Inner Union - Tiered Europe Scenario | EU Made Simple",
+    "metaDescription": "Explore the Inner Union tier in the EU Made Simple Tiered Europe map: common defence, eurozone depth, Schengen, and a stronger shared foreign policy.",
+    "eyebrow": "Tier 1",
+    "title": "Inner Union",
+    "shortTitle": "Inner Union",
+    "intro": "The Inner Union is the deepest integration tier in this scenario. It imagines a group of willing European states moving faster on common defence, eurozone depth, Schengen trust, and a more unified foreign policy.",
+    "routeSummary": "A frontrunner circle for countries ready to share more sovereignty where scale, trust, and speed matter most.",
+    "visualLabel": "Integration depth",
+    "activeStep": 3,
+    "visualSteps": ["Community + Friends", "Associate", "European Union", "Inner Union"],
+    "signals": ["Foreign policy", "Common defence", "Eurozone", "Schengen"],
+    "sections": [
+      {
+        "heading": "What this tier is for",
+        "body": "This tier is about strategic capacity. It groups countries that are prepared to coordinate at a level where decisions become more binding, budgets become more shared, and external action becomes more coherent."
+      },
+      {
+        "heading": "What it changes on the map",
+        "body": "When this page loads, the map focuses on the innermost circle only. The surrounding tiers remain part of the wider ladder, but the highlighted countries show where deeper integration starts in this editorial model."
+      },
+      {
+        "heading": "How countries move here",
+        "body": "Moving inward should depend on democratic consent, institutional trust, legal reliability, and the willingness to accept shared obligations. The point is not exclusivity; it is readiness for a deeper common project."
+      }
+    ],
+    "takeaways": [
+      "The Inner Union is the strongest version of shared European capacity.",
+      "It works only if countries accept deeper obligations as well as deeper influence.",
+      "It should remain reachable from the wider tiers when reforms, trust, and public support align."
+    ]
+  },
+  {
+    "id": "eu",
+    "slug": "european-union",
+    "path": "/european-union/",
+    "seoTitle": "European Union Tier - Tiered Europe Scenario | EU Made Simple",
+    "metaDescription": "Explore the European Union tier in the EU Made Simple Tiered Europe map: full membership, EU law, representation, the budget, and the single market.",
+    "eyebrow": "Tier 2",
+    "title": "European Union",
+    "shortTitle": "European Union",
+    "intro": "The European Union tier represents full EU membership: shared institutions, EU law, representation, budget responsibilities, and full participation in the single market.",
+    "routeSummary": "The core membership layer where countries share rules, rights, institutions, and democratic ownership of EU decisions.",
+    "visualLabel": "Membership layer",
+    "activeStep": 2,
+    "visualSteps": ["Community + Friends", "Associate", "European Union", "Inner Union"],
+    "signals": ["Single market", "EU budget", "EU law", "Representation"],
+    "sections": [
+      {
+        "heading": "What this tier is for",
+        "body": "This tier is the full membership foundation. It is where countries do not merely align with EU rules from outside; they help make those rules through elected representatives, national ministers, commissioners, courts, and shared institutions."
+      },
+      {
+        "heading": "What it changes on the map",
+        "body": "When this page loads, the map activates the European Union scene. Because the scenario is cumulative, the highlighted area includes both the European Union tier and the Inner Union inside it."
+      },
+      {
+        "heading": "Why representation matters",
+        "body": "Full membership matters because obligations and voice come together. Countries that apply EU law, contribute to the budget, and take part in the single market also participate in shaping the system."
+      }
+    ],
+    "takeaways": [
+      "This is the full membership tier, not just a trade arrangement.",
+      "EU law and democratic representation belong together.",
+      "It remains the main bridge between the outer accession path and any deeper Inner Union."
+    ]
+  },
+  {
+    "id": "associate",
+    "slug": "associate-membership",
+    "path": "/associate-membership/",
+    "seoTitle": "Associate Membership - Tiered Europe Scenario | EU Made Simple",
+    "metaDescription": "Explore Associate Membership in the EU Made Simple Tiered Europe map: a bridge for candidates, close neighbours, market access, customs alignment, and rule-of-law progress.",
+    "eyebrow": "Tier 3",
+    "title": "Associate Membership",
+    "shortTitle": "Associate",
+    "intro": "Associate Membership is the bridge tier. It gives candidate countries, close neighbours, and aligned partners a visible place on the European path before full membership is settled.",
+    "routeSummary": "A practical accession-path circle for countries that are moving closer through standards, reforms, and staged access.",
+    "visualLabel": "Bridge tier",
+    "activeStep": 1,
+    "visualSteps": ["Community + Friends", "Associate", "European Union", "Inner Union"],
+    "signals": ["Single market access", "Customs alignment", "Budget path", "Rule of law"],
+    "sections": [
+      {
+        "heading": "What this tier is for",
+        "body": "This tier turns the waiting period into a working path. Countries can align rules, build institutions, improve border and customs systems, and receive clearer benefits as reforms become real."
+      },
+      {
+        "heading": "What it changes on the map",
+        "body": "When this page loads, the map activates the Associate scene. The highlighted countries include Associate Membership plus the European Union and Inner Union layers inside it, showing the direction of the ladder."
+      },
+      {
+        "heading": "Why it should not become a waiting room",
+        "body": "Associate Membership should make progress more visible, not freeze countries outside. The tier is useful only if it is tied to movement, milestones, and a credible route toward fuller participation where that is the goal."
+      }
+    ],
+    "takeaways": [
+      "Associate Membership makes reform progress visible before accession is complete.",
+      "Benefits should be tied to measurable alignment and rule-of-law progress.",
+      "The tier should clarify the road inward, not replace full membership."
+    ]
+  },
+  {
+    "id": "friends",
+    "slug": "european-community-friends",
+    "path": "/european-community-friends/",
+    "seoTitle": "European Community + Friends - Tiered Europe Scenario | EU Made Simple",
+    "metaDescription": "Explore the European Community + Friends tier in the EU Made Simple Tiered Europe map: wider democratic cooperation on security, climate, energy, crises, and supply chains.",
+    "eyebrow": "Tier 4",
+    "title": "European Community + Friends",
+    "shortTitle": "Community + Friends",
+    "intro": "European Community + Friends is the widest tier. It includes democratic partners that may not be on a membership path, but still matter for security, climate, energy, supply chains, and crisis response.",
+    "routeSummary": "A wider democratic circle for practical cooperation beyond the formal EU accession ladder.",
+    "visualLabel": "Wider circle",
+    "activeStep": 0,
+    "visualSteps": ["Community + Friends", "Associate", "European Union", "Inner Union"],
+    "signals": ["Security", "Climate policy", "Energy", "Crisis response"],
+    "sections": [
+      {
+        "heading": "What this tier is for",
+        "body": "This tier recognises that Europe often needs trusted partners beyond the EU itself. Some partnerships are not about membership, but about acting together where shared values and practical interests overlap."
+      },
+      {
+        "heading": "What it changes on the map",
+        "body": "When this page loads, the map activates the widest scenario scene. The map keeps the whole ladder visible, including outer democratic partners and every tier inside the European project."
+      },
+      {
+        "heading": "Why this tier stays distinct",
+        "body": "The outer circle should not pretend that every partner is on the same membership path. It is valuable because it keeps practical cooperation honest: close, useful, and democratic, but not confused with full EU obligations."
+      }
+    ],
+    "takeaways": [
+      "Not every useful democratic partnership needs to become an accession promise.",
+      "The wider circle gives Europe more reach on cross-border challenges.",
+      "Clear boundaries keep cooperation useful without blurring what EU membership means."
+    ]
+  }
+]

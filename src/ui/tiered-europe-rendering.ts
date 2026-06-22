@@ -54,7 +54,7 @@ export function renderTierDeck({
           <div class="tier-head">
             <span class="tier-number">${tier.order}</span>
             <div>
-              <h2 class="tier-title">${escapeHtml(tier.title)}</h2>
+              <h2 class="tier-title">${renderTierTitleLink(tier)}</h2>
               <div class="tier-meta-row">
                 <div class="capabilities">${capabilities}</div>
               </div>
@@ -66,6 +66,17 @@ export function renderTierDeck({
       `;
     })
     .join("");
+}
+
+export function tierPath(tierId: Tier["id"]): string {
+  if (tierId === "inner") return "/inner-union/";
+  if (tierId === "eu") return "/european-union/";
+  if (tierId === "associate") return "/associate-membership/";
+  return "/european-community-friends/";
+}
+
+function renderTierTitleLink(tier: Tier): string {
+  return `<a href="${tierPath(tier.id)}" data-tier-link="${escapeAttribute(tier.id)}">${escapeHtml(tier.title)}</a>`;
 }
 
 export function renderCountryGrid(

@@ -358,7 +358,8 @@ button {
 
 .mission-card,
 .tier-card,
-.country-card {
+.country-card,
+.tier-detail {
   background: var(--cream);
   border: var(--border);
   border-radius: 8px;
@@ -369,6 +370,174 @@ button {
   position: relative;
   padding: 24px;
   animation: site-rise-in 520ms var(--ease-out) 70ms both;
+}
+
+.tier-detail {
+  --tier-detail-accent: var(--teal-dark);
+  --tier-detail-accent-text: var(--ink);
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+  animation: site-rise-in 520ms var(--ease-out) 110ms both;
+}
+
+.tier-detail[hidden] {
+  display: none;
+}
+
+.tier-detail[data-tier="inner"] {
+  --tier-detail-accent: var(--navy);
+  --tier-detail-accent-text: var(--cream);
+}
+
+.tier-detail[data-tier="eu"] {
+  --tier-detail-accent: var(--teal);
+}
+
+.tier-detail[data-tier="associate"] {
+  --tier-detail-accent: var(--sand);
+}
+
+.tier-detail[data-tier="friends"] {
+  --tier-detail-accent: var(--cream);
+}
+
+.tier-detail-back {
+  justify-self: start;
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 950;
+  text-transform: uppercase;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.tier-detail-header {
+  display: grid;
+  gap: 8px;
+}
+
+.tier-detail-header h2 {
+  margin: 0;
+  font-size: clamp(1.65rem, 3.2vw, 2.45rem);
+  line-height: 0.98;
+  text-transform: uppercase;
+}
+
+.tier-detail-header p:last-child,
+.tier-detail-summary {
+  margin: 0;
+  font-weight: 750;
+  line-height: 1.42;
+}
+
+.tier-detail-visual {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(170px, 0.8fr);
+  gap: 18px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.46);
+  border: 2px solid rgba(8, 11, 15, 0.2);
+  border-radius: 8px;
+}
+
+.tier-detail-visual-label {
+  margin: 0 0 10px;
+  font-size: 0.72rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.tier-detail-ladder,
+.tier-detail-signals,
+.tier-detail-takeaways ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tier-detail-ladder {
+  display: grid;
+  gap: 8px;
+}
+
+.tier-detail-ladder li,
+.tier-detail-signals li,
+.tier-detail-takeaways li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 36px;
+  padding: 8px 10px;
+  font-weight: 850;
+  line-height: 1.15;
+  background: rgba(255, 248, 238, 0.78);
+  border: 2px solid rgba(8, 11, 15, 0.2);
+  border-radius: 6px;
+}
+
+.tier-detail-ladder li.is-active {
+  color: var(--tier-detail-accent-text);
+  background: var(--tier-detail-accent);
+  border-color: var(--ink);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.72);
+}
+
+.tier-detail-step-marker {
+  display: grid;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  place-items: center;
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 950;
+  background: var(--gold);
+  border: 2px solid currentColor;
+  border-radius: 999px;
+}
+
+.tier-detail-signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tier-detail-signals li {
+  min-height: 0;
+  padding: 7px 9px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.tier-detail-sections {
+  display: grid;
+  gap: 16px;
+}
+
+.tier-detail-section h3,
+.tier-detail-takeaways h3 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+}
+
+.tier-detail-section p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.tier-detail-takeaways {
+  display: grid;
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 2px solid rgba(8, 11, 15, 0.22);
+}
+
+.tier-detail-takeaways ul {
+  display: grid;
+  gap: 8px;
 }
 
 .mission-card::before {
@@ -939,6 +1108,19 @@ h1 {
   font-size: 1.28rem;
   line-height: 1.05;
   text-transform: uppercase;
+}
+
+.tier-title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.tier-title a:hover,
+.tier-title a:focus-visible {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  outline: none;
 }
 
 .tier-meta {
@@ -1999,6 +2181,28 @@ img.chip-flag {
     padding: 12px 14px;
   }
 
+  .tier-detail {
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .tier-detail-header h2 {
+    font-size: 1.45rem;
+  }
+
+  .tier-detail-visual {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .tier-detail-section p,
+  .tier-detail-header p:last-child,
+  .tier-detail-summary {
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+
   .edit-tool-button,
   .edit-toggle {
     width: 40px;
@@ -2259,8 +2463,12 @@ img.chip-flag {
     order: 2;
   }
 
-  .tier-deck {
+  .tier-detail {
     order: 3;
+  }
+
+  .tier-deck {
+    order: 4;
   }
 
   .map-stage {

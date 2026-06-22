@@ -389,6 +389,33 @@ test.describe("first paint content", () => {
     await expect(benefitPills).toContainText("A path inward over time");
   });
 
+  test("declares search and social metadata before app JavaScript runs", async ({ page }) => {
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+
+    await expect(page).toHaveTitle(
+      "Tiered Europe Map: Interactive EU Integration Scenario | EU Made Simple",
+    );
+    await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+      "content",
+      /interactive Tiered Europe map/,
+    );
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+      "href",
+      "https://tiered.eu/",
+    );
+    await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
+      "content",
+      "https://tiered.eu/social-card.jpg",
+    );
+    await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute(
+      "content",
+      "summary_large_image",
+    );
+    await expect
+      .poll(() => page.locator("#structuredData").evaluate((script) => script.textContent ?? ""))
+      .toContain("EU Made Simple - Tiered Europe");
+  });
+
   test("renders tier titles, capability pills, summaries, and flag skeletons before app JavaScript runs", async ({
     page,
   }) => {
@@ -410,6 +437,10 @@ test.describe("first paint content", () => {
     await expect(tierDeck).toContainText("Crisis response");
     await expect(tierDeck).toContainText("A wider democratic circle");
     await expect(tierDeck.locator(".country-chip-skeleton")).toHaveCount(53);
+    await expect(tierDeck.locator('.tier-card[data-tier="inner"] .tier-title a')).toHaveAttribute(
+      "href",
+      "/inner-union/",
+    );
   });
 
   test("renders the map legend and EU stars before app JavaScript runs", async ({
@@ -465,6 +496,74 @@ test.describe("first paint content", () => {
       return getComputedStyle(element).position;
     });
     expect(position).toBe("absolute");
+  });
+});
+
+// ─── tier pages and route navigation ─────────────────────────────────────────
+
+test.describe("tier page navigation", () => {
+  test.use(desktop);
+
+  test("opening a tier URL renders the tier detail page and activates the matching map tab", async ({
+    page,
+  }) => {
+    await page.goto("/associate-membership/");
+    await waitForMap(page);
+
+    await expect(page).toHaveURL(/\/associate-membership\/$/);
+    await expect(page).toHaveTitle(/Associate Membership/);
+    await expect(page.locator("#tierDetail")).toBeVisible();
+    await expect(page.locator("#tierDetail .tier-detail-header h2")).toHaveText(
+      "Associate Membership",
+    );
+    await expect(page.locator('[data-scene="associate"]')).toHaveClass(/is-active/);
+    await expect(page.locator('#mapSvg [data-country="804"]')).toHaveClass(/is-highlight/);
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+      "href",
+      "https://tiered.eu/associate-membership/",
+    );
+  });
+
+  test("clicking tier title links navigates without losing the map", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator('.tier-card[data-tier="inner"] .tier-title a').click();
+
+    await expect(page).toHaveURL(/\/inner-union\/$/);
+    await expect(page.locator("#tierDetail .tier-detail-header h2")).toHaveText(
+      "Inner Union",
+    );
+    await expect(page.locator('[data-scene="inner"]')).toHaveClass(/is-active/);
+    await expect(page.locator('#mapSvg [data-country="276"]')).toHaveClass(/is-highlight/);
+
+    await page.locator("#tierDetail [data-root-link]").click();
+
+    await expect(page).toHaveURL("http://127.0.0.1:5173/");
+    await expect(page.locator("#tierDetail")).toBeHidden();
+    await expect(page.locator('[data-scene="eu"]')).toHaveClass(/is-active/);
+  });
+
+  test("the root link preserves a shared tier arrangement query", async ({ page }) => {
+    await page.goto("/associate-membership/?inner=276,124&eu=040&associate=&friends=");
+    await waitForMap(page);
+
+    await expect(page.locator('.tier-card[data-tier="inner"] .country-chip[data-country="124"]'))
+      .toBeVisible();
+
+    await page.locator("#tierDetail [data-root-link]").click();
+
+    await expect
+      .poll(() => new URL(page.url()).pathname)
+      .toBe("/");
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get("inner"))
+      .toBe("276,124");
+    await expect(page.locator('.tier-card[data-tier="inner"] .country-chip[data-country="124"]'))
+      .toBeVisible();
+    await expect(page.locator('.tier-card[data-tier="friends"] .country-chip[data-country="124"]'))
+      .toHaveCount(0);
+    await expect(page.locator('[data-scene="eu"]')).toHaveClass(/is-active/);
   });
 });
 

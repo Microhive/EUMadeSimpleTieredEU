@@ -14,6 +14,7 @@ import {
   capabilityInfoByLabel,
   tiers,
 } from "../domain/tiered-europe-scenario";
+import tierPageContentData from "../domain/tier-page-content.json";
 import type {
   CountryEntry,
   CountryMeta,
@@ -21,6 +22,7 @@ import type {
   TierId,
 } from "../domain/tiered-europe";
 import { createFloatingTooltip } from "../ui/floating-tooltip";
+import { escapeAttribute, escapeHtml } from "../ui/html";
 import { createInfoModal } from "../ui/info-modal";
 import { setupSceneTabsScale } from "../ui/scene-tabs-scale";
 import {
@@ -30,6 +32,7 @@ import {
   renderCountryCardForTier as renderCountryCardForTierMarkup,
   renderCountryGrid,
   renderLegend as renderLegendMarkup,
+  tierPath,
   renderTierDeck,
 } from "../ui/tiered-europe-rendering";
 import { createCanvasCountryLayer } from "../map/canvas-country-layer";
@@ -55,6 +58,40 @@ interface StartTieredEuropeAppOptions {
   d3: any;
   topojson: any;
 }
+
+interface TierPageSection {
+  heading: string;
+  body: string;
+}
+
+interface TierPageContent {
+  id: TierId;
+  slug: string;
+  path: string;
+  seoTitle: string;
+  metaDescription: string;
+  eyebrow: string;
+  title: string;
+  shortTitle: string;
+  intro: string;
+  routeSummary: string;
+  visualLabel: string;
+  activeStep: number;
+  visualSteps: string[];
+  signals: string[];
+  sections: TierPageSection[];
+  takeaways: string[];
+}
+
+const SITE_ORIGIN = "https://tiered.eu";
+const ROOT_SEO_TITLE = "Tiered Europe Map: Interactive EU Integration Scenario | EU Made Simple";
+const ROOT_META_DESCRIPTION =
+  "Explore an interactive Tiered Europe map from EU Made Simple, showing how a multi-speed European Union could work across four integration tiers.";
+const SOCIAL_IMAGE_URL = `${SITE_ORIGIN}/social-card.jpg`;
+const TIER_PAGE_CONTENT = tierPageContentData as TierPageContent[];
+const TIER_PAGE_BY_PATH = new Map<string, TierPageContent>(
+  TIER_PAGE_CONTENT.map((content) => [content.path, content]),
+);
 
 export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptions): void {
   // ─── app types ────────────────────────────────────────────────────────────────
@@ -162,6 +199,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   const labelSvgElement = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   const labelSvg = d3.select(labelSvgElement);
   const tierDeck = document.querySelector<HTMLElement>("#tierDeck")!;
+  const tierDetail = document.querySelector<HTMLElement>("#tierDetail")!;
   const sceneTabs = document.querySelector<HTMLElement>("#sceneTabs")!;
   const legend = document.querySelector<HTMLElement>("#legend")!;
   const countryCard = document.querySelector<HTMLElement>("#countryCard")!;
@@ -312,8 +350,10 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   let sourcesResizeObserver: ResizeObserver | null = null;
   let tierDeckInteractionsBound = false;
   let hasCountryFocusIsolation = false;
+  let mapReady = false;
 
   // ─── init ─────────────────────────────────────────────────────────────────────
+  syncRouteView({ focusMap: false });
   buildBenefitPills();
   buildTierCards();
   buildLegend();
@@ -325,6 +365,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   setupSourcesPlacement();
   setupVideoTooltip();
   setupSceneTabsScale(sceneTabs);
+  setupRouteNavigation();
   loadMap();
   // ─── benefit pill functions ───────────────────────────────────────────────────────────────────────────
 
@@ -506,6 +547,223 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     videoLink.addEventListener("focus", () => showPillTooltip(videoLink));
     videoLink.addEventListener("blur", () => hidePillTooltip());
     videoLink.addEventListener("click", () => hidePillTooltip());
+  }
+
+  function setupRouteNavigation(): void {
+    document.addEventListener("click", (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+
+      const target = event.target as Element;
+      const rootLink = target.closest<HTMLAnchorElement>("[data-root-link]");
+      if (rootLink) {
+        event.preventDefault();
+        navigateToRoute(null);
+        return;
+      }
+
+      const tierLink = target.closest<HTMLAnchorElement>("[data-tier-link]");
+      const tierId = tierLink?.dataset.tierLink;
+      if (!tierLink || !tierArrangement.hasTier(tierId ?? "")) return;
+
+      event.preventDefault();
+      navigateToRoute(tierId as TierId);
+    });
+
+    window.addEventListener("popstate", () => {
+      syncRouteView({ focusMap: true });
+    });
+  }
+
+  function navigateToRoute(tierId: TierId | null): void {
+    const pathname = tierId ? tierPath(tierId) : "/";
+    const nextUrl = `${pathname}${window.location.search}`;
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+
+    if (nextUrl !== currentUrl) {
+      window.history.pushState({ tierId }, "", nextUrl);
+    }
+
+    state.userTouched = true;
+    syncRouteView({ focusMap: true });
+  }
+
+  function syncRouteView({ focusMap }: { focusMap: boolean }): void {
+    const content = currentTierPageContent();
+    renderTierDetail(content);
+    syncRouteLinks();
+    updateDocumentMetadata(content);
+
+    document.body.dataset.routeTier = content?.id ?? "root";
+
+    if (focusMap && mapReady) {
+      focusScene(content?.id ?? "eu", { revealCard: false, scrollCard: false });
+    }
+  }
+
+  function currentTierPageContent(): TierPageContent | null {
+    return TIER_PAGE_BY_PATH.get(normalizedRoutePath(window.location.pathname)) ?? null;
+  }
+
+  function normalizedRoutePath(pathname: string): string {
+    if (!pathname || pathname === "/") return "/";
+
+    return pathname.endsWith("/") ? pathname : `${pathname}/`;
+  }
+
+  function renderTierDetail(content: TierPageContent | null): void {
+    if (!content) {
+      tierDetail.hidden = true;
+      tierDetail.removeAttribute("data-tier");
+      tierDetail.innerHTML = "";
+      return;
+    }
+
+    tierDetail.hidden = false;
+    tierDetail.dataset.tier = content.id;
+    tierDetail.innerHTML = renderTierDetailMarkup(content);
+  }
+
+  function renderTierDetailMarkup(content: TierPageContent): string {
+    const visualSteps = content.visualSteps
+      .map((step, index) => `
+        <li class="${index === content.activeStep ? "is-active" : ""}">
+          <span class="tier-detail-step-marker">${index + 1}</span>
+          <span>${escapeHtml(step)}</span>
+        </li>
+      `)
+      .join("");
+    const signals = content.signals
+      .map((signal) => `<li>${escapeHtml(signal)}</li>`)
+      .join("");
+    const sections = content.sections
+      .map((section) => `
+        <section class="tier-detail-section">
+          <h3>${escapeHtml(section.heading)}</h3>
+          <p>${escapeHtml(section.body)}</p>
+        </section>
+      `)
+      .join("");
+    const takeaways = content.takeaways
+      .map((takeaway) => `<li>${escapeHtml(takeaway)}</li>`)
+      .join("");
+
+    return `
+      <a class="tier-detail-back" href="${escapeAttribute(rootHref())}" data-root-link>Back to full scenario</a>
+      <div class="tier-detail-header">
+        <p class="eyebrow">${escapeHtml(content.eyebrow)}</p>
+        <h2>${escapeHtml(content.title)}</h2>
+        <p>${escapeHtml(content.intro)}</p>
+      </div>
+      <div class="tier-detail-visual" aria-label="${escapeAttribute(content.visualLabel)}">
+        <div>
+          <p class="tier-detail-visual-label">${escapeHtml(content.visualLabel)}</p>
+          <ol class="tier-detail-ladder">${visualSteps}</ol>
+        </div>
+        <div>
+          <p class="tier-detail-visual-label">Policy signals</p>
+          <ul class="tier-detail-signals">${signals}</ul>
+        </div>
+      </div>
+      <p class="tier-detail-summary">${escapeHtml(content.routeSummary)}</p>
+      <div class="tier-detail-sections">${sections}</div>
+      <div class="tier-detail-takeaways">
+        <h3>What to remember</h3>
+        <ul>${takeaways}</ul>
+      </div>
+    `;
+  }
+
+  function syncRouteLinks(): void {
+    document.querySelectorAll<HTMLAnchorElement>("[data-tier-link]").forEach((link) => {
+      const tierId = link.dataset.tierLink;
+      if (!tierArrangement.hasTier(tierId ?? "")) return;
+
+      link.href = routeHref(tierId as TierId);
+    });
+
+    tierDetail.querySelectorAll<HTMLAnchorElement>("[data-root-link]").forEach((link) => {
+      link.href = rootHref();
+    });
+  }
+
+  function routeHref(tierId: TierId): string {
+    return `${tierPath(tierId)}${window.location.search}`;
+  }
+
+  function rootHref(): string {
+    return `/${window.location.search}`;
+  }
+
+  function updateDocumentMetadata(content: TierPageContent | null): void {
+    const title = content?.seoTitle ?? ROOT_SEO_TITLE;
+    const description = content?.metaDescription ?? ROOT_META_DESCRIPTION;
+    const canonicalPath = content?.path ?? "/";
+    const canonicalUrl = `${SITE_ORIGIN}${canonicalPath}`;
+
+    document.title = title;
+    setMetaContent('meta[name="description"]', description);
+    setMetaContent('meta[property="og:title"]', content ? `${content.title} - EU Made Simple` : "Tiered Europe Map - EU Made Simple");
+    setMetaContent('meta[property="og:description"]', description);
+    setMetaContent('meta[property="og:url"]', canonicalUrl);
+    setMetaContent('meta[name="twitter:title"]', content ? `${content.title} - EU Made Simple` : "Tiered Europe Map - EU Made Simple");
+    setMetaContent('meta[name="twitter:description"]', description);
+    setCanonicalHref(canonicalUrl);
+    updateStructuredData(content, canonicalUrl, description);
+  }
+
+  function setMetaContent(selector: string, content: string): void {
+    document.querySelector<HTMLMetaElement>(selector)?.setAttribute("content", content);
+  }
+
+  function setCanonicalHref(href: string): void {
+    document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.setAttribute("href", href);
+  }
+
+  function updateStructuredData(
+    content: TierPageContent | null,
+    canonicalUrl: string,
+    description: string,
+  ): void {
+    const structuredData = document.querySelector<HTMLScriptElement>("#structuredData");
+    if (!structuredData) return;
+
+    structuredData.textContent = JSON.stringify(
+      content
+        ? {
+            "@context": "https://schema.org",
+            "@type": "WebPage",
+            name: `${content.title} - EU Made Simple`,
+            url: canonicalUrl,
+            isPartOf: {
+              "@type": "WebSite",
+              name: "EU Made Simple - Tiered Europe",
+              url: SITE_ORIGIN,
+            },
+            inLanguage: "en",
+            description,
+            image: SOCIAL_IMAGE_URL,
+          }
+        : {
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            name: "EU Made Simple - Tiered Europe",
+            url: canonicalUrl,
+            applicationCategory: "EducationalApplication",
+            operatingSystem: "Any",
+            isAccessibleForFree: true,
+            inLanguage: "en",
+            description,
+            image: SOCIAL_IMAGE_URL,
+            creator: {
+              "@type": "Organization",
+              name: "EU Made Simple",
+            },
+          },
+      null,
+      2,
+    );
   }
 
   function buildBenefitPills(): void {
@@ -900,6 +1158,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     syncFlagFocusHighlights();
     primeCountryFlagImageStates();
     bindTierDeckInteractions();
+    syncRouteLinks();
     syncEditModeControls();
   }
 
@@ -1100,7 +1359,8 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       syncCountryChipMetadata();
       render();
       setupMapResizeHandling();
-      focusScene("eu", { intro: true, revealCard: false });
+      mapReady = true;
+      focusScene(currentTierPageContent()?.id ?? "eu", { intro: true, revealCard: false });
       mapWrap.classList.add("is-map-ready");
     } catch (error) {
       showCountryCard();
@@ -2058,7 +2318,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     return {
       bottomPad: 160,
       topPad: window.innerWidth <= 720 ? 60 : 0,
-      europeOnly: scene !== "friends",
+      europeOnly: true,
     };
   }
 

@@ -5,15 +5,58 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="An interactive EU Made Simple infographic exploring how a tiered European Union could work."
+      content="Explore an interactive Tiered Europe map from EU Made Simple, showing how a multi-speed European Union could work across four integration tiers."
     >
-    <title>Tiered EU - EU Made Simple</title>
+    <meta name="robots" content="index,follow,max-image-preview:large">
+    <meta name="theme-color" content="#053f70">
+    <link rel="canonical" href="https://tiered.eu/">
+    <meta property="og:site_name" content="EU Made Simple">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Tiered Europe Map - EU Made Simple">
+    <meta
+      property="og:description"
+      content="An interactive map and explainer for a tiered European Union: Inner Union, European Union, Associate Membership, and European Community + Friends."
+    >
+    <meta property="og:url" content="https://tiered.eu/">
+    <meta property="og:image" content="https://tiered.eu/social-card.jpg">
+    <meta property="og:image:secure_url" content="https://tiered.eu/social-card.jpg">
+    <meta property="og:image:type" content="image/jpeg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="EU Made Simple interactive Tiered Europe map and four integration tiers.">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Tiered Europe Map - EU Made Simple">
+    <meta
+      name="twitter:description"
+      content="Explore a multi-speed Europe scenario with an interactive map, tier cards, country context, and source links."
+    >
+    <meta name="twitter:image" content="https://tiered.eu/social-card.jpg">
+    <meta name="twitter:image:alt" content="EU Made Simple interactive Tiered Europe map and four integration tiers.">
+    <title>Tiered Europe Map: Interactive EU Integration Scenario | EU Made Simple</title>
     <link rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png">
     <link rel="icon" href="/favicon-192x192.png" sizes="192x192" type="image/png">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="preload" href="countries-110m.json" as="fetch" crossorigin="anonymous">
-    <link rel="preload" href="countries-50m.json" as="fetch" crossorigin="anonymous">
+    <link rel="preload" href="/countries-110m.json" as="fetch" crossorigin="anonymous">
+    <link rel="preload" href="/countries-50m.json" as="fetch" crossorigin="anonymous">
     <link rel="stylesheet" href="/src/styles.css">
+    <script type="application/ld+json" id="structuredData">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "EU Made Simple - Tiered Europe",
+        "url": "https://tiered.eu/",
+        "applicationCategory": "EducationalApplication",
+        "operatingSystem": "Any",
+        "isAccessibleForFree": true,
+        "inLanguage": "en",
+        "description": "An interactive map and explainer for a tiered European Union scenario.",
+        "image": "https://tiered.eu/social-card.jpg",
+        "creator": {
+          "@type": "Organization",
+          "name": "EU Made Simple"
+        }
+      }
+    </script>
   </head>
   <body class="is-loading">
     <div class="site-shell">
@@ -189,12 +232,16 @@
             </div>
           </article>
 
+          <section class="tier-detail" id="tierDetail" hidden></section>
+
           <div class="tier-deck" id="tierDeck" aria-label="Tier cards">
             <article class="tier-card" data-tier="inner" tabindex="0">
               <div class="tier-head">
                 <span class="tier-number">1</span>
                 <div>
-                  <h2 class="tier-title">Inner Union</h2>
+                  <h2 class="tier-title">
+                    <a href="/inner-union/" data-tier-link="inner">Inner Union</a>
+                  </h2>
                   <div class="tier-meta-row">
                     <div class="capabilities">
                       <button type="button" class="capability" data-cap-key="Foreign policy">Foreign policy</button>
@@ -220,7 +267,9 @@
               <div class="tier-head">
                 <span class="tier-number">2</span>
                 <div>
-                  <h2 class="tier-title">European Union</h2>
+                  <h2 class="tier-title">
+                    <a href="/european-union/" data-tier-link="eu">European Union</a>
+                  </h2>
                   <div class="tier-meta-row">
                     <div class="capabilities">
                       <button type="button" class="capability" data-cap-key="Single market">Single market</button>
@@ -261,7 +310,9 @@
               <div class="tier-head">
                 <span class="tier-number">3</span>
                 <div>
-                  <h2 class="tier-title">Associate Membership</h2>
+                  <h2 class="tier-title">
+                    <a href="/associate-membership/" data-tier-link="associate">Associate Membership</a>
+                  </h2>
                   <div class="tier-meta-row">
                     <div class="capabilities">
                       <button type="button" class="capability" data-cap-key="Single market access">Single market access</button>
@@ -302,7 +353,9 @@
               <div class="tier-head">
                 <span class="tier-number">4</span>
                 <div>
-                  <h2 class="tier-title">European Community + Friends</h2>
+                  <h2 class="tier-title">
+                    <a href="/european-community-friends/" data-tier-link="friends">European Community + Friends</a>
+                  </h2>
                   <div class="tier-meta-row">
                     <div class="capabilities">
                       <button type="button" class="capability" data-cap-key="Security">Security</button>
