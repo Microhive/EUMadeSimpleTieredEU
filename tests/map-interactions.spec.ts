@@ -462,9 +462,36 @@ test.describe("first paint content", () => {
       page.locator("#sources").boundingBox(),
       page.locator("#sources").evaluate((element) => element.parentElement?.className ?? ""),
     ]);
+    const legendLayout = await legend.evaluate((element) => {
+      const item = element.querySelector<HTMLElement>(".legend-item")!;
+      const swatch = element.querySelector<HTMLElement>(".legend-swatch")!;
+      const fullLabel = element.querySelector<HTMLElement>(".label-full")!;
+      const shortLabel = element.querySelector<HTMLElement>(".label-short")!;
+      const elementStyles = getComputedStyle(element);
+      const itemStyles = getComputedStyle(item);
+      const itemBox = item.getBoundingClientRect();
+      const swatchBox = swatch.getBoundingClientRect();
+
+      return {
+        gap: elementStyles.gap,
+        maxWidth: parseFloat(elementStyles.maxWidth),
+        itemHeight: itemBox.height,
+        itemFontSize: parseFloat(itemStyles.fontSize),
+        swatchWidth: swatchBox.width,
+        fullDisplay: getComputedStyle(fullLabel).display,
+        shortDisplay: getComputedStyle(shortLabel).display,
+      };
+    });
     expect(legendBox).not.toBeNull();
     expect(mapBox).not.toBeNull();
     expect(legendBox!.x).toBeLessThan(mapBox!.x + 40);
+    expect(legendLayout.gap).toBe("4px");
+    expect(legendLayout.maxWidth).toBeLessThanOrEqual(180);
+    expect(legendLayout.itemHeight).toBeLessThanOrEqual(28);
+    expect(legendLayout.itemFontSize).toBeLessThanOrEqual(9);
+    expect(legendLayout.swatchWidth).toBeLessThanOrEqual(12);
+    expect(legendLayout.fullDisplay).toBe("none");
+    expect(legendLayout.shortDisplay).not.toBe("none");
     if (sourcesParent.includes("map-wrap") && sourcesBox) {
       expect(legendBox!.y + legendBox!.height).toBeLessThan(sourcesBox.y - 6);
     } else {
@@ -648,6 +675,38 @@ test.describe("scene tab — desktop click", () => {
     await expect(germany).toHaveClass(/is-selected/);
     await expect(outlinedCountries).toHaveCount(1);
   });
+
+  test("places a close button inside the map info card and dismisses the country focus", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const germany = page.locator('#mapSvg [data-country="276"]');
+    const countryCard = page.locator("#countryCard");
+    const closeButton = countryCard.getByRole("button", { name: "Close map info card" });
+
+    await germany.click();
+
+    await expect(countryCard.locator("h2")).toContainText("Germany", {
+      ignoreCase: true,
+    });
+    await expect(closeButton).toBeVisible();
+
+    const [cardBox, closeBox] = await Promise.all([
+      countryCard.boundingBox(),
+      closeButton.boundingBox(),
+    ]);
+    expect(cardBox).not.toBeNull();
+    expect(closeBox).not.toBeNull();
+    expect(closeBox!.x).toBeGreaterThan(cardBox!.x);
+    expect(closeBox!.x + closeBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width);
+    expect(closeBox!.y).toBeGreaterThanOrEqual(cardBox!.y);
+    expect(closeBox!.y + closeBox!.height).toBeLessThan(cardBox!.y + 72);
+
+    await closeButton.click();
+
+    await expect(countryCard).toBeHidden();
+    await expect(germany).not.toHaveClass(/is-selected/);
+  });
 });
 
 test.describe("scene tab — small viewport hover", () => {
@@ -682,24 +741,58 @@ test.describe("scene tab — small viewport hover", () => {
 test.describe("scene tab — responsive sizing", () => {
   test.use({ ...desktop, viewport: { width: 486, height: 944 } });
 
-  test("keeps the map tier button scale stable at narrow widths", async ({ page }) => {
+  test("keeps the map tier button rail stable with CSS-only sizing", async ({ page }) => {
     await page.goto("/");
     await waitForMap(page);
 
-    const scaleSamples = await page.locator("#sceneTabs").evaluate(async (sceneTabs) => {
-      const readScale = () =>
-        getComputedStyle(sceneTabs).getPropertyValue("--scene-tabs-scale").trim();
-      const samples: string[] = [];
+    const samples = await page.locator("#sceneTabs").evaluate(async (sceneTabs) => {
+      const readState = () => ({
+        inlineScale: sceneTabs.style.getPropertyValue("--scene-tabs-scale"),
+        width: Math.round(sceneTabs.getBoundingClientRect().width * 100) / 100,
+      });
+      const states: ReturnType<typeof readState>[] = [];
 
       for (let index = 0; index < 18; index += 1) {
-        samples.push(readScale());
+        states.push(readState());
         await new Promise((resolve) => window.setTimeout(resolve, 50));
       }
 
-      return samples;
+      return states;
     });
 
-    expect([...new Set(scaleSamples)]).toHaveLength(1);
+    expect(new Set(samples.map((sample) => sample.inlineScale))).toEqual(new Set([""]));
+    expect(new Set(samples.map((sample) => sample.width)).size).toBe(1);
+  });
+
+  test("scales the map tier buttons to fit inside the mobile map frame", async ({ page }) => {
+    await page.setViewportSize({ width: 393, height: 851 });
+    await page.goto("/");
+    await waitForMap(page);
+
+    const layout = await page.evaluate(() => {
+      const mapWrap = document.querySelector<HTMLElement>(".map-wrap")!;
+      const toolbarPrimary = document.querySelector<HTMLElement>(".map-toolbar-primary")!;
+      const sceneTabs = document.querySelector<HTMLElement>("#sceneTabs")!;
+      const mapBox = mapWrap.getBoundingClientRect();
+      const toolbarBox = toolbarPrimary.getBoundingClientRect();
+      const tabsBox = sceneTabs.getBoundingClientRect();
+
+      return {
+        inlineScale: sceneTabs.style.getPropertyValue("--scene-tabs-scale"),
+        mapWidth: mapBox.width,
+        mapLeft: mapBox.left,
+        mapRight: mapBox.right,
+        toolbarWidth: toolbarBox.width,
+        tabsWidth: tabsBox.width,
+        tabsLeft: tabsBox.left,
+        tabsRight: tabsBox.right,
+      };
+    });
+
+    expect(layout.inlineScale).toBe("");
+    expect(layout.tabsWidth).toBeGreaterThanOrEqual(layout.toolbarWidth - 1);
+    expect(layout.tabsLeft).toBeGreaterThanOrEqual(layout.mapLeft + 8);
+    expect(layout.tabsRight).toBeLessThanOrEqual(layout.mapRight - 8);
   });
 });
 
@@ -756,7 +849,7 @@ test.describe("map toolbar — desktop layout", () => {
     expect(editBox!.height).toBeCloseTo(tabsBox!.height, 1);
     expect(innerButtonBox!.height).toBeCloseTo(editButtonBox!.height, 1);
     expect(flagButtonBox!.height).toBeCloseTo(editButtonBox!.height, 1);
-    expect(brandBox!.x).toBeCloseTo(tabsBox!.x, 1);
+    expect(brandBox!.x).toBeCloseTo(innerButtonBox!.x, 1);
     expect(brandBox!.y).toBeGreaterThan(tabsBox!.y + tabsBox!.height);
     expect(editBox!.x).toBeGreaterThan(tabsBox!.x + tabsBox!.width);
     expect(editBox!.x + editBox!.width).toBeLessThanOrEqual(videoBox!.x);
@@ -788,12 +881,16 @@ test.describe("desktop split layout", () => {
     const layout = await page.evaluate(() => {
       const storyPanel = document.querySelector<HTMLElement>(".story-panel")!;
       const mapWrap = document.querySelector<HTMLElement>(".map-wrap")!;
+      const mapStage = document.querySelector<HTMLElement>(".map-stage")!;
       const infographic = document.querySelector<HTMLElement>("#main")!;
       const siteShell = document.querySelector<HTMLElement>(".site-shell")!;
       const storyRect = storyPanel.getBoundingClientRect();
       const mapRect = mapWrap.getBoundingClientRect();
       const infographicRect = infographic.getBoundingClientRect();
+      const mapStageStyles = getComputedStyle(mapStage);
       const siteShellStyles = getComputedStyle(siteShell);
+      const mapShadowReserveRight = parseFloat(mapStageStyles.paddingRight);
+      const mapShadowReserveBottom = parseFloat(mapStageStyles.paddingBottom);
 
       return {
         bodyOverflowY: getComputedStyle(document.body).overflowY,
@@ -810,8 +907,12 @@ test.describe("desktop split layout", () => {
         storyBottom: storyRect.bottom,
         mapTopGap: mapRect.top,
         mapRightGap: window.innerWidth - mapRect.right,
+        mapVisualRightGap: window.innerWidth - mapRect.right - mapShadowReserveRight,
         mapBottom: mapRect.bottom,
         mapBottomGap: window.innerHeight - mapRect.bottom,
+        mapVisualBottomGap: window.innerHeight - mapRect.bottom - mapShadowReserveBottom,
+        mapShadowReserveRight,
+        mapShadowReserveBottom,
         mapHeight: mapRect.height,
         infographicBottom: infographicRect.bottom,
       };
@@ -824,8 +925,12 @@ test.describe("desktop split layout", () => {
     expect(layout.storyWidth).toBeCloseTo(520, 1);
     expect(layout.documentScrollHeight).toBeLessThanOrEqual(layout.viewportHeight + 1);
     expect(layout.mapBottom).toBeLessThanOrEqual(layout.viewportHeight);
-    expect(layout.mapTopGap).toBeCloseTo(layout.mapRightGap, 1);
-    expect(layout.mapBottomGap).toBeCloseTo(layout.mapRightGap, 1);
+    expect(layout.mapShadowReserveRight).toBeGreaterThanOrEqual(10);
+    expect(layout.mapShadowReserveBottom).toBeGreaterThanOrEqual(10);
+    expect(layout.mapRightGap).toBeGreaterThan(layout.mapTopGap);
+    expect(layout.mapBottomGap).toBeGreaterThan(layout.mapTopGap);
+    expect(layout.mapTopGap).toBeCloseTo(layout.mapVisualRightGap, 1);
+    expect(layout.mapTopGap).toBeCloseTo(layout.mapVisualBottomGap, 1);
     expect(layout.infographicBottom).toBeLessThanOrEqual(layout.viewportHeight);
     expect(layout.mapHeight).toBeGreaterThan(500);
     expect(layout.storyOverflowY).toBe("auto");
@@ -1553,6 +1658,49 @@ test.describe("map rendering — tablet", () => {
 
 test.describe("map rendering — mobile", () => {
   test.use({ ...desktop, viewport: { width: 393, height: 851 } });
+
+  test("uses the same rounded card frame as the story cards", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const layout = await page.evaluate(() => {
+      const siteShell = document.querySelector<HTMLElement>(".site-shell")!;
+      const mapStage = document.querySelector<HTMLElement>(".map-stage")!;
+      const mapWrap = document.querySelector<HTMLElement>(".map-wrap")!;
+      const missionCard = document.querySelector<HTMLElement>(".mission-card")!;
+      const siteShellStyles = getComputedStyle(siteShell);
+      const mapStageStyles = getComputedStyle(mapStage);
+      const mapStyles = getComputedStyle(mapWrap);
+      const missionStyles = getComputedStyle(missionCard);
+      const mapBox = mapWrap.getBoundingClientRect();
+      const missionBox = missionCard.getBoundingClientRect();
+
+      return {
+        shellPaddingLeft: parseFloat(siteShellStyles.paddingLeft),
+        mapStageMarginLeft: parseFloat(mapStageStyles.marginLeft),
+        mapStageMarginRight: parseFloat(mapStageStyles.marginRight),
+        mapX: mapBox.x,
+        mapWidth: mapBox.width,
+        missionX: missionBox.x,
+        missionWidth: missionBox.width,
+        radius: mapStyles.borderTopLeftRadius,
+        missionRadius: missionStyles.borderTopLeftRadius,
+        borderTopWidth: mapStyles.borderTopWidth,
+        missionBorderTopWidth: missionStyles.borderTopWidth,
+        shadow: mapStyles.boxShadow,
+        missionShadow: missionStyles.boxShadow,
+      };
+    });
+
+    expect(layout.mapStageMarginLeft).toBe(0);
+    expect(layout.mapStageMarginRight).toBe(0);
+    expect(layout.mapX).toBeCloseTo(layout.shellPaddingLeft, 1);
+    expect(layout.mapX).toBeCloseTo(layout.missionX, 1);
+    expect(layout.mapWidth).toBeCloseTo(layout.missionWidth, 1);
+    expect(layout.radius).toBe(layout.missionRadius);
+    expect(layout.borderTopWidth).toBe(layout.missionBorderTopWidth);
+    expect(layout.shadow).toBe(layout.missionShadow);
+  });
 
   test("tightens the map legend further on phones", async ({ page }) => {
     await page.goto("/");

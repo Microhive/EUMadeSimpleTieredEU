@@ -1381,7 +1381,11 @@ img.chip-flag {
 }
 
 .map-toolbar-primary {
+  --scene-tabs-rail-max-width: 395px;
+
+  container-type: inline-size;
   display: flex;
+  width: 100%;
   min-width: 0;
   flex: 1 1 auto;
   align-items: center;
@@ -1390,6 +1394,7 @@ img.chip-flag {
 
 .map-toolbar .brand {
   flex: 0 0 auto;
+  margin-left: 5px;
   user-select: none;
   pointer-events: none;
   -webkit-user-select: none;
@@ -1436,11 +1441,23 @@ img.chip-flag {
 }
 
 .scene-tabs {
-  --scene-tabs-scale: 1;
-  --scene-tab-size: 38px;
+  --scene-tab-size: clamp(29px, 9.75cqw, 38px);
+  --scene-tab-gap: clamp(3px, 1.55cqw, 6px);
+  --scene-tab-padding: clamp(3px, 1.05cqw, 4px);
+  --scene-tab-pad-x: clamp(5px, 2.45cqw, 10px);
+  --scene-tab-font-size: clamp(0.62rem, 3.55cqw, 0.88rem);
+  --scene-tab-shadow-offset: clamp(2px, 0.8cqw, 3px);
+  --scene-tab-border-width: clamp(1px, 0.55cqw, 2px);
+  --scene-tab-icon-size: clamp(13px, 4.8cqw, 18px);
+
+  width: min(100%, var(--scene-tabs-rail-max-width));
+  max-width: var(--scene-tabs-rail-max-width);
+  min-width: 0;
+  flex: 1 1 var(--scene-tabs-rail-max-width);
   flex-wrap: nowrap;
-  gap: calc(6px * var(--scene-tabs-scale));
-  padding: calc(4px * var(--scene-tabs-scale));
+  justify-content: space-between;
+  gap: var(--scene-tab-gap);
+  padding: var(--scene-tab-padding);
   white-space: nowrap;
   background:
     linear-gradient(135deg, rgba(2, 52, 95, 0.78), rgba(2, 52, 95, 0.42)),
@@ -1476,38 +1493,43 @@ img.chip-flag {
 }
 
 .scene-tabs button {
-  height: calc(var(--scene-tab-size) * var(--scene-tabs-scale));
-  min-height: calc(var(--scene-tab-size) * var(--scene-tabs-scale));
-  padding: 0 calc(10px * var(--scene-tabs-scale));
-  font-size: calc(0.88rem * var(--scene-tabs-scale));
+  flex: 0 1 auto;
+  min-width: 0;
+  height: var(--scene-tab-size);
+  min-height: var(--scene-tab-size);
+  overflow: hidden;
+  padding: 0 var(--scene-tab-pad-x);
+  font-size: var(--scene-tab-font-size);
   line-height: 1;
-  border-width: max(1px, calc(2px * var(--scene-tabs-scale)));
+  text-overflow: clip;
+  border-width: var(--scene-tab-border-width);
   box-shadow:
-    calc(3px * var(--scene-tabs-scale))
-    calc(3px * var(--scene-tabs-scale))
+    var(--scene-tab-shadow-offset)
+    var(--scene-tab-shadow-offset)
     0
     rgba(0, 0, 0, 0.55);
 }
 
 .scene-tab-separator {
   color: rgba(255, 248, 238, 0.78);
-  font-size: calc(1rem * var(--scene-tabs-scale));
+  font-size: clamp(0.72rem, 3.7cqw, 1rem);
   font-weight: 900;
   line-height: 1;
 }
 
 .scene-tabs .map-flags-toggle {
   display: grid;
-  width: calc(var(--scene-tab-size) * var(--scene-tabs-scale));
-  min-width: calc(var(--scene-tab-size) * var(--scene-tabs-scale));
-  height: calc(var(--scene-tab-size) * var(--scene-tabs-scale));
+  width: var(--scene-tab-size);
+  min-width: var(--scene-tab-size);
+  height: var(--scene-tab-size);
+  flex: 0 0 var(--scene-tab-size);
   place-items: center;
   padding: 0;
 }
 
 .map-flags-toggle svg {
-  width: calc(18px * var(--scene-tabs-scale));
-  height: calc(18px * var(--scene-tabs-scale));
+  width: var(--scene-tab-icon-size);
+  height: var(--scene-tab-icon-size);
 }
 
 .zoom-controls button {
@@ -1872,6 +1894,8 @@ img.chip-flag {
 
 
 .country-card {
+  --country-card-close-size: 42px;
+
   position: absolute;
   right: 18px;
   bottom: calc(18px + var(--map-disclaimer-offset));
@@ -1890,10 +1914,45 @@ img.chip-flag {
   display: none;
 }
 
+.country-card-close {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: grid;
+  float: right;
+  width: var(--country-card-close-size);
+  height: var(--country-card-close-size);
+  margin: -2px 0 8px 12px;
+  place-items: center;
+  padding: 0;
+  color: var(--ink);
+  background: var(--gold);
+  border: 3px solid var(--ink);
+  border-radius: 50%;
+  box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.58);
+  transition:
+    background 140ms ease,
+    transform 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.country-card-close:hover,
+.country-card-close:focus-visible {
+  background: var(--sand);
+  outline: none;
+  transform: translate(-1px, -1px);
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.62);
+}
+
+.country-card-close svg {
+  width: 22px;
+  height: 22px;
+}
+
 .country-card .eyebrow {
   min-height: 24px;
   margin-bottom: 4px;
-  padding-right: min(220px, 52%);
+  padding-right: min(280px, 64%);
 }
 
 .country-card h2 {
@@ -1909,9 +1968,9 @@ img.chip-flag {
 .country-card .tier-pill {
   position: absolute;
   top: 14px;
-  right: 14px;
+  right: calc(18px + var(--country-card-close-size) + 8px);
   display: block;
-  max-width: min(230px, 50%);
+  max-width: min(230px, calc(100% - 130px));
   margin-bottom: 0;
   overflow: hidden;
   padding: 6px 9px;
@@ -2053,31 +2112,37 @@ img.chip-flag {
   bottom: calc(16px + var(--map-disclaimer-offset));
   z-index: 3;
   display: grid;
-  gap: 8px;
-  max-width: 260px;
+  gap: 4px;
+  max-width: 180px;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
+  gap: 5px;
+  min-height: 26px;
+  padding: 4px 7px;
   color: var(--ink);
-  font-size: 0.7rem;
+  font-size: 0.56rem;
+  line-height: 1;
   background: rgba(255, 248, 238, 0.9);
-  border: 2px solid rgba(8, 11, 15, 0.78);
+  border: 1.5px solid rgba(8, 11, 15, 0.78);
   border-radius: 999px;
 }
 
-.label-short {
+.label-full {
   display: none;
 }
 
+.label-short {
+  display: inline;
+}
+
 .legend-swatch {
-  width: 16px;
-  height: 16px;
+  width: 12px;
+  height: 12px;
   flex: 0 0 auto;
-  border: 2px solid var(--ink);
+  border: 1.5px solid var(--ink);
   border-radius: 50%;
 }
 
@@ -2423,9 +2488,11 @@ img.chip-flag {
   .map-stage {
     position: static;
     align-self: stretch;
+    padding-right: 10px;
+    padding-bottom: 10px;
+    overflow: visible;
   }
 
-  .scene-tabs,
   .zoom-controls {
     gap: 6px;
   }
@@ -2435,24 +2502,8 @@ img.chip-flag {
     font-size: 0.82rem;
   }
 
-  .scene-tabs button {
-    height: 38px;
-    min-height: 38px;
-    padding: 0 10px;
-    font-size: 0.86rem;
-  }
-
   .zoom-controls button {
     width: 34px;
-  }
-
-  .legend {
-    gap: 6px;
-  }
-
-  .legend-item {
-    padding: 6px 9px;
-    font-size: 0.62rem;
   }
 
   .country-card {
@@ -2582,27 +2633,7 @@ img.chip-flag {
   .legend {
     left: 12px;
     bottom: 12px;
-    gap: 4px;
-    max-width: 180px;
   }
-
-  .legend-item {
-    gap: 5px;
-    min-height: 26px;
-    padding: 4px 7px;
-    font-size: 0.56rem;
-    line-height: 1;
-    border-width: 1.5px;
-  }
-
-  .legend-swatch {
-    width: 12px;
-    height: 12px;
-    border-width: 1.5px;
-  }
-
-  .label-full { display: none; }
-  .label-short { display: inline; }
 
 }
 
@@ -2704,12 +2735,13 @@ img.chip-flag {
   }
 
   .map-stage {
-    margin-left: -12px;
-    margin-right: -12px;
+    margin-left: 0;
+    margin-right: 0;
   }
 
   .map-wrap {
-    border-radius: 0;
+    border-radius: 8px;
+    box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.72);
   }
 
   #mapSvg,

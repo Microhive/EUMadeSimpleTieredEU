@@ -24,7 +24,6 @@ import type {
 import { createFloatingTooltip } from "../ui/floating-tooltip";
 import { escapeAttribute, escapeHtml } from "../ui/html";
 import { createInfoModal } from "../ui/info-modal";
-import { setupSceneTabsScale } from "../ui/scene-tabs-scale";
 import {
   renderBenefitPills as renderBenefitPillsMarkup,
   renderCountryCardForCountry as renderCountryCardForCountryMarkup,
@@ -381,12 +380,12 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   setupMapFlagsButton();
   setupMapFlagLayerInteractions();
   setupCountryCardPlacement();
+  setupCountryCardControls();
   setupCountryCardWheelIsolation();
   setupSourcesPlacement();
   setupVideoTooltip();
   setupBrandPlacement();
   setupMastheadActionsPlacement();
-  setupSceneTabsScale(sceneTabs);
   setupRouteNavigation();
   loadMap();
   // ─── benefit pill functions ───────────────────────────────────────────────────────────────────────────
@@ -474,6 +473,16 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     countryCard.addEventListener("wheel", (event) => {
       event.stopPropagation();
     }, { passive: true });
+  }
+
+  function setupCountryCardControls(): void {
+    countryCard.addEventListener("click", (event) => {
+      const closeButton = (event.target as Element).closest<HTMLButtonElement>("[data-country-card-close]");
+      if (!closeButton) return;
+
+      event.preventDefault();
+      dismissCountryCard();
+    });
   }
 
   function setupSourcesPlacement(): void {
@@ -2137,6 +2146,22 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     countryCard.hidden = true;
   }
 
+  function dismissCountryCard(): void {
+    const hadActiveCountry = Boolean(state.activeCountry);
+    hideCountryCard();
+
+    if (!hadActiveCountry) return;
+
+    state.activeCountry = null;
+    state.hoveredCountry = null;
+    state.activeTier = activeTierForScene();
+    state.selectedIds = selectedIdsForScene();
+    setSelectedTierFlagScope();
+    updateHighlights();
+    renderMapFlags();
+    drawConnections();
+  }
+
   function shouldRevealTierSelectionCard(): boolean {
     return countryCardBelowMapQuery.matches;
   }
@@ -2149,13 +2174,25 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     }
   }
 
+  function setCountryCardMarkup(markup: string): void {
+    countryCard.innerHTML = `
+      <button type="button" class="country-card-close" data-country-card-close aria-label="Close map info card">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+          <path d="m6 6 12 12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>
+      </button>
+      ${markup}
+    `;
+  }
+
   function renderCountryCardForTier(
     tierId: TierId,
     { reveal = true, scroll = true }: CardRenderOptions = {},
   ): void {
     setCountryCardVisibility(reveal);
     const tier = tierArrangement.tier(tierId);
-    countryCard.innerHTML = renderCountryCardForTierMarkup(tier);
+    setCountryCardMarkup(renderCountryCardForTierMarkup(tier));
     if (reveal && scroll) revealCountryCardBelowMap();
   }
 
@@ -2170,7 +2207,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     }
 
     setCountryCardVisibility(reveal);
-    countryCard.innerHTML = renderCountryCardForSceneMarkup(scene);
+    setCountryCardMarkup(renderCountryCardForSceneMarkup(scene));
     if (reveal && scroll) revealCountryCardBelowMap();
   }
 
@@ -2178,10 +2215,12 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     showCountryCard();
     const tierId = tierArrangement.directTierForCountry(meta.id);
     const tier = tierId ? tierArrangement.tier(tierId) : null;
-    countryCard.innerHTML = renderCountryCardForCountryMarkup(
-      meta,
-      tier,
-      countryContextFor(meta, tier),
+    setCountryCardMarkup(
+      renderCountryCardForCountryMarkup(
+        meta,
+        tier,
+        countryContextFor(meta, tier),
+      ),
     );
     revealCountryCardBelowMap();
   }
