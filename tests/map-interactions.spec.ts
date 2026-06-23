@@ -2053,7 +2053,7 @@ test.describe("map country path — desktop click", () => {
     await waitForMap(page);
 
     const germany = page.locator('#mapSvg [data-country="276"]');
-    const austria = page.locator('#mapSvg [data-country="040"]');
+    const belgium = page.locator('#mapSvg [data-country="056"]');
     const outlinedCountries = page.locator("#mapSvg .hover-layer .country-outline");
 
     await germany.click();
@@ -2083,8 +2083,8 @@ test.describe("map country path — desktop click", () => {
         "https://reforms-investments.ec.europa.eu/european-semester-your-country/european-semester-documents-germany_en"
       );
     await expect(germany).toHaveClass(/is-selected/);
-    await expect(austria).toHaveClass(/is-highlight/);
-    await expect(austria).not.toHaveClass(/is-muted/);
+    await expect(belgium).toHaveClass(/is-highlight/);
+    await expect(belgium).not.toHaveClass(/is-muted/);
     await expect(outlinedCountries).toHaveCount(1);
     await expect(outlinedCountries.first()).toHaveAttribute("data-country-outline", "276");
     await expect
@@ -2098,15 +2098,15 @@ test.describe("map country path — desktop click", () => {
       .toBe("geometricprecision");
 
     await page.waitForTimeout(750);
-    await austria.hover();
+    await belgium.hover();
 
-    await expect(austria).toHaveClass(/is-hovered/);
+    await expect(belgium).toHaveClass(/is-hovered/);
     await expect(outlinedCountries).toHaveCount(2);
 
     await page.mouse.move(1, 1);
     await page.waitForTimeout(80);
 
-    await expect(austria).not.toHaveClass(/is-hovered/);
+    await expect(belgium).not.toHaveClass(/is-hovered/);
     await expect(outlinedCountries).toHaveCount(1);
     await expect(outlinedCountries.first()).toHaveAttribute("data-country-outline", "276");
   });
