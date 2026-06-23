@@ -332,6 +332,7 @@ button {
 
 .mission-card {
   position: relative;
+  container-type: inline-size;
   padding: 24px;
   animation: site-rise-in 520ms var(--ease-out) 70ms both;
 }
@@ -647,10 +648,13 @@ p {
 }
 
 h1 {
+  max-width: 100%;
   margin-bottom: 12px;
   font-size: 3.2rem;
   line-height: 0.93;
   letter-spacing: 0;
+  overflow-wrap: normal;
+  text-wrap: balance;
 }
 
 .mission-card p:last-child,
@@ -2950,7 +2954,7 @@ img.chip-flag {
   }
 
   h1 {
-    font-size: 2.35rem;
+    font-size: clamp(1.58rem, 8.7cqi, 2.35rem);
     text-align: center;
   }
 

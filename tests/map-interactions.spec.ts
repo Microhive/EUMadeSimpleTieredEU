@@ -810,6 +810,31 @@ test.describe("scene tab — responsive sizing", () => {
     expect(layout.tabsLeft).toBeGreaterThanOrEqual(layout.mapLeft + 8);
     expect(layout.tabsRight).toBeLessThanOrEqual(layout.mapRight - 8);
   });
+
+  test("scales the mission title down inside narrow mobile cards", async ({ page }) => {
+    await page.setViewportSize({ width: 340, height: 851 });
+    await page.goto("/");
+    await waitForMap(page);
+
+    const layout = await page.locator(".mission-card h1").evaluate((title) => {
+      const card = title.closest<HTMLElement>(".mission-card")!;
+
+      return {
+        titleClientWidth: title.clientWidth,
+        titleScrollWidth: title.scrollWidth,
+        titleFontSize: parseFloat(getComputedStyle(title).fontSize),
+        cardRight: card.getBoundingClientRect().right,
+        titleRight: title.getBoundingClientRect().right,
+        pageScrollWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+      };
+    });
+
+    expect(layout.titleScrollWidth).toBeLessThanOrEqual(layout.titleClientWidth + 1);
+    expect(layout.titleRight).toBeLessThanOrEqual(layout.cardRight + 1);
+    expect(layout.pageScrollWidth).toBeLessThanOrEqual(layout.viewportWidth + 1);
+    expect(layout.titleFontSize).toBeLessThan(37);
+  });
 });
 
 test.describe("map toolbar — desktop layout", () => {
