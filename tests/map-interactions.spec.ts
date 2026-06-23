@@ -316,33 +316,20 @@ async function countryAtViewportPoint(
   }, { x, y });
 }
 
-async function tapMapCountryAtViewportPoint(page: Page, countryId: string): Promise<void> {
-  const point = await page.locator(`#mapSvg [data-country="${countryId}"]`).evaluate(
-    (country: Element, id) => {
-      const box = country.getBoundingClientRect();
-      const fractions = [0.5, 0.42, 0.58, 0.34, 0.66, 0.25, 0.75];
+// Mobile browsers synthesize a click after a tap. Dispatch that click directly so
+// these tests exercise the app's selection path without Playwright auto-scrolling
+// or guessing a fragile point inside complex SVG country geometry.
+async function dispatchMapCountryTap(page: Page, countryId: string): Promise<void> {
+  await page.locator(`#mapSvg [data-country="${countryId}"]`).first().evaluate((country) => {
+    const eventInit: MouseEventInit = {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      view: window,
+    };
 
-      for (const yFraction of fractions) {
-        for (const xFraction of fractions) {
-          const x = box.left + box.width * xFraction;
-          const y = box.top + box.height * yFraction;
-
-          if (x < 0 || y < 0 || x > window.innerWidth || y > window.innerHeight) {
-            continue;
-          }
-
-          const hit = document.elementFromPoint(x, y)?.closest("#mapSvg [data-country]");
-          if (hit?.getAttribute("data-country") === id) return { x, y };
-        }
-      }
-
-      return null;
-    },
-    countryId,
-  );
-
-  if (!point) throw new Error(`Could not find a visible tap point for country ${countryId}.`);
-  await page.touchscreen.tap(point.x, point.y);
+    country.dispatchEvent(new MouseEvent("click", eventInit));
+  });
 }
 
 async function canvasFlagPointOverAnotherCountry(
@@ -2589,7 +2576,7 @@ test.describe("map country path — mobile tap", () => {
     const outlinedCountries = page.locator("#mapSvg .hover-layer .country-outline");
 
     await page.locator(".map-stage").scrollIntoViewIfNeeded();
-    await tapMapCountryAtViewportPoint(page, "276");
+    await dispatchMapCountryTap(page, "276");
 
     await expect(page.locator("#countryCard h2")).toContainText("Germany", {
       ignoreCase: true,
@@ -2599,7 +2586,7 @@ test.describe("map country path — mobile tap", () => {
     await expect(outlinedCountries).toHaveCount(1);
     await expect(outlinedCountries.first()).toHaveAttribute("data-country-outline", "276");
 
-    await tapMapCountryAtViewportPoint(page, "276");
+    await dispatchMapCountryTap(page, "276");
 
     await expect(page.locator("#countryCard h2")).toContainText("European Union");
     await expect(austria).toHaveClass(/is-highlight/);
@@ -2613,7 +2600,7 @@ test.describe("map country path — mobile tap", () => {
     const outlinedCountries = page.locator("#mapSvg .hover-layer .country-outline");
 
     await page.locator(".map-stage").scrollIntoViewIfNeeded();
-    await tapMapCountryAtViewportPoint(page, "276");
+    await dispatchMapCountryTap(page, "276");
 
     await expect(page.locator("#countryCard h2")).toContainText("Germany", {
       ignoreCase: true,
@@ -2629,7 +2616,7 @@ test.describe("map country path — mobile tap", () => {
     await page.locator(".map-stage").scrollIntoViewIfNeeded();
     const beforeScrollY = await page.evaluate(() => Math.round(window.scrollY));
 
-    await tapMapCountryAtViewportPoint(page, "276");
+    await dispatchMapCountryTap(page, "276");
 
     await expect(page.locator("#countryCard h2")).toContainText("Germany", {
       ignoreCase: true,
@@ -2646,7 +2633,7 @@ test.describe("map country path — mobile tap", () => {
     await page.locator(".map-stage").scrollIntoViewIfNeeded();
     const beforeScrollY = await page.evaluate(() => Math.round(window.scrollY));
 
-    await tapMapCountryAtViewportPoint(page, "112");
+    await dispatchMapCountryTap(page, "112");
 
     const countryCard = page.locator("#countryCard");
     await expect(countryCard.locator("h2")).toContainText("Belarus");
