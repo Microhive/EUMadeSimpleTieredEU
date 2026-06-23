@@ -734,12 +734,70 @@ test.describe("map toolbar — desktop layout", () => {
     expect(videoBox).not.toBeNull();
     expect(tabsBox!.x).toBeLessThanOrEqual(mapBox!.x + 24);
     expect(tabsBox!.x).toBeGreaterThanOrEqual(mapBox!.x + 8);
+    expect(editBox!.height).toBeCloseTo(tabsBox!.height, 1);
     expect(innerButtonBox!.height).toBeCloseTo(editButtonBox!.height, 1);
     expect(flagButtonBox!.height).toBeCloseTo(editButtonBox!.height, 1);
     expect(brandBox!.x).toBeCloseTo(tabsBox!.x, 1);
     expect(brandBox!.y).toBeGreaterThan(tabsBox!.y + tabsBox!.height);
     expect(editBox!.x).toBeGreaterThan(tabsBox!.x + tabsBox!.width);
     expect(editBox!.x + editBox!.width).toBeLessThanOrEqual(videoBox!.x);
+
+    await page.locator("#editToggle").click();
+    await page.waitForFunction(() => {
+      const toolbar = document.querySelector<HTMLElement>(".map-toolbar .edit-toolbar");
+      if (!toolbar) return false;
+
+      const styles = getComputedStyle(toolbar);
+      return (
+        styles.opacity === "1" &&
+        (styles.transform === "none" || styles.transform === "matrix(1, 0, 0, 1, 0, 0)")
+      );
+    });
+    const editToolbarBox = await page.locator(".map-toolbar .edit-toolbar").boundingBox();
+    expect(editToolbarBox).not.toBeNull();
+    expect(editToolbarBox!.height).toBeCloseTo(tabsBox!.height, 1);
+  });
+});
+
+test.describe("desktop split layout", () => {
+  test.use({ ...desktop, viewport: { width: 1440, height: 760 } });
+
+  test("fits the map column to the viewport while the left column scrolls", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const layout = await page.evaluate(() => {
+      const storyPanel = document.querySelector<HTMLElement>(".story-panel")!;
+      const mapWrap = document.querySelector<HTMLElement>(".map-wrap")!;
+      const infographic = document.querySelector<HTMLElement>("#main")!;
+      const storyRect = storyPanel.getBoundingClientRect();
+      const mapRect = mapWrap.getBoundingClientRect();
+      const infographicRect = infographic.getBoundingClientRect();
+
+      return {
+        bodyOverflowY: getComputedStyle(document.body).overflowY,
+        documentScrollHeight: document.documentElement.scrollHeight,
+        viewportHeight: window.innerHeight,
+        infographicColumns: getComputedStyle(infographic).gridTemplateColumns.split(" ").length,
+        storyOverflowY: getComputedStyle(storyPanel).overflowY,
+        storyClientHeight: storyPanel.clientHeight,
+        storyScrollHeight: storyPanel.scrollHeight,
+        storyBottom: storyRect.bottom,
+        mapBottom: mapRect.bottom,
+        mapHeight: mapRect.height,
+        infographicBottom: infographicRect.bottom,
+      };
+    });
+
+    expect(layout.bodyOverflowY).toBe("hidden");
+    expect(layout.infographicColumns).toBe(2);
+    expect(layout.documentScrollHeight).toBeLessThanOrEqual(layout.viewportHeight + 1);
+    expect(layout.mapBottom).toBeLessThanOrEqual(layout.viewportHeight);
+    expect(layout.infographicBottom).toBeLessThanOrEqual(layout.viewportHeight);
+    expect(layout.mapHeight).toBeGreaterThan(500);
+    expect(layout.storyOverflowY).toBe("auto");
+    expect(layout.storyBottom).toBeLessThanOrEqual(layout.viewportHeight);
+    expect(layout.storyScrollHeight).toBeGreaterThan(layout.storyClientHeight);
   });
 });
 

@@ -512,7 +512,8 @@ button {
   position: relative;
   display: flex;
   align-items: center;
-  padding: 7px;
+  gap: 6px;
+  padding: 4px;
   background:
     linear-gradient(135deg, rgba(2, 52, 95, 0.78), rgba(2, 52, 95, 0.42)),
     rgba(255, 248, 238, 0.08);
@@ -527,11 +528,11 @@ button {
 
 .edit-toolbar {
   position: absolute;
-  right: calc(100% + 8px);
+  right: calc(100% + 6px);
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px;
+  gap: 6px;
+  padding: 4px;
   white-space: nowrap;
   background:
     linear-gradient(135deg, rgba(2, 52, 95, 0.78), rgba(2, 52, 95, 0.42)),
@@ -625,9 +626,9 @@ button {
   display: grid;
   height: 38px;
   align-items: center;
-  padding: 0 2px;
+  padding: 0;
   color: rgba(255, 248, 238, 0.78);
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 900;
   line-height: 1;
 }
@@ -2174,7 +2175,7 @@ img.chip-flag {
   }
 }
 
-@media (min-width: 1280px) and (min-height: 850px) {
+@media (min-width: 1280px) {
   html,
   body {
     height: 100%;
@@ -2185,10 +2186,12 @@ img.chip-flag {
     --site-shell-edge-x: 18px;
 
     display: grid;
-    height: 100svh;
+    height: 100dvh;
+    max-height: 100dvh;
     grid-template-rows: auto minmax(0, 1fr) auto auto;
     gap: 10px;
     padding: 14px var(--site-shell-edge-x) 10px;
+    overflow: hidden;
   }
 
   .has-map-brand-docked .site-shell {
@@ -2216,8 +2219,9 @@ img.chip-flag {
   .infographic {
     height: 100%;
     min-height: 0;
-    grid-template-columns: minmax(300px, 500px) minmax(720px, 1.88fr);
+    grid-template-columns: minmax(420px, 0.82fr) minmax(0, 1.18fr);
     gap: 18px;
+    overflow: hidden;
     margin-top: 0;
   }
 
