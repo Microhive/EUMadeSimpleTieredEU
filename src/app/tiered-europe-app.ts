@@ -211,7 +211,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   const brandHomeHref = brand.getAttribute("href") ?? "/";
   const mastheadActions = document.querySelector<HTMLElement>(".masthead-actions")!;
   const mastheadActionsAnchor = document.createComment("masthead actions");
-  const countryCardBelowMapQuery = window.matchMedia("(max-width: 1279px)");
+  const countryCardBelowMapQuery = window.matchMedia("(max-width: 767px)");
   const sources = document.querySelector<HTMLElement>("#sources")!;
   const sourcesMobileMount = document.querySelector<HTMLElement>("#sourcesMobileMount")!;
   const editToggle = document.querySelector<HTMLButtonElement>("#editToggle")!;
@@ -486,7 +486,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   }
 
   function setupSourcesPlacement(): void {
-    const desktopSourcesQuery = window.matchMedia("(min-width: 1280px)");
+    const desktopSourcesQuery = window.matchMedia("(min-width: 768px)");
     const syncSourcesPlacement = (): void => {
       const shouldDockSources = desktopSourcesQuery.matches;
 
@@ -522,7 +522,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   }
 
   function setupBrandPlacement(): void {
-    const desktopBrandQuery = window.matchMedia("(min-width: 1280px)");
+    const desktopBrandQuery = window.matchMedia("(min-width: 768px)");
     const headerLogoSrc = "/logo/tiered-eu-logo-header.svg";
     const mapLogoSrc = "/logo/tiered-eu-logo-header.svg";
     const syncBrandPlacement = (): void => {
@@ -552,7 +552,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   }
 
   function setupMastheadActionsPlacement(): void {
-    const desktopActionsQuery = window.matchMedia("(min-width: 1280px)");
+    const desktopActionsQuery = window.matchMedia("(min-width: 768px)");
     const syncMastheadActionsPlacement = (): void => {
       const shouldDockActions = desktopActionsQuery.matches;
 

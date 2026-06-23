@@ -936,22 +936,117 @@ test.describe("desktop split layout", () => {
 
     expect(layout.bodyOverflowY).toBe("hidden");
     expect(layout.infographicColumns).toBe(2);
-    expect(layout.shellPaddingTop).toBeCloseTo(layout.shellPaddingRight, 1);
-    expect(layout.shellPaddingBottom).toBeCloseTo(layout.shellPaddingRight, 1);
+    expect(layout.shellPaddingTop).toBeGreaterThan(0);
+    expect(layout.shellPaddingRight).toBe(0);
+    expect(layout.shellPaddingBottom).toBe(0);
     expect(layout.storyWidth).toBeCloseTo(520, 1);
     expect(layout.documentScrollHeight).toBeLessThanOrEqual(layout.viewportHeight + 1);
     expect(layout.mapBottom).toBeLessThanOrEqual(layout.viewportHeight);
     expect(layout.mapShadowReserveRight).toBeGreaterThanOrEqual(10);
     expect(layout.mapShadowReserveBottom).toBeGreaterThanOrEqual(10);
-    expect(layout.mapRightGap).toBeGreaterThan(layout.mapTopGap);
-    expect(layout.mapBottomGap).toBeGreaterThan(layout.mapTopGap);
-    expect(layout.mapTopGap).toBeCloseTo(layout.mapVisualRightGap, 1);
-    expect(layout.mapTopGap).toBeCloseTo(layout.mapVisualBottomGap, 1);
+    expect(layout.mapRightGap).toBeCloseTo(layout.mapShadowReserveRight, 1);
+    expect(layout.mapBottomGap).toBeCloseTo(layout.mapShadowReserveBottom, 1);
+    expect(layout.mapVisualRightGap).toBeCloseTo(0, 1);
+    expect(layout.mapVisualBottomGap).toBeCloseTo(0, 1);
     expect(layout.infographicBottom).toBeLessThanOrEqual(layout.viewportHeight);
     expect(layout.mapHeight).toBeGreaterThan(500);
     expect(layout.storyOverflowY).toBe("auto");
     expect(layout.storyBottom).toBeLessThanOrEqual(layout.viewportHeight);
     expect(layout.storyScrollHeight).toBeGreaterThan(layout.storyClientHeight);
+  });
+
+  test("keeps tier cards content-sized in tall desktop viewports", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1200 });
+    await page.goto("/");
+    await waitForMap(page);
+
+    const layout = await page.evaluate(() => {
+      const tierDeck = document.querySelector<HTMLElement>("#tierDeck")!;
+      const tierCards = [...tierDeck.querySelectorAll<HTMLElement>(".tier-card")];
+      const tierDeckRect = tierDeck.getBoundingClientRect();
+      const cardHeights = tierCards.map((card) => card.getBoundingClientRect().height);
+
+      return {
+        tierDeckHeight: tierDeckRect.height,
+        maxCardHeight: Math.max(...cardHeights),
+        totalCardHeight: cardHeights.reduce((total, height) => total + height, 0),
+      };
+    });
+
+    expect(layout.maxCardHeight).toBeLessThan(220);
+    expect(layout.totalCardHeight).toBeLessThan(layout.tierDeckHeight + 1);
+  });
+});
+
+test.describe("social preview layout", () => {
+  test.use({ ...desktop, viewport: { width: 1200, height: 630 } });
+
+  test("uses the tablet split view with map branding, sources, video, and flags", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator("#mapFlagsButton").click();
+
+    const layout = await page.evaluate(() => {
+      const infographic = document.querySelector<HTMLElement>("#main")!;
+      const storyPanel = document.querySelector<HTMLElement>(".story-panel")!;
+      const mapWrap = document.querySelector<HTMLElement>(".map-wrap")!;
+      const mapStage = document.querySelector<HTMLElement>(".map-stage")!;
+      const masthead = document.querySelector<HTMLElement>(".masthead")!;
+      const brand = document.querySelector<HTMLElement>(".map-toolbar .brand")!;
+      const videoLink = document.querySelector<HTMLElement>(".map-toolbar .video-link")!;
+      const editControl = document.querySelector<HTMLElement>(".map-toolbar .edit-control")!;
+      const sources = document.querySelector<HTMLElement>(".map-wrap > #sources")!;
+      const flagCanvas = document.querySelector<HTMLElement>(".map-flag-canvas")!;
+      const storyRect = storyPanel.getBoundingClientRect();
+      const mapRect = mapWrap.getBoundingClientRect();
+      const stageStyles = getComputedStyle(mapStage);
+      const mapShadowReserveRight = parseFloat(stageStyles.paddingRight);
+      const mapShadowReserveBottom = parseFloat(stageStyles.paddingBottom);
+
+      return {
+        columns: getComputedStyle(infographic).gridTemplateColumns.split(" ").length,
+        mastheadDisplay: getComputedStyle(masthead).display,
+        storyWidth: storyRect.width,
+        storyOverflowY: getComputedStyle(storyPanel).overflowY,
+        storyClientHeight: storyPanel.clientHeight,
+        storyScrollHeight: storyPanel.scrollHeight,
+        mapWidth: mapRect.width,
+        mapBottomGap: window.innerHeight - mapRect.bottom,
+        mapRightGap: window.innerWidth - mapRect.right,
+        mapVisualBottomGap: window.innerHeight - mapRect.bottom - mapShadowReserveBottom,
+        mapVisualRightGap: window.innerWidth - mapRect.right - mapShadowReserveRight,
+        mapShadowReserveRight,
+        mapShadowReserveBottom,
+        brandHref: brand.getAttribute("href"),
+        brandPointerEvents: getComputedStyle(brand).pointerEvents,
+        videoVisible: getComputedStyle(videoLink).display !== "none",
+        editDisplay: getComputedStyle(editControl).display,
+        sourcesDocked: sources.parentElement === mapWrap,
+        flagsVisible: flagCanvas.classList.contains("is-visible"),
+      };
+    });
+
+    expect(layout.columns).toBe(2);
+    expect(layout.mastheadDisplay).toBe("none");
+    expect(layout.storyWidth).toBeLessThanOrEqual(431);
+    expect(layout.storyOverflowY).toBe("auto");
+    expect(layout.storyScrollHeight).toBeLessThanOrEqual(layout.storyClientHeight + 1);
+    expect(layout.mapWidth).toBeGreaterThan(700);
+    expect(layout.mapShadowReserveRight).toBeGreaterThanOrEqual(8);
+    expect(layout.mapShadowReserveBottom).toBeGreaterThanOrEqual(8);
+    expect(layout.mapRightGap).toBeCloseTo(layout.mapShadowReserveRight, 1);
+    expect(layout.mapBottomGap).toBeCloseTo(layout.mapShadowReserveBottom, 1);
+    expect(layout.mapVisualRightGap).toBeCloseTo(0, 1);
+    expect(layout.mapVisualBottomGap).toBeCloseTo(0, 1);
+    expect(layout.brandHref).toBeNull();
+    expect(layout.brandPointerEvents).toBe("none");
+    expect(layout.videoVisible).toBe(true);
+    expect(layout.editDisplay).toBe("none");
+    expect(layout.sourcesDocked).toBe(true);
+    expect(layout.flagsVisible).toBe(true);
   });
 });
 
@@ -1671,7 +1766,7 @@ test.describe("map rendering — tablet", () => {
     expect(legendLayout.shortDisplay).not.toBe("none");
   });
 
-  test("frames the below-map country card like the other cards", async ({ page }) => {
+  test("keeps the country card inside the tablet map frame", async ({ page }) => {
     await page.goto("/");
     await waitForMap(page);
 
@@ -1681,11 +1776,9 @@ test.describe("map rendering — tablet", () => {
     const layout = await page.evaluate(() => {
       const countryCard = document.querySelector<HTMLElement>("#countryCard")!;
       const mapWrap = document.querySelector<HTMLElement>(".map-wrap")!;
-      const missionCard = document.querySelector<HTMLElement>(".mission-card")!;
       const tierPill = countryCard.querySelector<HTMLElement>(".tier-pill")!;
       const title = countryCard.querySelector<HTMLElement>("h2")!;
       const countryStyles = getComputedStyle(countryCard);
-      const missionStyles = getComputedStyle(missionCard);
       const pillStyles = getComputedStyle(tierPill);
       const countryBox = countryCard.getBoundingClientRect();
       const mapBox = mapWrap.getBoundingClientRect();
@@ -1693,9 +1786,14 @@ test.describe("map rendering — tablet", () => {
       const titleBox = title.getBoundingClientRect();
 
       return {
-        cardX: countryBox.x,
+        parentClass: countryCard.parentElement?.className ?? "",
+        cardLeft: countryBox.left,
+        cardRight: countryBox.right,
+        cardBottom: countryBox.bottom,
+        mapLeft: mapBox.left,
+        mapRight: mapBox.right,
+        mapBottom: mapBox.bottom,
         cardWidth: countryBox.width,
-        mapX: mapBox.x,
         mapWidth: mapBox.width,
         countryCodeCount: [...countryCard.children].filter((child) =>
           child.classList.contains("eyebrow"),
@@ -1707,21 +1805,22 @@ test.describe("map rendering — tablet", () => {
         titleX: titleBox.x,
         titleY: titleBox.y,
         radius: countryStyles.borderTopLeftRadius,
-        missionRadius: missionStyles.borderTopLeftRadius,
         borderTopWidth: countryStyles.borderTopWidth,
-        missionBorderTopWidth: missionStyles.borderTopWidth,
       };
     });
 
-    expect(layout.cardX).toBeCloseTo(layout.mapX, 1);
-    expect(layout.cardWidth).toBeCloseTo(layout.mapWidth, 1);
+    expect(layout.parentClass).toContain("map-wrap");
+    expect(layout.cardLeft).toBeGreaterThan(layout.mapLeft);
+    expect(layout.cardRight).toBeLessThan(layout.mapRight);
+    expect(layout.cardBottom).toBeLessThan(layout.mapBottom);
+    expect(layout.cardWidth).toBeLessThan(layout.mapWidth);
     expect(layout.countryCodeCount).toBe(0);
     expect(layout.pillText).toBe("Tier 2: European Union");
     expect(layout.pillTextAlign).toBe("left");
     expect(layout.pillX).toBeCloseTo(layout.titleX, 1);
     expect(layout.pillY).toBeLessThan(layout.titleY);
-    expect(layout.radius).toBe(layout.missionRadius);
-    expect(layout.borderTopWidth).toBe(layout.missionBorderTopWidth);
+    expect(layout.radius).toBe("8px");
+    expect(layout.borderTopWidth).toBe("3px");
   });
 });
 
