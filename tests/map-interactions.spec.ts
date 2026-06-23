@@ -316,6 +316,35 @@ async function countryAtViewportPoint(
   }, { x, y });
 }
 
+async function tapMapCountryAtViewportPoint(page: Page, countryId: string): Promise<void> {
+  const point = await page.locator(`#mapSvg [data-country="${countryId}"]`).evaluate(
+    (country: Element, id) => {
+      const box = country.getBoundingClientRect();
+      const fractions = [0.5, 0.42, 0.58, 0.34, 0.66, 0.25, 0.75];
+
+      for (const yFraction of fractions) {
+        for (const xFraction of fractions) {
+          const x = box.left + box.width * xFraction;
+          const y = box.top + box.height * yFraction;
+
+          if (x < 0 || y < 0 || x > window.innerWidth || y > window.innerHeight) {
+            continue;
+          }
+
+          const hit = document.elementFromPoint(x, y)?.closest("#mapSvg [data-country]");
+          if (hit?.getAttribute("data-country") === id) return { x, y };
+        }
+      }
+
+      return null;
+    },
+    countryId,
+  );
+
+  if (!point) throw new Error(`Could not find a visible tap point for country ${countryId}.`);
+  await page.touchscreen.tap(point.x, point.y);
+}
+
 async function canvasFlagPointOverAnotherCountry(
   page: Page,
   countryId: string
@@ -2556,11 +2585,11 @@ test.describe("map country path — mobile tap", () => {
     await page.goto("/");
     await waitForMap(page);
 
-    const germany = page.locator('#mapSvg [data-country="276"]');
     const austria = page.locator('#mapSvg [data-country="040"]');
     const outlinedCountries = page.locator("#mapSvg .hover-layer .country-outline");
 
-    await germany.tap();
+    await page.locator(".map-stage").scrollIntoViewIfNeeded();
+    await tapMapCountryAtViewportPoint(page, "276");
 
     await expect(page.locator("#countryCard h2")).toContainText("Germany", {
       ignoreCase: true,
@@ -2570,7 +2599,7 @@ test.describe("map country path — mobile tap", () => {
     await expect(outlinedCountries).toHaveCount(1);
     await expect(outlinedCountries.first()).toHaveAttribute("data-country-outline", "276");
 
-    await germany.tap();
+    await tapMapCountryAtViewportPoint(page, "276");
 
     await expect(page.locator("#countryCard h2")).toContainText("European Union");
     await expect(austria).toHaveClass(/is-highlight/);
@@ -2581,10 +2610,10 @@ test.describe("map country path — mobile tap", () => {
     await page.goto("/");
     await waitForMap(page);
 
-    const germany = page.locator('#mapSvg [data-country="276"]');
     const outlinedCountries = page.locator("#mapSvg .hover-layer .country-outline");
 
-    await germany.tap();
+    await page.locator(".map-stage").scrollIntoViewIfNeeded();
+    await tapMapCountryAtViewportPoint(page, "276");
 
     await expect(page.locator("#countryCard h2")).toContainText("Germany", {
       ignoreCase: true,
@@ -2600,7 +2629,7 @@ test.describe("map country path — mobile tap", () => {
     await page.locator(".map-stage").scrollIntoViewIfNeeded();
     const beforeScrollY = await page.evaluate(() => Math.round(window.scrollY));
 
-    await page.locator('#mapSvg [data-country="276"]').tap();
+    await tapMapCountryAtViewportPoint(page, "276");
 
     await expect(page.locator("#countryCard h2")).toContainText("Germany", {
       ignoreCase: true,
@@ -2614,22 +2643,19 @@ test.describe("map country path — mobile tap", () => {
     await page.goto("/");
     await waitForMap(page);
 
-    const belarus = page.locator('#mapSvg [data-country="112"]');
-    await belarus.tap();
+    await page.locator(".map-stage").scrollIntoViewIfNeeded();
+    const beforeScrollY = await page.evaluate(() => Math.round(window.scrollY));
+
+    await tapMapCountryAtViewportPoint(page, "112");
 
     const countryCard = page.locator("#countryCard");
     await expect(countryCard.locator("h2")).toContainText("Belarus");
     await expect(countryCard).toContainText("Not assigned");
-
     await expect
-      .poll(async () => {
-        const box = await countryCard.boundingBox();
-        const viewport = page.viewportSize();
-        if (!box || !viewport) return false;
-        return box.y < viewport.height && box.y + Math.min(box.height, 32) > 0;
-      })
-      .toBe(true);
+      .poll(() => page.evaluate(() => Math.round(window.scrollY)))
+      .toBe(beforeScrollY);
 
+    await countryCard.scrollIntoViewIfNeeded();
     await countryCard.locator(".country-context summary").tap();
     await expect(countryCard.locator(".country-context-links a")).toBeVisible();
     await expect(countryCard.locator(".country-context-links a")).toHaveAttribute(
