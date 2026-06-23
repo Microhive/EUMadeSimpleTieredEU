@@ -135,7 +135,6 @@ export function renderCountryCardForCountry(
   context?: CountryContextInfo,
 ): string {
   return `
-    <p class="eyebrow">${escapeHtml(meta.code)}</p>
     ${renderCountryTierPill(tier)}
     <h2>${escapeHtml(meta.name)}</h2>
     <p>${escapeHtml(scenarioLine(meta, tier))}</p>

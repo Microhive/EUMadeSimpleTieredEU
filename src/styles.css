@@ -1966,12 +1966,11 @@ img.chip-flag {
 }
 
 .country-card .tier-pill {
-  position: absolute;
-  top: 14px;
-  right: calc(18px + var(--country-card-close-size) + 8px);
+  position: static;
   display: block;
-  max-width: min(230px, calc(100% - 130px));
-  margin-bottom: 0;
+  width: fit-content;
+  max-width: calc(100% - var(--country-card-close-size) - 18px);
+  margin: 0 0 8px;
   overflow: hidden;
   padding: 6px 9px;
   color: var(--ink);
@@ -1980,6 +1979,7 @@ img.chip-flag {
   line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: left;
   text-transform: uppercase;
   background: var(--sand);
   border: 2px solid var(--ink);
@@ -2515,7 +2515,6 @@ img.chip-flag {
 
   .country-card .eyebrow {
     min-height: 22px;
-    padding-right: min(210px, 52%);
   }
 
   .country-card h2 {
@@ -2528,9 +2527,7 @@ img.chip-flag {
   }
 
   .country-card .tier-pill {
-    top: 12px;
-    right: 12px;
-    max-width: min(220px, 52%);
+    max-width: calc(100% - var(--country-card-close-size) - 14px);
     padding: 5px 8px;
     font-size: 0.58rem;
   }
@@ -2618,12 +2615,12 @@ img.chip-flag {
     position: relative;
     right: auto;
     bottom: auto;
-    width: auto;
+    width: 100%;
     max-height: none;
     overflow: visible;
-    margin: 0;
-    border-radius: 0 0 8px 8px;
-    border-top: none;
+    margin: 14px 0 0;
+    border-radius: 8px;
+    border-top: var(--border);
   }
 
   .zoom-controls {
@@ -2755,10 +2752,10 @@ img.chip-flag {
     position: relative;
     right: auto;
     bottom: auto;
-    width: auto;
+    width: 100%;
     max-height: none;
     overflow: visible;
-    margin: 12px 12px 12px;
+    margin: 12px 0 0;
   }
 
   .legend {

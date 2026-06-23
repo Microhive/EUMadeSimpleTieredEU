@@ -1654,6 +1654,59 @@ test.describe("map rendering — tablet", () => {
     expect(legendLayout.fullDisplay).toBe("none");
     expect(legendLayout.shortDisplay).not.toBe("none");
   });
+
+  test("frames the below-map country card like the other cards", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator('#mapSvg [data-country="208"]').click();
+    await expect(page.locator("#countryCard h2")).toContainText("Denmark");
+
+    const layout = await page.evaluate(() => {
+      const countryCard = document.querySelector<HTMLElement>("#countryCard")!;
+      const mapWrap = document.querySelector<HTMLElement>(".map-wrap")!;
+      const missionCard = document.querySelector<HTMLElement>(".mission-card")!;
+      const tierPill = countryCard.querySelector<HTMLElement>(".tier-pill")!;
+      const title = countryCard.querySelector<HTMLElement>("h2")!;
+      const countryStyles = getComputedStyle(countryCard);
+      const missionStyles = getComputedStyle(missionCard);
+      const pillStyles = getComputedStyle(tierPill);
+      const countryBox = countryCard.getBoundingClientRect();
+      const mapBox = mapWrap.getBoundingClientRect();
+      const pillBox = tierPill.getBoundingClientRect();
+      const titleBox = title.getBoundingClientRect();
+
+      return {
+        cardX: countryBox.x,
+        cardWidth: countryBox.width,
+        mapX: mapBox.x,
+        mapWidth: mapBox.width,
+        countryCodeCount: [...countryCard.children].filter((child) =>
+          child.classList.contains("eyebrow"),
+        ).length,
+        pillText: tierPill.textContent?.trim(),
+        pillTextAlign: pillStyles.textAlign,
+        pillX: pillBox.x,
+        pillY: pillBox.y,
+        titleX: titleBox.x,
+        titleY: titleBox.y,
+        radius: countryStyles.borderTopLeftRadius,
+        missionRadius: missionStyles.borderTopLeftRadius,
+        borderTopWidth: countryStyles.borderTopWidth,
+        missionBorderTopWidth: missionStyles.borderTopWidth,
+      };
+    });
+
+    expect(layout.cardX).toBeCloseTo(layout.mapX, 1);
+    expect(layout.cardWidth).toBeCloseTo(layout.mapWidth, 1);
+    expect(layout.countryCodeCount).toBe(0);
+    expect(layout.pillText).toBe("Tier 2: European Union");
+    expect(layout.pillTextAlign).toBe("left");
+    expect(layout.pillX).toBeCloseTo(layout.titleX, 1);
+    expect(layout.pillY).toBeLessThan(layout.titleY);
+    expect(layout.radius).toBe(layout.missionRadius);
+    expect(layout.borderTopWidth).toBe(layout.missionBorderTopWidth);
+  });
 });
 
 test.describe("map rendering — mobile", () => {
@@ -1700,6 +1753,59 @@ test.describe("map rendering — mobile", () => {
     expect(layout.radius).toBe(layout.missionRadius);
     expect(layout.borderTopWidth).toBe(layout.missionBorderTopWidth);
     expect(layout.shadow).toBe(layout.missionShadow);
+  });
+
+  test("frames the below-map country card like the other cards", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator('#mapSvg [data-country="208"]').click();
+    await expect(page.locator("#countryCard h2")).toContainText("Denmark");
+
+    const layout = await page.evaluate(() => {
+      const countryCard = document.querySelector<HTMLElement>("#countryCard")!;
+      const mapWrap = document.querySelector<HTMLElement>(".map-wrap")!;
+      const missionCard = document.querySelector<HTMLElement>(".mission-card")!;
+      const tierPill = countryCard.querySelector<HTMLElement>(".tier-pill")!;
+      const title = countryCard.querySelector<HTMLElement>("h2")!;
+      const countryStyles = getComputedStyle(countryCard);
+      const missionStyles = getComputedStyle(missionCard);
+      const pillStyles = getComputedStyle(tierPill);
+      const countryBox = countryCard.getBoundingClientRect();
+      const mapBox = mapWrap.getBoundingClientRect();
+      const pillBox = tierPill.getBoundingClientRect();
+      const titleBox = title.getBoundingClientRect();
+
+      return {
+        cardX: countryBox.x,
+        cardWidth: countryBox.width,
+        mapX: mapBox.x,
+        mapWidth: mapBox.width,
+        countryCodeCount: [...countryCard.children].filter((child) =>
+          child.classList.contains("eyebrow"),
+        ).length,
+        pillText: tierPill.textContent?.trim(),
+        pillTextAlign: pillStyles.textAlign,
+        pillX: pillBox.x,
+        pillY: pillBox.y,
+        titleX: titleBox.x,
+        titleY: titleBox.y,
+        radius: countryStyles.borderTopLeftRadius,
+        missionRadius: missionStyles.borderTopLeftRadius,
+        borderTopWidth: countryStyles.borderTopWidth,
+        missionBorderTopWidth: missionStyles.borderTopWidth,
+      };
+    });
+
+    expect(layout.cardX).toBeCloseTo(layout.mapX, 1);
+    expect(layout.cardWidth).toBeCloseTo(layout.mapWidth, 1);
+    expect(layout.countryCodeCount).toBe(0);
+    expect(layout.pillText).toBe("Tier 2: European Union");
+    expect(layout.pillTextAlign).toBe("left");
+    expect(layout.pillX).toBeCloseTo(layout.titleX, 1);
+    expect(layout.pillY).toBeLessThan(layout.titleY);
+    expect(layout.radius).toBe(layout.missionRadius);
+    expect(layout.borderTopWidth).toBe(layout.missionBorderTopWidth);
   });
 
   test("tightens the map legend further on phones", async ({ page }) => {
@@ -2485,6 +2591,23 @@ test.describe("map country path — mobile tap", () => {
     });
     await expect(outlinedCountries).toHaveCount(1);
     await expect(outlinedCountries.first()).toHaveAttribute("data-country-outline", "276");
+  });
+
+  test("tapping a country on the map does not change the page scroll", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    await page.locator(".map-stage").scrollIntoViewIfNeeded();
+    const beforeScrollY = await page.evaluate(() => Math.round(window.scrollY));
+
+    await page.locator('#mapSvg [data-country="276"]').tap();
+
+    await expect(page.locator("#countryCard h2")).toContainText("Germany", {
+      ignoreCase: true,
+    });
+    await expect
+      .poll(() => page.evaluate(() => Math.round(window.scrollY)))
+      .toBe(beforeScrollY);
   });
 
   test("tapping an untiered country on mobile shows reachable EU relationship info", async ({ page }) => {

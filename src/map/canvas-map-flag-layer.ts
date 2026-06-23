@@ -278,24 +278,30 @@ export function createCanvasMapFlagLayer({
   const hitTest = (clientX: number, clientY: number): MapFlagHit | null => {
     if (!enabled || !items.length) return null;
 
+    let closestItem: MapFlagRenderItem | null = null;
+    let closestDistance = Number.POSITIVE_INFINITY;
+
     for (let index = items.length - 1; index >= 0; index -= 1) {
       const item = items[index];
       if (!item.visible) continue;
 
       const distance = Math.hypot(clientX - item.clientX, clientY - item.clientY);
-      if (distance <= item.renderHitRadius) {
-        return {
-          id: item.id,
-          name: item.name,
-          src: item.src,
-          clientX: item.clientX,
-          clientY: item.clientY,
-          size: item.renderSize,
-        };
+      if (distance <= item.renderHitRadius && distance < closestDistance) {
+        closestItem = item;
+        closestDistance = distance;
       }
     }
 
-    return null;
+    if (!closestItem) return null;
+
+    return {
+      id: closestItem.id,
+      name: closestItem.name,
+      src: closestItem.src,
+      clientX: closestItem.clientX,
+      clientY: closestItem.clientY,
+      size: closestItem.renderSize,
+    };
   };
 
   const setHovered = (countryId: string | null): boolean => {

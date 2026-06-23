@@ -338,7 +338,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     mapFlagSizePx: MAP_FLAG_SIZE_PX,
     mapFlagImageSizePx: MAP_FLAG_IMAGE_SIZE_PX,
     isEditMode: () => state.editMode,
-    activateCountry: (countryId) => activateCountry(countryId, true),
+    activateCountry: (countryId) => activateCountry(countryId, true, { scroll: false }),
     moveCountryToTier,
     removeCountryFromTier,
     onTierArrangementChanged: refreshTierStateAfterMove,
@@ -649,7 +649,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     if (countryDrag.consumeSuppressedClick(countryId)) return;
 
     const meta = countryCardMetaFor(countryId);
-    if (meta) activateCountry(meta.id, true);
+    if (meta) activateCountry(meta.id, true, { scroll: false });
   }
 
   function hoverMapFlag(countryId: string): void {
@@ -1258,7 +1258,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
       if (meta) {
         state.activeTier = activeTierForScene();
         state.selectedIds = selectedIdsForCountryFocus(state.activeCountry);
-        renderCountryCardForCountry(meta);
+        renderCountryCardForCountry(meta, { scroll: false });
       } else {
         state.activeCountry = null;
       }
@@ -1589,10 +1589,10 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
         const key = keyForFeature(feature);
         const canonicalId = canonicalCountryId(key);
         if (state.activeCountry === canonicalId) {
-          restoreSceneSelection();
+          restoreSceneSelection({ scrollCard: false });
           return;
         }
-        if (countryCardMetaFor(key)) activateCountry(key, true);
+        if (countryCardMetaFor(key)) activateCountry(key, true, { scroll: false });
       });
 
     updateHighlights();
@@ -1755,7 +1755,11 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     drawConnections();
   }
 
-  function activateCountry(countryId: string, shouldZoom: boolean): void {
+  function activateCountry(
+    countryId: string,
+    shouldZoom: boolean,
+    { scroll = true }: Pick<CardRenderOptions, "scroll"> = {},
+  ): void {
     const canonicalId = canonicalCountryId(countryId);
     const meta = countryCardMetaFor(countryId);
     if (!meta) return;
@@ -1767,7 +1771,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     state.userTouched = true;
     setActiveCountryFlagFocus(canonicalId);
     updateHighlights();
-    renderCountryCardForCountry(meta);
+    renderCountryCardForCountry(meta, { scroll });
     drawConnections();
 
     if (shouldZoom) fitToCountries(countryIdsFor(canonicalId), 700);
@@ -1800,7 +1804,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   function onMapBackgroundClick(event: MouseEvent): void {
     if (!state.activeCountry) return;
     if ((event.target as Element).closest(".country")) return;
-    restoreSceneSelection();
+    restoreSceneSelection({ scrollCard: false });
   }
 
   function activeTierForScene(scene: SceneKey = state.scene): TierId | null {
@@ -2211,7 +2215,10 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
     if (reveal && scroll) revealCountryCardBelowMap();
   }
 
-  function renderCountryCardForCountry(meta: Pick<CountryMeta, "id" | "code" | "name">): void {
+  function renderCountryCardForCountry(
+    meta: Pick<CountryMeta, "id" | "code" | "name">,
+    { scroll = true }: Pick<CardRenderOptions, "scroll"> = {},
+  ): void {
     showCountryCard();
     const tierId = tierArrangement.directTierForCountry(meta.id);
     const tier = tierId ? tierArrangement.tier(tierId) : null;
@@ -2222,7 +2229,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
         countryContextFor(meta, tier),
       ),
     );
-    revealCountryCardBelowMap();
+    if (scroll) revealCountryCardBelowMap();
   }
 
   function revealCountryCardBelowMap(): void {
