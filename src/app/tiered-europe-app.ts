@@ -515,7 +515,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
   function setupBrandPlacement(): void {
     const desktopBrandQuery = window.matchMedia("(min-width: 1280px)");
     const headerLogoSrc = "/logo/tiered-eu-logo-header.svg";
-    const mapLogoSrc = "/logo/tiered-eu-logo-white.svg";
+    const mapLogoSrc = "/logo/tiered-eu-logo-header.svg";
     const syncBrandPlacement = (): void => {
       const shouldDockBrand = desktopBrandQuery.matches;
 

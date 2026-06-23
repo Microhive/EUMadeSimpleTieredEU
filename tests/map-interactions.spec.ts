@@ -732,6 +732,25 @@ test.describe("map toolbar — desktop layout", () => {
     expect(editBox).not.toBeNull();
     expect(editButtonBox).not.toBeNull();
     expect(videoBox).not.toBeNull();
+    const brandState = await page.locator(".map-toolbar .brand").evaluate((brand) => {
+      const logo = brand.querySelector<HTMLImageElement>(".brand-logo")!;
+      const brandStyles = getComputedStyle(brand);
+      const logoStyles = getComputedStyle(logo);
+
+      return {
+        href: brand.getAttribute("href"),
+        logoSrc: logo.getAttribute("src"),
+        pointerEvents: brandStyles.pointerEvents,
+        userSelect: brandStyles.userSelect,
+        logoPointerEvents: logoStyles.pointerEvents,
+      };
+    });
+    expect(brandState.href).toBeNull();
+    expect(brandState.logoSrc).toContain("/logo/tiered-eu-logo-header.svg");
+    expect(brandState.pointerEvents).toBe("none");
+    expect(brandState.logoPointerEvents).toBe("none");
+    expect(brandState.userSelect).toBe("none");
+    expect(brandBox!.width).toBeGreaterThanOrEqual(164);
     expect(tabsBox!.x).toBeLessThanOrEqual(mapBox!.x + 24);
     expect(tabsBox!.x).toBeGreaterThanOrEqual(mapBox!.x + 8);
     expect(editBox!.height).toBeCloseTo(tabsBox!.height, 1);
@@ -770,20 +789,29 @@ test.describe("desktop split layout", () => {
       const storyPanel = document.querySelector<HTMLElement>(".story-panel")!;
       const mapWrap = document.querySelector<HTMLElement>(".map-wrap")!;
       const infographic = document.querySelector<HTMLElement>("#main")!;
+      const siteShell = document.querySelector<HTMLElement>(".site-shell")!;
       const storyRect = storyPanel.getBoundingClientRect();
       const mapRect = mapWrap.getBoundingClientRect();
       const infographicRect = infographic.getBoundingClientRect();
+      const siteShellStyles = getComputedStyle(siteShell);
 
       return {
         bodyOverflowY: getComputedStyle(document.body).overflowY,
         documentScrollHeight: document.documentElement.scrollHeight,
         viewportHeight: window.innerHeight,
+        shellPaddingTop: parseFloat(siteShellStyles.paddingTop),
+        shellPaddingRight: parseFloat(siteShellStyles.paddingRight),
+        shellPaddingBottom: parseFloat(siteShellStyles.paddingBottom),
         infographicColumns: getComputedStyle(infographic).gridTemplateColumns.split(" ").length,
+        storyWidth: storyRect.width,
         storyOverflowY: getComputedStyle(storyPanel).overflowY,
         storyClientHeight: storyPanel.clientHeight,
         storyScrollHeight: storyPanel.scrollHeight,
         storyBottom: storyRect.bottom,
+        mapTopGap: mapRect.top,
+        mapRightGap: window.innerWidth - mapRect.right,
         mapBottom: mapRect.bottom,
+        mapBottomGap: window.innerHeight - mapRect.bottom,
         mapHeight: mapRect.height,
         infographicBottom: infographicRect.bottom,
       };
@@ -791,8 +819,13 @@ test.describe("desktop split layout", () => {
 
     expect(layout.bodyOverflowY).toBe("hidden");
     expect(layout.infographicColumns).toBe(2);
+    expect(layout.shellPaddingTop).toBeCloseTo(layout.shellPaddingRight, 1);
+    expect(layout.shellPaddingBottom).toBeCloseTo(layout.shellPaddingRight, 1);
+    expect(layout.storyWidth).toBeCloseTo(520, 1);
     expect(layout.documentScrollHeight).toBeLessThanOrEqual(layout.viewportHeight + 1);
     expect(layout.mapBottom).toBeLessThanOrEqual(layout.viewportHeight);
+    expect(layout.mapTopGap).toBeCloseTo(layout.mapRightGap, 1);
+    expect(layout.mapBottomGap).toBeCloseTo(layout.mapRightGap, 1);
     expect(layout.infographicBottom).toBeLessThanOrEqual(layout.viewportHeight);
     expect(layout.mapHeight).toBeGreaterThan(500);
     expect(layout.storyOverflowY).toBe("auto");
@@ -1179,12 +1212,16 @@ test.describe("map rendering — desktop", () => {
       page.locator("#legend").boundingBox(),
       page.locator("#countryCard").boundingBox(),
     ]);
+    const sourcesShadow = await page.locator("#sources").evaluate((element) => {
+      return getComputedStyle(element).boxShadow;
+    });
 
     expect(sourcesBox).not.toBeNull();
     expect(legendBox).not.toBeNull();
     expect(countryCardBox).not.toBeNull();
     expect(legendBox!.y + legendBox!.height).toBeLessThan(sourcesBox!.y - 6);
     expect(countryCardBox!.y + countryCardBox!.height).toBeLessThan(sourcesBox!.y - 6);
+    expect(sourcesShadow).not.toContain("3px 3px 0px");
   });
 
   test("shows the pulsing EU stars while topology is pending", async ({
@@ -1475,6 +1512,76 @@ test.describe("map rendering — tablet", () => {
     expect(Math.abs(layout.svg.height - layout.map.clientHeight)).toBeLessThan(2);
     expect(Math.abs(layout.canvas.height - layout.map.clientHeight)).toBeLessThan(2);
     expect(Math.abs(layout.flagCanvas.height - layout.map.clientHeight)).toBeLessThan(2);
+  });
+
+  test("uses compact legend pills and short labels", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const legendLayout = await page.locator("#legend").evaluate((legend) => {
+      const item = legend.querySelector<HTMLElement>(".legend-item")!;
+      const swatch = legend.querySelector<HTMLElement>(".legend-swatch")!;
+      const fullLabel = legend.querySelector<HTMLElement>(".label-full")!;
+      const shortLabel = legend.querySelector<HTMLElement>(".label-short")!;
+      const legendStyles = getComputedStyle(legend);
+      const itemStyles = getComputedStyle(item);
+      const itemBox = item.getBoundingClientRect();
+      const swatchBox = swatch.getBoundingClientRect();
+
+      return {
+        gap: legendStyles.gap,
+        maxWidth: parseFloat(legendStyles.maxWidth),
+        itemHeight: itemBox.height,
+        itemPaddingTop: parseFloat(itemStyles.paddingTop),
+        itemFontSize: parseFloat(itemStyles.fontSize),
+        swatchWidth: swatchBox.width,
+        fullDisplay: getComputedStyle(fullLabel).display,
+        shortDisplay: getComputedStyle(shortLabel).display,
+      };
+    });
+
+    expect(legendLayout.gap).toBe("4px");
+    expect(legendLayout.maxWidth).toBeLessThanOrEqual(180);
+    expect(legendLayout.itemHeight).toBeLessThanOrEqual(28);
+    expect(legendLayout.itemPaddingTop).toBeLessThanOrEqual(4);
+    expect(legendLayout.itemFontSize).toBeLessThanOrEqual(9);
+    expect(legendLayout.swatchWidth).toBeLessThanOrEqual(12);
+    expect(legendLayout.fullDisplay).toBe("none");
+    expect(legendLayout.shortDisplay).not.toBe("none");
+  });
+});
+
+test.describe("map rendering — mobile", () => {
+  test.use({ ...desktop, viewport: { width: 393, height: 851 } });
+
+  test("tightens the map legend further on phones", async ({ page }) => {
+    await page.goto("/");
+    await waitForMap(page);
+
+    const legendLayout = await page.locator("#legend").evaluate((legend) => {
+      const item = legend.querySelector<HTMLElement>(".legend-item")!;
+      const swatch = legend.querySelector<HTMLElement>(".legend-swatch")!;
+      const legendStyles = getComputedStyle(legend);
+      const itemStyles = getComputedStyle(item);
+      const itemBox = item.getBoundingClientRect();
+      const swatchBox = swatch.getBoundingClientRect();
+
+      return {
+        left: legendStyles.left,
+        bottom: legendStyles.bottom,
+        maxWidth: parseFloat(legendStyles.maxWidth),
+        itemHeight: itemBox.height,
+        itemFontSize: parseFloat(itemStyles.fontSize),
+        swatchWidth: swatchBox.width,
+      };
+    });
+
+    expect(legendLayout.left).toBe("10px");
+    expect(legendLayout.bottom).toBe("10px");
+    expect(legendLayout.maxWidth).toBeLessThanOrEqual(150);
+    expect(legendLayout.itemHeight).toBeLessThanOrEqual(24);
+    expect(legendLayout.itemFontSize).toBeLessThanOrEqual(8);
+    expect(legendLayout.swatchWidth).toBeLessThanOrEqual(11);
   });
 });
 
