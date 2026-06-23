@@ -710,6 +710,9 @@ test.describe("map toolbar — desktop layout", () => {
     await page.goto("/");
     await waitForMap(page);
 
+    await expect(page.locator(".map-toolbar .brand")).not.toHaveAttribute("href", /.+/);
+    await expect(page.locator(".map-toolbar .brand")).toHaveAttribute("aria-label", "tiered.eu branding");
+
     const [mapBox, tabsBox, innerButtonBox, flagButtonBox, brandBox, editBox, editButtonBox, videoBox] = await Promise.all([
       page.locator(".map-wrap").boundingBox(),
       page.locator("#sceneTabs").boundingBox(),
