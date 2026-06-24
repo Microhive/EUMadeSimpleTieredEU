@@ -2956,7 +2956,7 @@ img.chip-flag {
   }
 
   h1 {
-    font-size: clamp(1.58rem, 8.7cqi, 2.35rem);
+    font-size: clamp(1.5rem, 8.45cqi, 2.35rem);
     text-align: center;
   }
 
