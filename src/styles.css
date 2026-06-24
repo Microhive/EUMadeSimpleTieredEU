@@ -2726,11 +2726,11 @@ img.chip-flag {
 
 @media (min-width: 768px) and (max-width: 1279px) and (max-height: 720px) {
   .story-panel {
-    gap: 5px;
+    gap: 4px;
   }
 
   .mission-card {
-    padding: 8px 9px;
+    padding: 7px 8px;
   }
 
   h1 {
@@ -2744,14 +2744,14 @@ img.chip-flag {
   }
 
   .benefit-pills {
-    gap: 5px 7px;
-    margin-top: 6px;
-    padding-top: 6px;
+    gap: 4px 6px;
+    margin-top: 5px;
+    padding-top: 5px;
   }
 
   .benefit-pill {
-    min-height: 28px;
-    padding: 3px 4px;
+    min-height: 26px;
+    padding: 2px 4px;
   }
 
   .pill-icon {
@@ -2768,16 +2768,18 @@ img.chip-flag {
   }
 
   .tier-deck {
-    gap: 5px;
+    align-self: start;
+    grid-template-rows: repeat(4, max-content);
+    gap: 4px;
   }
 
   .tier-card {
     gap: 2px;
-    padding: 5px 7px;
+    padding: 4px 6px;
   }
 
   .tier-head {
-    --tier-number-size: 28px;
+    --tier-number-size: 26px;
 
     gap: 6px;
   }
@@ -2805,8 +2807,8 @@ img.chip-flag {
   }
 
   .country-chip {
-    width: 18px;
-    height: 18px;
+    width: 17px;
+    height: 17px;
   }
 }
 
