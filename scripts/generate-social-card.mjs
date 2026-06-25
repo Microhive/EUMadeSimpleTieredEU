@@ -63,7 +63,7 @@ try {
         outline: 6px solid #fff8ee;
         border-radius: 50%;
         background: #f0b800;
-        box-shadow: 10px 10px 0 rgba(0, 0, 0, 0.72);
+        box-shadow: 18px 18px 0 rgba(0, 0, 0, 0.82);
         color: #08131d;
         letter-spacing: 0;
         transform: translate(-50%, -50%);
@@ -71,24 +71,30 @@ try {
 
       .social-card-brand-wordmark {
         display: block;
-        color: #08131d;
+        color: #ffffff;
         font: 900 96px/0.86 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         letter-spacing: -3px;
         white-space: nowrap;
+        -webkit-text-stroke: 5px #080b0f;
+        paint-order: stroke fill;
+        text-shadow: 6px 6px 0 rgba(0, 0, 0, 0.62);
       }
 
       .social-card-brand-dot {
-        color: #fff8ee;
+        color: #ffcc00;
       }
 
       .social-card-brand-tagline {
         display: block;
         max-width: none;
-        color: #34495f;
+        color: #f8fafc;
         font: 900 41px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         letter-spacing: -1px;
         text-align: center;
         white-space: nowrap;
+        -webkit-text-stroke: 3px #080b0f;
+        paint-order: stroke fill;
+        text-shadow: 4px 4px 0 rgba(0, 0, 0, 0.62);
       }
     `,
   });
