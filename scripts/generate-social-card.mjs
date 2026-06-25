@@ -45,55 +45,60 @@ try {
 
   await page.addStyleTag({
     content: `
-      .social-card-cta {
+      .social-card-brand-lockup {
         position: fixed;
-        left: 444px;
-        top: 164px;
+        left: 452px;
+        top: 118px;
         z-index: 1000;
-        display: inline-flex;
-        align-items: center;
-        gap: 18px;
-        min-height: 72px;
-        padding: 0 14px 0 30px;
+        box-sizing: border-box;
+        width: 486px;
+        padding: 16px 20px 18px;
         border: 5px solid #08131d;
         outline: 5px solid #fff8ee;
-        border-radius: 999px;
-        background: #f0b800;
+        border-radius: 18px;
+        background: rgba(255, 248, 238, 0.96);
         box-shadow: 8px 8px 0 #08131d;
         color: #08131d;
-        font: 900 34px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         letter-spacing: 0;
-        text-transform: uppercase;
-        transform: rotate(-1.5deg);
+        transform: rotate(-1.7deg);
       }
 
-      .social-card-cta-arrow {
-        display: inline-grid;
-        place-items: center;
-        width: 54px;
-        height: 54px;
+      .social-card-brand-lockup img {
+        display: block;
+        width: 420px;
+        max-width: 100%;
+        height: auto;
+        margin: -10px 0 -2px -8px;
+      }
+
+      .social-card-brand-title {
+        display: inline-block;
+        margin-top: 2px;
+        padding: 8px 14px 10px;
+        border: 4px solid #08131d;
         border-radius: 999px;
-        background: #08131d;
-        color: #f0b800;
-        font-size: 46px;
+        background: #f0b800;
+        color: #08131d;
+        font: 900 29px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         line-height: 1;
-        transform: translateY(-1px);
+        text-transform: uppercase;
       }
     `,
   });
   await page.evaluate(() => {
-    const cta = document.createElement("div");
-    const label = document.createElement("span");
-    const arrow = document.createElement("span");
+    const lockup = document.createElement("div");
+    const logo = document.createElement("img");
+    const title = document.createElement("span");
 
-    cta.className = "social-card-cta";
-    cta.setAttribute("aria-hidden", "true");
-    label.textContent = "Explore the map";
-    arrow.className = "social-card-cta-arrow";
-    arrow.textContent = "\u2192";
+    lockup.className = "social-card-brand-lockup";
+    lockup.setAttribute("aria-hidden", "true");
+    logo.src = "/logo/tiered-eu-logo.svg";
+    logo.alt = "";
+    title.className = "social-card-brand-title";
+    title.textContent = "What could a tiered EU become?";
 
-    cta.append(label, arrow);
-    document.body.appendChild(cta);
+    lockup.append(logo, title);
+    document.body.appendChild(lockup);
   });
 
   await page.screenshot({
