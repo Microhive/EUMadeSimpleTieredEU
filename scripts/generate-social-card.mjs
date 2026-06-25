@@ -47,40 +47,46 @@ try {
     content: `
       .social-card-brand-lockup {
         position: fixed;
-        left: 452px;
-        top: 118px;
+        left: 50vw;
+        top: 50vh;
         z-index: 1000;
         box-sizing: border-box;
-        width: 486px;
-        padding: 16px 20px 18px;
-        border: 5px solid #08131d;
-        outline: 5px solid #fff8ee;
-        border-radius: 18px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        width: 430px;
+        height: 430px;
+        padding: 40px;
+        border: 6px solid #08131d;
+        outline: 6px solid #fff8ee;
+        border-radius: 50%;
         background: rgba(255, 248, 238, 0.96);
-        box-shadow: 8px 8px 0 #08131d;
+        box-shadow: 10px 10px 0 #08131d;
         color: #08131d;
         letter-spacing: 0;
-        transform: rotate(-1.7deg);
+        transform: translate(-50%, -50%);
       }
 
       .social-card-brand-lockup img {
         display: block;
-        width: 420px;
+        width: 340px;
         max-width: 100%;
         height: auto;
-        margin: -10px 0 -2px -8px;
+        margin: -8px auto 0;
       }
 
       .social-card-brand-title {
-        display: inline-block;
-        margin-top: 2px;
-        padding: 8px 14px 10px;
+        display: block;
+        width: 340px;
+        padding: 11px 18px 13px;
         border: 4px solid #08131d;
-        border-radius: 999px;
+        border-radius: 28px;
         background: #f0b800;
         color: #08131d;
-        font: 900 29px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        line-height: 1;
+        font: 900 30px/0.95 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        text-align: center;
         text-transform: uppercase;
       }
     `,
@@ -95,7 +101,7 @@ try {
     logo.src = "/logo/tiered-eu-logo.svg";
     logo.alt = "";
     title.className = "social-card-brand-title";
-    title.textContent = "What could a tiered EU become?";
+    title.innerHTML = "What could a tiered EU<br>become?";
 
     lockup.append(logo, title);
     document.body.appendChild(lockup);
