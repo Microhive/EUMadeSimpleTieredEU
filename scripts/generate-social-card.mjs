@@ -46,32 +46,54 @@ try {
   await page.addStyleTag({
     content: `
       .social-card-cta {
-        position: absolute;
-        left: 18px;
-        top: 148px;
-        z-index: 20;
+        position: fixed;
+        left: 444px;
+        top: 164px;
+        z-index: 1000;
         display: inline-flex;
         align-items: center;
-        gap: 12px;
-        min-height: 52px;
-        padding: 0 24px;
-        border: 4px solid #08131d;
+        gap: 18px;
+        min-height: 72px;
+        padding: 0 14px 0 30px;
+        border: 5px solid #08131d;
+        outline: 5px solid #fff8ee;
         border-radius: 999px;
         background: #f0b800;
-        box-shadow: 5px 5px 0 #08131d;
+        box-shadow: 8px 8px 0 #08131d;
         color: #08131d;
-        font: 900 26px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font: 900 34px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         letter-spacing: 0;
         text-transform: uppercase;
+        transform: rotate(-1.5deg);
+      }
+
+      .social-card-cta-arrow {
+        display: inline-grid;
+        place-items: center;
+        width: 54px;
+        height: 54px;
+        border-radius: 999px;
+        background: #08131d;
+        color: #f0b800;
+        font-size: 46px;
+        line-height: 1;
+        transform: translateY(-1px);
       }
     `,
   });
-  await page.locator(".map-wrap").evaluate((mapWrap) => {
+  await page.evaluate(() => {
     const cta = document.createElement("div");
+    const label = document.createElement("span");
+    const arrow = document.createElement("span");
+
     cta.className = "social-card-cta";
-    cta.textContent = "Explore the map \u2192";
     cta.setAttribute("aria-hidden", "true");
-    mapWrap.appendChild(cta);
+    label.textContent = "Explore the map";
+    arrow.className = "social-card-cta-arrow";
+    arrow.textContent = "\u2192";
+
+    cta.append(label, arrow);
+    document.body.appendChild(cta);
   });
 
   await page.screenshot({
