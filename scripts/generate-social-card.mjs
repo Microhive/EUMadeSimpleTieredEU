@@ -55,10 +55,10 @@ try {
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 10px;
+        gap: 22px;
         width: 456px;
         height: 456px;
-        padding: 42px;
+        padding: 38px;
         border: 6px solid #08131d;
         outline: 6px solid #fff8ee;
         border-radius: 50%;
@@ -69,18 +69,11 @@ try {
         transform: translate(-50%, -50%);
       }
 
-      .social-card-brand-lockup img {
-        display: block;
-        width: 142px;
-        height: auto;
-        margin: 0 auto 2px;
-      }
-
       .social-card-brand-wordmark {
         display: block;
         color: #08131d;
-        font: 900 78px/0.9 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        letter-spacing: -1px;
+        font: 900 96px/0.86 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        letter-spacing: -3px;
         white-space: nowrap;
       }
 
@@ -90,28 +83,27 @@ try {
 
       .social-card-brand-tagline {
         display: block;
+        max-width: 360px;
         color: #34495f;
-        font: 800 25px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        letter-spacing: 0;
+        font: 900 51px/0.92 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        letter-spacing: -1px;
+        text-align: center;
       }
     `,
   });
   await page.evaluate(() => {
     const lockup = document.createElement("div");
-    const logo = document.createElement("img");
     const wordmark = document.createElement("span");
     const tagline = document.createElement("span");
 
     lockup.className = "social-card-brand-lockup";
     lockup.setAttribute("aria-hidden", "true");
-    logo.src = "/logo/tiered-eu-mark.svg";
-    logo.alt = "";
     wordmark.className = "social-card-brand-wordmark";
     wordmark.innerHTML = 'tiered<span class="social-card-brand-dot">.</span>eu';
     tagline.className = "social-card-brand-tagline";
-    tagline.textContent = "Explore a tiered Europe";
+    tagline.innerHTML = "Explore a tiered<br>Europe";
 
-    lockup.append(logo, wordmark, tagline);
+    lockup.append(wordmark, tagline);
     document.body.appendChild(lockup);
   });
 
