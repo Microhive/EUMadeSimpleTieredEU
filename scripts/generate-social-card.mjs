@@ -43,6 +43,37 @@ try {
   });
   await page.waitForTimeout(500);
 
+  await page.addStyleTag({
+    content: `
+      .social-card-cta {
+        position: absolute;
+        left: 18px;
+        top: 148px;
+        z-index: 20;
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 52px;
+        padding: 0 24px;
+        border: 4px solid #08131d;
+        border-radius: 999px;
+        background: #f0b800;
+        box-shadow: 5px 5px 0 #08131d;
+        color: #08131d;
+        font: 900 26px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        letter-spacing: 0;
+        text-transform: uppercase;
+      }
+    `,
+  });
+  await page.locator(".map-wrap").evaluate((mapWrap) => {
+    const cta = document.createElement("div");
+    cta.className = "social-card-cta";
+    cta.textContent = "Explore the map \u2192";
+    cta.setAttribute("aria-hidden", "true");
+    mapWrap.appendChild(cta);
+  });
+
   await page.screenshot({
     path: socialCardPath,
     type: "png",
