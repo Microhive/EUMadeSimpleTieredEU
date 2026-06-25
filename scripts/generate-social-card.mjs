@@ -83,11 +83,12 @@ try {
 
       .social-card-brand-tagline {
         display: block;
-        max-width: 360px;
+        max-width: none;
         color: #34495f;
-        font: 900 51px/0.92 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font: 900 41px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         letter-spacing: -1px;
         text-align: center;
+        white-space: nowrap;
       }
     `,
   });
@@ -101,7 +102,7 @@ try {
     wordmark.className = "social-card-brand-wordmark";
     wordmark.innerHTML = 'tiered<span class="social-card-brand-dot">.</span>eu';
     tagline.className = "social-card-brand-tagline";
-    tagline.innerHTML = "Explore a tiered<br>Europe";
+    tagline.textContent = "Explore a tiered EU";
 
     lockup.append(wordmark, tagline);
     document.body.appendChild(lockup);
