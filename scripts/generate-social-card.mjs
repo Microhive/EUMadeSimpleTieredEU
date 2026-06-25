@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { createServer } from "vite";
 
 const viewport = { width: 1200, height: 630 };
-const socialCardPath = fileURLToPath(new URL("../assets/social-card.jpg", import.meta.url));
+const socialCardPath = fileURLToPath(new URL("../assets/og-tiered-eu.png", import.meta.url));
 
 let server;
 let browser;
@@ -45,8 +45,7 @@ try {
 
   await page.screenshot({
     path: socialCardPath,
-    type: "jpeg",
-    quality: 92,
+    type: "png",
   });
 
   console.log(`Generated ${socialCardPath} at ${viewport.width}x${viewport.height}.`);

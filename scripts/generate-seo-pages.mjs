@@ -2,10 +2,10 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const siteOrigin = "https://tiered.eu";
-const socialImageUrl = `${siteOrigin}/social-card.jpg`;
-const rootTitle = "Tiered Europe Map: Interactive EU Integration Scenario | tiered.eu";
+const socialImageUrl = `${siteOrigin}/og-tiered-eu.png`;
+const rootTitle = "What could a tiered EU become?";
 const rootDescription =
-  "Explore an interactive Tiered Europe map from tiered.eu, showing how a multi-speed European Union could work across four integration tiers.";
+  "Explore an interactive scenario for a tiered Europe, from a wider democratic community to deeper EU integration.";
 
 const distDir = "dist";
 const templatePath = join(distDir, "index.html");
@@ -37,7 +37,7 @@ function withRootStructuredData(html) {
   return replaceStructuredData(html, {
     "@context": "https://schema.org",
     "@type": "WebApplication",
-    name: "tiered.eu - Tiered Europe",
+    name: rootTitle,
     url: `${siteOrigin}/`,
     applicationCategory: "EducationalApplication",
     operatingSystem: "Any",

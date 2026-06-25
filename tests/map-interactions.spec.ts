@@ -408,26 +408,38 @@ test.describe("first paint content", () => {
   test("declares search and social metadata before app JavaScript runs", async ({ page }) => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
 
-    await expect(page).toHaveTitle("Tiered Europe Map: Interactive EU Integration Scenario");
+    await expect(page).toHaveTitle("What could a tiered EU become?");
     await expect(page.locator('meta[name="description"]')).toHaveAttribute(
       "content",
-      /interactive Tiered Europe map/,
+      "Explore an interactive scenario for a tiered Europe, from a wider democratic community to deeper EU integration.",
     );
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
       "href",
       "https://tiered.eu/",
     );
+    await expect(page.locator('meta[property="og:type"]')).toHaveAttribute(
+      "content",
+      "website",
+    );
+    await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
+      "content",
+      "What could a tiered EU become?",
+    );
     await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
       "content",
-      "https://tiered.eu/social-card.jpg",
+      "https://tiered.eu/og-tiered-eu.png",
     );
     await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute(
       "content",
       "summary_large_image",
     );
+    await expect(page.locator('meta[name="twitter:image"]')).toHaveAttribute(
+      "content",
+      "https://tiered.eu/og-tiered-eu.png",
+    );
     await expect
       .poll(() => page.locator("#structuredData").evaluate((script) => script.textContent ?? ""))
-      .toContain("Tiered Europe Map");
+      .toContain("What could a tiered EU become?");
   });
 
   test("renders tier titles, capability pills, summaries, and flag skeletons before app JavaScript runs", async ({

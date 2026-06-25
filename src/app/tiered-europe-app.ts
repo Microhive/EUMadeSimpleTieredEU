@@ -83,10 +83,10 @@ interface TierPageContent {
 }
 
 const SITE_ORIGIN = "https://tiered.eu";
-const ROOT_SEO_TITLE = "Tiered Europe Map: Interactive EU Integration Scenario";
+const ROOT_SEO_TITLE = "What could a tiered EU become?";
 const ROOT_META_DESCRIPTION =
-  "Explore an interactive Tiered Europe map showing how a multi-speed European Union could work across four integration tiers.";
-const SOCIAL_IMAGE_URL = `${SITE_ORIGIN}/social-card.jpg`;
+  "Explore an interactive scenario for a tiered Europe, from a wider democratic community to deeper EU integration.";
+const SOCIAL_IMAGE_URL = `${SITE_ORIGIN}/og-tiered-eu.png`;
 const TIER_PAGE_CONTENT = tierPageContentData as TierPageContent[];
 const TIER_PAGE_BY_PATH = new Map<string, TierPageContent>(
   TIER_PAGE_CONTENT.map((content) => [content.path, content]),
@@ -849,10 +849,10 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
 
     document.title = title;
     setMetaContent('meta[name="description"]', description);
-    setMetaContent('meta[property="og:title"]', content ? `${content.title} - Tiered Europe` : "Tiered Europe Map");
+    setMetaContent('meta[property="og:title"]', content ? `${content.title} - Tiered Europe` : ROOT_SEO_TITLE);
     setMetaContent('meta[property="og:description"]', description);
     setMetaContent('meta[property="og:url"]', canonicalUrl);
-    setMetaContent('meta[name="twitter:title"]', content ? `${content.title} - Tiered Europe` : "Tiered Europe Map");
+    setMetaContent('meta[name="twitter:title"]', content ? `${content.title} - Tiered Europe` : ROOT_SEO_TITLE);
     setMetaContent('meta[name="twitter:description"]', description);
     setCanonicalHref(canonicalUrl);
     updateStructuredData(content, canonicalUrl, description);
@@ -883,7 +883,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
             url: canonicalUrl,
             isPartOf: {
               "@type": "WebSite",
-              name: "Tiered Europe",
+              name: "tiered.eu",
               url: SITE_ORIGIN,
             },
             inLanguage: "en",
@@ -893,7 +893,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
         : {
             "@context": "https://schema.org",
             "@type": "WebApplication",
-            name: "Tiered Europe Map",
+            name: ROOT_SEO_TITLE,
             url: canonicalUrl,
             applicationCategory: "EducationalApplication",
             operatingSystem: "Any",
@@ -903,7 +903,7 @@ export function startTieredEuropeApp({ d3, topojson }: StartTieredEuropeAppOptio
             image: SOCIAL_IMAGE_URL,
             creator: {
               "@type": "Organization",
-              name: "Tiered Europe",
+              name: "tiered.eu",
             },
           },
       null,
